@@ -106,13 +106,15 @@ class Effect:
     freeze: bool = False
     summon_atk: int = 0
     summon_hp: int = 0
+    summon_count: int = 1   # 一次召唤几个
     mana: int = 0            # 本回合获得的法力（例如幸运币）
+    armor: int = 0           # 获得护甲（战士/德鲁伊英雄技能）
     aoe: bool = False
     known: bool = True
     note: str = ""
 
     def is_empty(self) -> bool:
-        return not (self.damage or self.draw or self.heal or self.buff_atk or self.mana or self.buff_hp
+        return not (self.damage or self.draw or self.heal or self.buff_atk or self.mana or self.armor or self.buff_hp
                     or self.destroy or self.freeze or self.summon_atk)
 
 
@@ -182,6 +184,24 @@ def parse_effect(card: Card) -> Effect:
 
     if re.search(r"获得\s*(?:一|1)?\s*个?\s*(?:空的)?\s*法力水晶", text):
         eff.mana = 1
+    # 护甲的写法很杂：「获得2点护甲」「+2护甲」「本回合+2护甲」
+    if m := re.search(r"(\d+)\s*点?护甲", text):
+        eff.armor = int(m.group(1))
+
+    # 召唤：中文数字 + 数量 + 攻/血（「召唤两个1/1的僵尸」「召唤五个2/1的」）
+    _cn = {"一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7}
+    if m := re.search(r"召唤\s*(一|两|二|三|四|五|六|七|\d+)\s*个?\s*(\d+)\s*/\s*(\d+)", text):
+        token = m.group(1)
+        eff.summon_count = int(token) if token.isdigit() else _cn.get(token, 1)
+        eff.summon_atk, eff.summon_hp = int(m.group(2)), int(m.group(3))
+    elif m := re.search(r"复活为\s*(\d+)\s*/\s*(\d+)", text):
+        # 「将最多5份残骸复活为2/2」——按最多份数估
+        cap = re.search(r"最多\s*(\d+)\s*份", text)
+        eff.summon_count = min(int(cap.group(1)), 7) if cap else 1
+        eff.summon_atk, eff.summon_hp = int(m.group(1)), int(m.group(2))
+    # 本回合加攻击力（盗贼/恶魔猎手英雄技能）
+    if m := re.search(r"本回合\s*\+?\s*(?:\w\d+)?\s*(\d+)\s*攻击力", text):
+        eff.buff_atk = int(m.group(1))
 
     # 「抽三张法力值消耗不同的牌」这类：抽 N 张后面还跟着限定语，
     # 原来的 抽N张牌 匹配不到，整张牌就被判成「效果未建模」
@@ -191,7 +211,7 @@ def parse_effect(card: Card) -> Effect:
             eff.draw = int(token) if token.isdigit() else {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5}[token]
     eff.known = bool(
         eff.damage or eff.heal or eff.draw or eff.buff_atk or eff.buff_hp
-        or eff.destroy or eff.summon_atk or eff.freeze or eff.mana
+        or eff.destroy or eff.summon_atk or eff.freeze or eff.mana or eff.armor
     ) or card.type in ("MINION", "WEAPON", "HERO")
     if not eff.known:
         eff.note = "效果未能建模"
@@ -276,6 +296,7 @@ class SideState:
     weapon: Unit | None = None
     hero_class: str = "NEUTRAL"
     hero_power_used: bool = False
+    hero_power: "Card | None" = None
     spells_cast: int = 0
 
     def clone(self) -> "SideState":
@@ -291,6 +312,7 @@ class SideState:
             weapon=self.weapon.clone() if self.weapon else None,
             hero_class=self.hero_class,
             hero_power_used=self.hero_power_used,
+            hero_power=self.hero_power,
             spells_cast=self.spells_cast,
         )
 
@@ -406,9 +428,11 @@ class Board:
             target.frozen = True
             target.can_attack_now = False
 
-        if eff.summon_atk:
-            my_side.board.append(Unit(card_id="", name="召唤物", atk=eff.summon_atk,
-                                      hp=eff.summon_hp, max_hp=eff.summon_hp))
+        if eff.summon_atk or eff.summon_hp:
+            count = max(1, min(int(eff.summon_count or 1), 7))
+            for _ in range(count):
+                my_side.board.append(Unit(card_id="", name="召唤物", atk=eff.summon_atk,
+                                          hp=max(1, eff.summon_hp), max_hp=max(1, eff.summon_hp)))
 
         for _ in range(eff.draw):
             self.draw(caster)
@@ -505,8 +529,15 @@ def board_to_text(board: Board, idx: int) -> str:
 
 
 # ---------------------------------------------------------------- 从真实日志局面构造
-def hero_power_effect(card_class: str) -> tuple[str, int, Effect]:
-    """基础英雄技能（费用, 效果）。可被 learn 调整，但不是重点。"""
+def hero_power_effect(card_class: str, card: "Card | None" = None) -> tuple[str, int, Effect]:
+    """英雄技能（名称, 费用, 效果）。
+
+    优先用**这张真实的英雄技能卡**解析出来的效果：现代炉石里同一职业会有
+    升级版/替换版技能，写死的表必然对不上。表只作为拿不到卡时的兜底。
+    """
+    if card is not None and (card.text or ""):
+        eff = parse_effect(card)
+        return card.name, card.cost or 2, eff
     table = {
         "MAGE": ("火焰冲击", 2, Effect(damage=1, scope="target")),
         "HUNTER": ("稳固射击", 2, Effect(damage=2, scope="enemy_hero")),

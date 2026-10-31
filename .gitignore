@@ -10,6 +10,8 @@ data/meta.backup.json
 data/hsai.log
 data/window.json
 data/install_dir.txt
+data/ai.json
+# AI 解释层配置（可能含 key，绝不入库）
 
 # Python
 __pycache__/
@@ -21,3 +23,5 @@ venv/
 .vscode/
 .idea/
 *.swp
+data/lessons.jsonl
+data/last_review.json

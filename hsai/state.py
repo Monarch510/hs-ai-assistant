@@ -40,7 +40,7 @@ T_COST = "COST"
 T_HERO_ENTITY = "HERO_ENTITY"
 T_ATTACKS_THIS_TURN = "NUM_ATTACKS_THIS_TURN"
 
-ZONE_PLAY, ZONE_DECK, ZONE_HAND, ZONE_GRAVE, ZONE_SECRET = 1, 2, 3, 4, 5
+ZONE_PLAY, ZONE_DECK, ZONE_HAND, ZONE_GRAVE, ZONE_SECRET, ZONE_SETASIDE = 1, 2, 3, 4, 5, 7
 
 
 @dataclass
@@ -164,11 +164,18 @@ class GameState:
         # (谁, 实体 id) -> 记录时的回合号。同一张牌在同一回合只记一次：
         # 两条管线会把同一次出牌打印两遍，间隔可能超过几条记录。
         self._fed: dict[tuple[str, int], int] = {}
+        # 本局出现过「引擎看不懂效果」的牌，供对局结束时的说明使用
+        self.unmodelled: list[str] = []
+        # 任务牌进度：实体 id -> {"progress": n, "total": m}
+        self.quest_progress: dict[int, dict[str, int]] = {}
+        # 当前待做的选择（发现/抉择/弃牌等）：选项列表 + 来源牌
+        self.choice: dict[str, Any] | None = None
         # 先手是谁：手里有幸运币的一定是后手（客户端固定规则）
         self.first_player: int | None = None
         self._pending_names: list[str] = []
         self._last_cp_name: str | None = None     # 最近一条「轮到他」但还没认出的名字
         self._first_player_name: str | None = None
+        self._choice_player_name: str | None = None
         self.turn_events: list[str] = []
         self._hero_entities: dict[int, int] = {}
         self._name_player: dict[str, int] = {}
@@ -214,6 +221,18 @@ class GameState:
             self._on_block_start(ev)
         elif kind == "block_end":
             self._block_depth = max(0, self._block_depth - 1)
+        elif kind == "block_start":
+            # 出牌/攻击/英雄技能都会开 block；block 的实体引用里带 player=编号，
+            # 正好可以把「刚才 CURRENT_PLAYER=1 的那个名字」绑定到玩家上。
+            ref = ev.data.get("ref") or {}
+            ctrl = ref.get("controller")
+            if ctrl in (1, 2):
+                self._bind_by_action(int(ctrl))
+        elif kind == "choices":
+            self._on_choices(ev)
+        elif kind == "chosen":
+            if self.choice is not None:
+                self.choice = None
         elif kind == "entity_update":
             for ref in ev.data.get("refs") or []:
                 self._sync_ref(ref)
@@ -344,11 +363,16 @@ class GameState:
                         self.first_player if self.turn % 2 == 1 else 3 - self.first_player
                     )
                 else:
-                    # 先认不出这个名字是谁：记下来，等「他打出一张牌」时反推。
-                    # 先手不能靠猜 —— 猜错会错一整局。
+                    # 名字认不出：记下来，等「他打出一张牌」时反推；
+                    # 但回合归属不能一直空着 —— 回合严格交替，从上一个归属翻过去。
                     if name not in self._pending_names:
                         self._pending_names.append(name)
                     self._last_cp_name = name
+                    if self.turn_owner in (1, 2):
+                        self.turn_owner = 3 - self.turn_owner
+                    elif self.first_player in (1, 2) and self.turn:
+                        self.turn_owner = (self.first_player if self.turn % 2 == 1
+                                           else 3 - self.first_player)
                     return
                 self._name_player[name] = pid_from_name
                 self._note(f"识别玩家：{name} = 玩家{pid_from_name}")
@@ -437,6 +461,10 @@ class GameState:
                     self._wake_up(pid)
             elif val == 0 and pid_from_name and self.turn_owner == pid_from_name:
                 self.turn_owner = None
+        elif tag in ("QUEST_PROGRESS", "QUEST_PROGRESS_TOTAL") and eid:
+            if isinstance(val, int):
+                slot = self.quest_progress.setdefault(eid, {})
+                slot["progress" if tag == "QUEST_PROGRESS" else "total"] = val
         elif tag == "MULLIGAN_STATE":
             # INPUT/DEALING/WAITING/DONE —— DONE 才是「留牌结束」的真信号
             text = str(val).upper()
@@ -492,6 +520,18 @@ class GameState:
             return
         hand_ids = [e.card_id for e in self.entities.values()
                     if e.controller == self.our_id and e.zone == ZONE_HAND and e.card_id]
+        if "GAME_005" not in hand_ids and self.turn >= 3:
+            pe = self.player_entity(self.our_id)
+            crystals = _int(pe.tags.get(T_RESOURCES)) if pe is not None else None
+            if crystals:
+                # 第 N 回合：先手有 (N+1)//2 颗，后手有 N//2 颗
+                if crystals >= (self.turn + 1) // 2:
+                    self.first_player = self.our_id
+                elif crystals <= self.turn // 2:
+                    self.first_player = 3 - self.our_id
+                if self.first_player:
+                    self._bind_pending_names()
+                return
         if "GAME_005" not in hand_ids:
             # 没有币不能断定自己先手：币可能只是还没揭示出来。
             # 真正的先手以日志里的 FIRST_PLAYER 为准（见 _bind_by_action）。
@@ -566,6 +606,8 @@ class GameState:
         summary, known = self._effect_text(card_id)
         self.feed.append({"turn": self.turn, "who": who, "card_id": card_id, "eid": eid,
                           "name": name, "summary": summary, "known": known})
+        if not known and name not in self.unmodelled:
+            self.unmodelled.append(name)
         return True
 
     def _is_enchant(self, card_id: str | None) -> bool:
@@ -614,6 +656,44 @@ class GameState:
         elif new == ZONE_GRAVE:
             if e.controller == self.opp_id:
                 self._track_visibility(e)
+
+    def _on_choices(self, ev: pl.Event) -> None:
+        """发现/抉择/弃牌：记录待选选项。MULLIGAN 由留牌模块单独处理。"""
+        d = ev.data
+        # 选择块里同时有「谁在选」和「选项属于哪个玩家」——
+        # 这是日志里唯一能直接把名字和编号对上号的地方（留牌时就有）
+        pname = d.get("player_name")
+        if pname:
+            self._choice_player_name = pname      # 选项行本身没有 Player=，要沿用上一行
+        refs = d.get("refs") or []
+        if refs and self._choice_player_name and self._choice_player_name not in self._name_player:
+            ctrls = [r.get("controller") for r in refs if r.get("controller") in (1, 2)]
+            if ctrls and len(set(ctrls)) == 1:
+                pid = ctrls[0]
+                self._name_player[self._choice_player_name] = pid
+                self._note(f"识别玩家：{self._choice_player_name} = 玩家{pid}")
+                if self._first_player_name == self._choice_player_name:
+                    self.first_player = pid
+                elif self._first_player_name and self._first_player_name not in self._name_player:
+                    self._name_player[self._first_player_name] = 3 - pid
+                    self.first_player = 3 - pid
+                self._bind_pending_names()
+
+        ctype = d.get("choice_type")
+        if ctype == "MULLIGAN":
+            return
+        if ctype:
+            self.choice = {"type": ctype, "min": d.get("min") or 1,
+                           "max": d.get("max") or 1, "options": []}
+        if self.choice is None:
+            return
+        for ref in refs:
+            cid = ref.get("card_id")
+            if not cid or ref.get("zone") not in (ZONE_SETASIDE, ZONE_HAND, ZONE_PLAY):
+                continue
+            entry = {"id": cid, "name": self._name(cid), "eid": ref.get("id")}
+            if all(o["eid"] != entry["eid"] for o in self.choice["options"]):
+                self.choice["options"].append(entry)
 
     def _sync_ref(self, ref: dict[str, Any]) -> None:
         """把一行里看到的实体引用同步进状态（选择/目标行的 zone、cardId 是权威的）。"""

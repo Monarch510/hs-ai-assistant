@@ -54,7 +54,7 @@ KNOWN_TAGS: frozenset[str] = frozenset(
         "RESOURCES", "RESOURCES_USED", "PLAYER_ID",
         "DAMAGE", "HEALTH", "ATK", "COST", "ZONE", "CONTROLLER",
         "TAUNT", "DIVINE_SHIELD", "ARMOR", "NUM_ATTACKS_THIS_TURN",
-        "HERO_ENTITY", "CARDTYPE", "CARD_ID", "ZONE_POSITION", "MULLIGAN_STATE", "EXHAUSTED", "FROZEN", "FIRST_PLAYER",
+        "HERO_ENTITY", "CARDTYPE", "CARD_ID", "ZONE_POSITION", "MULLIGAN_STATE", "EXHAUSTED", "FROZEN", "FIRST_PLAYER", "QUEST_PROGRESS", "QUEST_PROGRESS_TOTAL",
     }
 )
 
@@ -157,6 +157,12 @@ def parse_value(raw: str) -> Any:
 def parse_entity_ref(text: str) -> dict[str, Any] | None:
     """解析实体引用，返回 {id?, name?, zone?, zone_pos?, card_id?, controller?}。"""
     m = REF_RE.search(text)
+    if m is None and "[" in text:
+        blocks = _bracket_blocks(text)
+        if blocks:
+            ref = _ref_from_block(blocks[0])
+            if ref is not None:
+                return ref
     if m:
         out: dict[str, Any] = {}
         if m.group("id") is not None:
@@ -217,7 +223,12 @@ def parse_line(line: str, pending_entity: int | None = None) -> Event | None:
     if not body:
         return None
 
-    if source in ("GameState.SendChoices", "GameState.DebugPrintEntitiesChosen"):
+    if source == "GameState.DebugPrintEntitiesChosen":
+        ev = _parse_ref_line(body, time)
+        if ev is not None:
+            ev.kind = "chosen"
+        return ev
+    if source == "GameState.SendChoices":
         return _parse_ref_line(body, time)
     if source == "GameState.DebugPrintEntityChoices":
         ev = _parse_choices(body, time)
@@ -275,22 +286,58 @@ def parse_line(line: str, pending_entity: int | None = None) -> Event | None:
     return Event("unknown", {"raw": body}, time)
 
 
+def _bracket_blocks(text: str) -> list[str]:
+    """按括号配平切出所有顶层 [ ... ] 的内容。
+
+    实体引用里 entityName 可能自带方括号
+    （entityName=UNKNOWN ENTITY [cardType=INVALID]），正则的非贪婪匹配会
+    在内层 ] 处提前截断，导致整行解析失败 —— 手牌读不到、发现选项只出一个，
+    根因都是这个。
+    """
+    blocks: list[str] = []
+    depth = 0
+    start = -1
+    for i, ch in enumerate(text):
+        if ch == "[":
+            if depth == 0:
+                start = i + 1
+            depth += 1
+        elif ch == "]":
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start >= 0:
+                    blocks.append(text[start:i])
+                    start = -1
+    return blocks
+
+
+def _ref_from_block(inner: str) -> dict[str, Any] | None:
+    m_id = re.search(r"\bid=(-?\d+)", inner)
+    if not m_id:
+        return None
+    out: dict[str, Any] = {"id": int(m_id.group(1))}
+    if m := re.search(r"\bzone=([A-Z_]+)", inner):
+        out["zone"] = ZONE_IDS.get(m.group(1).upper(), m.group(1))
+    if m := re.search(r"\bzonePos=(-?\d+)", inner):
+        out["zone_pos"] = int(m.group(1))
+    if m := re.search(r"\bcardId=(\w*)", inner):
+        if m.group(1):
+            out["card_id"] = m.group(1)
+    if m := re.search(r"\bplayer=(\d+)", inner):
+        out["controller"] = int(m.group(1))
+    if m := re.search(r"entityName=(.*?)(?=\s+id=)", inner, re.S):
+        nm = m.group(1).strip()
+        if nm and not nm.startswith("UNKNOWN ENTITY"):
+            out["name"] = nm
+    return out
+
+
 def _all_refs(body: str) -> list[dict[str, Any]]:
-    out = []
-    for m in REF_ALL.finditer(body):
-        d: dict[str, Any] = {"id": int(m.group("id"))}
-        if m.group("zone"):
-            d["zone"] = ZONE_IDS.get(m.group("zone").upper(), m.group("zone"))
-        if m.group("card"):
-            d["card_id"] = m.group("card")
-        if m.group("player"):
-            d["controller"] = int(m.group("player"))
-        if m.group("zpos"):
-            d["zone_pos"] = int(m.group("zpos"))
-        name = (m.group("name") or "").strip()
-        if name and not name.startswith("UNKNOWN ENTITY"):
-            d["name"] = name
-        out.append(d)
+    out: list[dict[str, Any]] = []
+    for inner in _bracket_blocks(body):
+        ref = _ref_from_block(inner)
+        if ref is not None:
+            out.append(ref)
     return out
 
 
@@ -335,12 +382,17 @@ def _parse_choices(body: str, time: str) -> Event:
     d: dict[str, Any] = {"raw": body, "entity": None, "player": None, "choice_type": None, "count": None}
     if m := re.search(r"id=(\d+)", body):
         d["entity"] = int(m.group(1))
-    if m := re.search(r"player=(\d+)", body):
+    if m := re.search(r"\bplayer=(\d+)", body):
         d["player"] = int(m.group(1))
+    if m := re.search(r"\bPlayer=([^\s\[]+)", body):
+        d["player_name"] = m.group(1)
     if m := re.search(r"ChoiceType=(\w+)", body):
         d["choice_type"] = m.group(1)
     if m := re.search(r"Count=(\d+)", body):
         d["count"] = int(m.group(1))
+    if m := re.search(r"CountMin=(\d+)\s+CountMax=(\d+)", body):
+        d["min"], d["max"] = int(m.group(1)), int(m.group(2))
+    d["refs"] = _all_refs(body)
     return Event("choices", d, time)
 
 

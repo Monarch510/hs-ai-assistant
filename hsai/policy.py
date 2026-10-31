@@ -142,7 +142,7 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
                 continue
         acts.append(Action("play", card_idx=i, cost=card.cost, desc=f"打出 {card.name}", card_id=card.id))
 
-    name, hp_cost, hp_eff = hero_power_effect(me.hero_class)
+    name, hp_cost, hp_eff = hero_power_effect(me.hero_class, me.hero_power)
     if not me.hero_power_used and me.mana >= hp_cost:
         if hp_eff.damage and hp_eff.scope == "enemy_hero":
             acts.append(Action("hero_power", cost=hp_cost, target="enemy_hero",
@@ -183,7 +183,7 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         return nb
 
     if action.kind == "hero_power":
-        name, cost, eff = hero_power_effect(me.hero_class)
+        name, cost, eff = hero_power_effect(me.hero_class, me.hero_power)
         me.mana -= cost
         me.hero_power_used = True
         if eff.damage and (u := _find_unit(nb, side, "enemy:0")):
@@ -361,7 +361,7 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
             mana -= cost
             spell_dmg += dmg
 
-    hp_name, hp_cost, hp_eff = hero_power_effect(me.hero_class)
+    hp_name, hp_cost, hp_eff = hero_power_effect(me.hero_class, me.hero_power)
     hero_power = 0
     if not me.hero_power_used and mana >= hp_cost and hp_eff.damage:
         hero_power = hp_eff.damage

@@ -16,6 +16,7 @@ from __future__ import annotations
 import ctypes
 import json
 import sys
+import threading
 import time
 import tkinter as tk
 from tkinter import messagebox
@@ -23,7 +24,10 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .advisor import Advisor
+from .advisor import Advisor, board_from_state
+from . import ai as ai_mod
+from . import ai_mulligan
+from . import policy as policy_mod
 from . import cards as cards_mod
 from .cards import DATA_DIR, CardDB
 from .live import SourceManager
@@ -107,11 +111,25 @@ class Overlay:
 
         self._build_shell()
         self.collapsed = True         # 启动先收成细条，检测到对局再展开
+        self._ai_text = ""
+        self._ai_pick: tuple[str, str] | None = None
+        self._ai_route: list[dict] | None = None
+        self._ai_reviewed = False
+        self._ai_mulligan: list[dict] | None = None
+        self._ai_mulligan_done = False
+        self._ai_conv = ai_mod.Conversation(ai_mod.SESSION_SYSTEM, keep=ai_mod.KEEP_TURNS)
+        self._last_review = self._load_last_review()
+        self._ai_busy = False
+        self._ai_turn: tuple[int, bool] | None = None
         self._fail_streak = 0         # 连续渲染失败次数
         self._render_broken = False   # 是否已切到错误提示
         self._render_collapsed()      # 必须有这一步：panel 才会真正 pack 上去
         self._show_placeholder()
         self._apply_geometry()
+        # 有上一局记录就直接展示复盘（等待对局时用）
+        if getattr(self, "_last_review", None):
+            self.collapsed = False
+            self._render_last_review()
         self.root.deiconify()
         self.root.after(50, self._tick)
 
@@ -331,8 +349,12 @@ class Overlay:
         try:
             self.bar_label.config(text="渲染出错，按 F8 重载", fg=RED)
             if not self.collapsed:
-                self.collapsed = True
-                self._render_collapsed()
+                if getattr(self, "_last_review", None):
+                    self.collapsed = False
+                    self._render_last_review()
+                else:
+                    self.collapsed = True
+                    self._render_collapsed()
             self.bar_label.config(text="渲染出错，按 F8 重载", fg=RED)
             self._log("连续渲染失败，已切到错误提示")
         except Exception:
@@ -361,10 +383,14 @@ class Overlay:
 
     def _update(self, st: GameState) -> None:
         self._last_state = st
+        self._last_review_shown = False
+
         self._last_render = time.time()
         snap = self.advisor.snapshot(st)
         snap["demo"] = self.manager.is_demo
         snap["source"] = self.manager.name
+        if snap.get("phase") == "mulligan" and (snap.get("turn") or 0) <= 1:
+            self._ai_conv = ai_mod.Conversation(ai_mod.SESSION_SYSTEM, keep=ai_mod.KEEP_TURNS)
 
         phase = snap.get("phase")
         if phase == "game_over":
@@ -375,9 +401,15 @@ class Overlay:
         idle = phase in (None, "idle") or (
             phase == "game_over" and self._game_over_since and time.time() - self._game_over_since > 8
         )
-        if idle and not self.collapsed:
-            self.collapsed = True
-            self._render_collapsed()
+        if idle:
+            if self._last_review:
+                if not self._last_review_shown:
+                    self._last_review_shown = True
+                    self._render_last_review()
+                return
+            if not self.collapsed:
+                self.collapsed = True
+                self._render_collapsed()
             return
         if not idle and self.collapsed:
             self.collapsed = False
@@ -508,7 +540,159 @@ class Overlay:
         except tk.TclError:
             pass
 
+    def _load_last_review(self) -> dict | None:
+        try:
+            path = DATA_DIR / "last_review.json"
+            return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+        except (OSError, ValueError):
+            return None
+
+    def _render_last_review(self) -> None:
+        """等待对局时展示上一局的复盘。"""
+        for child in self.body.winfo_children():
+            child.destroy()
+        rev = self._last_review or {}
+        inner = self._section("上一局", "复盘")
+        cn = lambda x: cards_mod.CLASS_CN.get(str(x or ""), str(x or "?"))
+        parts = [f"{cn(rev.get('our_class'))} vs {cn(rev.get('opp_class'))}"]
+        if rev.get("result"):
+            parts.append("胜" if rev["result"] == "win" else "负")
+        if rev.get("turns"):
+            parts.append(f"{rev['turns']} 回合")
+        head = " · ".join(parts)
+        tk.Label(inner, text=head, bg=PANEL, fg=TEXT,
+                 font=(FONT, self.font_size, "bold"), anchor="w").pack(fill="x", pady=(0, 3))
+        rows = list(rev.get("findings") or []) + list(rev.get("issues") or [])
+        if not rows:
+            rows = ["上一局没有可复盘的记录"]
+        for line in rows[:5]:
+            tk.Label(inner, text="· " + str(line), bg=PANEL, fg=TEXT_SOFT,
+                     font=(FONT, self.font_size - 1), anchor="w", justify="left",
+                     wraplength=self.width - 46).pack(fill="x", pady=1)
+        tk.Label(inner, text="开一局后这里会自动切换到对局信息", bg=PANEL, fg="#5b636e",
+                 font=(FONT, self.font_size - 3), anchor="w").pack(fill="x", pady=(6, 0))
+        self.collapsed = False
+        self._render_collapsed()      # 必须调用：它负责把 panel 真正 pack 上去
+
+    # ------------------------------------------------------------ AI 解释（可选）
+    def _maybe_ai(self, snap: dict[str, Any], st: GameState | None = None) -> None:
+        """每回合最多请求一次 AI 解释，不跟着 320ms 的刷新跑。"""
+        if not ai_mod.is_ready():
+            return
+        if snap.get("phase") == "mulligan":
+            if not self._ai_mulligan_done and len((snap.get("our") or {}).get("hand") or []) >= 3:
+                self._ai_mulligan_done = True
+                threading.Thread(target=self._ai_mulligan_worker, args=(snap,), daemon=True).start()
+            return
+        if snap.get("phase") == "game_over":
+            if not self._ai_reviewed:
+                self._ai_reviewed = True
+                threading.Thread(target=self._ai_review_worker, args=(snap,),
+                                 daemon=True).start()
+            return
+        # 只在我方回合请求：对手回合的场面会被他自己的出牌改掉，
+        # 提前算出来的建议到你这回合就过期了，白白消耗 token。
+        if not (snap.get("turn_known") and snap.get("is_our_turn")):
+            return
+        choice = snap.get("choice") or {}
+        choice_sig = tuple(str(o.get("name")) for o in (choice.get("options") or []))
+        # 局面签名：手牌/场面/法力一变（你打了一张牌、换了一只怪、用了一张法术），
+        # 就当作「下一步该干什么」重新问一次，而不是整回合只算一次
+        our = snap.get("our") or {}
+        board_sig = (
+            our.get("mana"),
+            tuple(sorted(str(c.get("id") or c.get("name")) for c in (our.get("hand") or []))),
+            tuple(sorted(str(m.get("id") or m.get("name")) for m in (our.get("board") or []))),
+            our.get("health"),
+        )
+        key = (int(snap.get("turn") or 0), True, choice_sig, board_sig)
+        if key == self._ai_turn:
+            return
+        self._ai_turn = key
+        self._ai_text = ""
+        self._ai_busy = True
+        # 等 1.5 秒再请求：刚抽到的牌要过一会儿才进日志，
+        # 立刻发出去会让 AI 基于不完整的手牌做决策
+        self.root.after(1500, lambda: self._ai_fire(key, snap, st))
+
+    def _ai_mulligan_worker(self, snap: dict[str, Any]) -> None:
+        try:
+            rows = ai_mulligan.advise(snap)
+        except Exception:
+            rows = []
+        self.root.after(0, lambda: self._ai_mulligan_done_cb(rows))
+
+    def _ai_mulligan_done_cb(self, rows: list[dict]) -> None:
+        self._ai_mulligan = rows or None
+        self._last_sig = None
+
+    def _ai_fire(self, key: tuple, snap: dict[str, Any],
+                 st: GameState | None = None) -> None:
+        if self._ai_turn != key:
+            return          # 期间回合已经变了，这次请求作废
+        threading.Thread(target=self._ai_worker, args=(snap, st), daemon=True).start()
+
+    def _ai_worker(self, snap: dict[str, Any], st: GameState | None = None) -> None:
+        pick = None
+        text = ""
+        # 先要决策（它才影响你怎么打），解释随后补 —— 不要串行等两倍时间
+        try:
+            # 能斩杀时不问 AI：斩杀线路是确定性的，不能让模型推翻
+            choice = snap.get("choice") or {}
+            options = [str(o.get("name")) for o in (choice.get("options") or [])]
+            actions: list[str] = []
+            if len(options) >= 2:
+                actions = options            # 发现/抉择：选项就是合法动作
+            elif st is not None and not (snap.get("advice") or {}).get("lethal"):
+                board = board_from_state(st)
+                actions = [a.desc for a in policy_mod.legal_actions(board, 0, self.cards)]
+            if actions:
+                # 要一整回合的路线（含站位），不是单步
+                route = ai_mod.plan_route(snap, actions, conv=self._ai_conv)
+                if route is not None:
+                    text = route["explain"]
+                    steps = route["steps"]
+                    pick = (steps[0]["text"], route["reason"]) if steps else None
+                    self.root.after(0, lambda: self._ai_done(text, pick, steps))
+                    return
+        except Exception:
+            pass
+        text = ""
+        self.root.after(0, lambda: self._ai_done(text, pick))
+
+    def _ai_review_worker(self, snap: dict[str, Any]) -> None:
+        """对局结束：让 AI 总结教训，写进本地 lessons.jsonl（不进仓库）。"""
+        try:
+            our = (snap.get("our") or {}).get("class_cn") or "?"
+            opp = (snap.get("opp") or {}).get("class_cn") or "?"
+            findings = "；".join(snap.get("review") or []) or "无机器检测到的失误"
+            summary = (
+                f"对局：我方 {our} vs 对手 {opp}，共 {snap.get('turn')} 回合。"
+                f"机器复盘：{findings}\。"
+                f"对手卡组预判：{(snap.get('prediction') or {}).get('name') or '未知'}。"
+            )
+            missed = any("有斩杀没斩" in str(x) for x in (snap.get("review") or []))
+            lessons = ai_mod.review(snap, summary, missed_lethal=missed)
+            if lessons:
+                ai_mod.append_lessons(lessons)
+        except Exception:
+            pass
+
+    def _ai_pick_done(self, pick: tuple[str, str] | None) -> None:
+        self._ai_pick = pick
+        self._last_sig = None
+
+    def _ai_done(self, text: str, pick: tuple[str, str] | None = None,
+                 steps: list[dict] | None = None) -> None:
+        self._ai_busy = False
+        self._ai_text = text
+        self._ai_route = steps
+        if pick is not None:
+            self._ai_pick = pick
+        self._last_sig = None
+
     def _render(self, snap: dict[str, Any]) -> None:
+        self._maybe_ai(snap, getattr(self, "_last_state", None))
         for child in self.body.winfo_children():
             child.destroy()
 
@@ -528,12 +712,95 @@ class Overlay:
         self.bar_label.config(text="等待对局")
 
         # 顶部「我方卡组 / 关键牌」条已按需求移除
-        self._render_prediction(snap.get("prediction") or {})
-        self._render_mulligan(snap.get("mulligan") or {})
-        self._render_advice(snap.get("advice") or {})
-        self._render_feed(snap.get("feed") or [])
+        # 只在「我方回合且对局进行中」展示 AI 决策；否则上一回合的建议会一直挂着，
+        # 看起来像“现在该这么打”，而实际上已经轮不到你了。
+        if snap.get("phase") != "playing" or not snap.get("is_our_turn"):
+            if self._ai_pick or self._ai_text or self._ai_route:
+                self._ai_pick = None
+                self._ai_text = ""
+                self._ai_route = None
+                self._ai_busy = False
 
-        findings = snap.get("review") or []
+        choice = snap.get("choice") or {}
+        options = choice.get("options") or []
+        if len(options) >= 2:
+            inner_c = self._section("待你选择", "发现" if choice.get("type") == "GENERAL" else str(choice.get("type")))
+            for i, opt in enumerate(options[:4], 1):
+                row = tk.Frame(inner_c, bg=PANEL)
+                row.pack(fill="x", pady=1)
+                chosen = bool(self._ai_pick) and self._ai_pick[0] == str(opt.get("name"))
+                tk.Label(row, text=str(i), bg="#21262d", fg=GOLD if chosen else MUTED,
+                         font=(FONT, self.font_size - 3, "bold"), width=2).pack(side="left")
+                tk.Label(row, text=str(opt.get("name")), bg=PANEL, fg=GOLD if chosen else TEXT,
+                         font=(FONT, self.font_size - 1, "bold" if chosen else "normal"),
+                         anchor="w").pack(side="left")
+                if chosen:
+                    tk.Label(row, text="← AI", bg=PANEL, fg=GOLD,
+                             font=(FONT, self.font_size - 3)).pack(side="right")
+            if self._ai_pick:
+                tk.Label(inner_c, text=self._ai_pick[1], bg=PANEL, fg=MUTED,
+                         font=(FONT, self.font_size - 2), anchor="w", justify="left",
+                         wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
+
+        self._render_prediction(snap.get("prediction") or {})
+        if snap.get("phase") != "mulligan":
+            self._ai_mulligan = None      # 留牌阶段结束，这块不再显示
+
+        if self._ai_mulligan:
+            inner_m = self._section("AI 留牌", "模型建议")
+            for row in self._ai_mulligan[:6]:
+                color = "#3fb950" if row["keep"] else "#d29922"
+                text = "留" if row["keep"] else "换"
+                line = tk.Frame(inner_m, bg=PANEL)
+                line.pack(fill="x", pady=1)
+                tk.Label(line, text=text, bg=PANEL, fg=color,
+                         font=(FONT, self.font_size - 2, "bold"), width=2).pack(side="left")
+                tk.Label(line, text=str(row["name"]), bg=PANEL, fg=TEXT,
+                         font=(FONT, self.font_size - 1), anchor="w").pack(side="left")
+                tk.Label(line, text=row["reason"], bg=PANEL, fg=MUTED,
+                         font=(FONT, self.font_size - 3), anchor="w",
+                         wraplength=self.width - 110, justify="left").pack(side="left", padx=(4, 0))
+        else:
+            self._render_mulligan(snap.get("mulligan") or {})
+        if self._ai_route:
+            inner_r = self._section("AI 路线", "这回合怎么打")
+            pos_cn = {"left": "最左", "right": "最右"}
+            for i, step in enumerate(self._ai_route[:6], 1):
+                row = tk.Frame(inner_r, bg=PANEL)
+                row.pack(fill="x", pady=1)
+                tk.Label(row, text=str(i), bg="#21262d", fg=GOLD,
+                         font=(FONT, self.font_size - 3, "bold"), width=2).pack(side="left")
+                label = step["text"]
+                if step.get("pos"):
+                    p = pos_cn.get(step["pos"], f"第{step['pos']}位")
+                    label += f"（放{p}）"
+                tk.Label(row, text=label, bg=PANEL,
+                         fg=TEXT if step.get("matched") else "#c9a05a",
+                         font=(FONT, self.font_size - 1), anchor="w", justify="left",
+                         wraplength=self.width - 70).pack(side="left")
+                if not step.get("matched"):
+                    tk.Label(row, text="需人工", bg=PANEL, fg="#c9a05a",
+                             font=(FONT, self.font_size - 3)).pack(side="right")
+        elif self._ai_pick:
+            inner_pick = self._section("AI 决策", "模型选择")
+            tk.Label(inner_pick, text=self._ai_pick[0], bg=PANEL, fg=GOLD,
+                     font=(FONT, self.font_size + 1, "bold"), anchor="w",
+                     justify="left", wraplength=self.width - 46).pack(fill="x")
+            tk.Label(inner_pick, text=self._ai_pick[1], bg=PANEL, fg=MUTED,
+                     font=(FONT, self.font_size - 2), anchor="w", justify="left",
+                     wraplength=self.width - 46).pack(fill="x")
+        self._render_advice(snap.get("advice") or {})
+        if self._ai_busy or self._ai_text:
+            inner_ai = self._section("AI 解释", "思考中" if self._ai_busy else "AI")
+            self._ai_label = tk.Label(
+                inner_ai, text=(self._ai_text or "正在请求解释…"), bg=PANEL,
+                fg=TEXT_SOFT, font=(FONT, self.font_size - 1), anchor="w", justify="left",
+                wraplength=self.width - 46,
+            )
+            self._ai_label.pack(fill="x", pady=1)
+        # 最近出牌不再常驻显示；识别失败的信息放到对局结束的复盘里
+
+        findings = list(snap.get("review") or []) + list(snap.get("issues") or [])
         if findings:
             inner = self._section("复盘", "这局")
             for line in findings[:3]:
@@ -596,31 +863,6 @@ class Overlay:
         tk.Label(self.body, text=text, bg=PANEL_2, fg=TEXT_SOFT,
                  font=(FONT, self.font_size - 2), anchor="w", justify="left",
                  wraplength=self.width - 30, padx=8, pady=4).pack(fill="x", pady=(4, 0))
-
-    def _render_feed(self, feed: list[dict[str, Any]]) -> None:
-        """出牌流水：谁打了什么 + 引擎把这张牌理解成了什么。"""
-        if not feed:
-            return
-        inner = self._section("最近出牌", "实时")
-        last_turn = None
-        for item in list(reversed(feed[-10:])):
-            turn = item.get("turn")
-            if turn != last_turn and last_turn is not None:
-                tk.Frame(inner, bg="#30363d", height=1).pack(fill="x", pady=3)
-            last_turn = turn
-            ours = item.get("who") == "our"
-            row = tk.Frame(inner, bg=PANEL)
-            row.pack(fill="x", pady=1)
-            tk.Label(row, text="我" if ours else "敌", bg=PANEL,
-                     fg="#58a6ff" if ours else "#ff7b72",
-                     font=(FONT, self.font_size - 2, "bold"), width=2).pack(side="left")
-            tk.Label(row, text=item.get("name") or "?", bg=PANEL, fg=TEXT,
-                     font=(FONT, self.font_size - 2), anchor="w").pack(side="left")
-            known = item.get("known", True)
-            tk.Label(row, text=("" if known else "⚠ ") + (item.get("summary") or ""),
-                     bg=PANEL, fg=MUTED if known else RED,
-                     font=(FONT, self.font_size - 3), anchor="w",
-                     wraplength=self.width - 90, justify="left").pack(side="left", padx=(5, 0))
 
     def _render_mine(self, our: dict[str, Any]) -> None:
         """我方手牌 + 场面：让用户能核对「工具看到的」和他「实际看到的」是否一致。"""
@@ -767,7 +1009,12 @@ class Overlay:
             return
         # 注意：这个方法只拿到 advice，没有 snap
         lethal_on = bool((advice or {}).get("lethal"))
-        inner = self._section("本回合建议", "斩杀" if lethal_on else "决策")
+        ref_mode = bool(getattr(self, "_ai_pick", None)) and not lethal_on
+        inner = self._section("本回合建议",
+                              "参考" if ref_mode else ("斩杀" if lethal_on else "决策"))
+        if ref_mode and self._ai_pick and (lines[0].get("title") if lines else "") != self._ai_pick[0]:
+            tk.Label(inner, text="与 AI 决策不一致，供对照", bg=PANEL, fg="#c9a05a",
+                     font=(FONT, self.font_size - 3), anchor="w").pack(fill="x", pady=(0, 2))
         if advice.get("lethal"):
             self._strip(f"可直接斩杀（{advice.get('lethal_damage', 0)} 点伤害）", fg="#ffb3ad", bg="#3d1418")
         for i, line in enumerate(lines[:3]):

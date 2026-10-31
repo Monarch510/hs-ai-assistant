@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import re
+
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -91,6 +93,10 @@ def board_from_state(st: GameState) -> Board:
     me.deck = _unknown_cards(ours.deck_count or max(0, 30 - len(me.hand) - len(me.board)))
     them.deck = _unknown_cards(opp.deck_count or max(0, 30 - opp.hand_count - len(them.board)))
     them.hand = _unknown_cards(opp.hand_count)
+    hp_view = ours.hero_power or {}
+    if hp_view.get("id") and st.cards:
+        me.hero_power = st.cards.get(hp_view["id"])
+        me.hero_power_used = bool(hp_view.get("used"))
     if ours.weapon:
         me.weapon = Unit(card_id=ours.weapon.get("id", ""), name=ours.weapon.get("name", "武器"),
                          atk=max(0, ours.weapon.get("atk") or 0), hp=1, max_hp=1)
@@ -139,6 +145,8 @@ class Advisor:
         self._game_turns: list[dict] = []
         self.learned_count = 0
         self.last_findings: list[str] = []
+        self._issues: list[str] = []
+        self._unknown_turn_seen: set[int] = set()
 
     # ------------------------------------------------------------ 主入口
     def snapshot(self, st: GameState) -> dict[str, Any]:
@@ -166,6 +174,8 @@ class Advisor:
             "prediction": self._prediction_dict(pred),
             "log": list(st.log)[-6:],
             "feed": list(st.feed)[-10:],
+            "choice": self._choice_view(st),
+            "opp_played": [st._name(c) for c in list(st.revealed_opp_order)[-12:] if c],
         }
 
         # 有些客户端在留牌阶段不给我方手牌的 cardId，等它揭示出来时已经进入对局了。
@@ -217,10 +227,25 @@ class Advisor:
             self._turn_rec = None
             self._game_turns = []
             self.last_findings = []
+            self._issues = []
+            self._unknown_turn_seen = set()
+        self._collect_issues(st, snap)
         if st.game_over:
             # 每一帧都给，别只在第一次 game_over 时给（否则窗口二次渲染就丢了）
             snap["review"] = list(getattr(self, "last_findings", []))
+            snap["issues"] = list(self._issues)
         return snap
+
+    def _collect_issues(self, st: GameState, snap: dict[str, Any]) -> None:
+        """记下本局「识别失败」的地方，结束时会告诉用户。"""
+        if (not snap.get("turn_known")) and st.turn >= 1 and st.turn not in self._unknown_turn_seen:
+            self._unknown_turn_seen.add(st.turn)
+            self._issues.append(f"第 {st.turn} 回合：没能判定该谁行动")
+        for name in getattr(st, "unmodelled", [])[:5]:
+            item = f"卡牌效果未建模：{name}"
+            if item not in self._issues:
+                self._issues.append(item)
+
 
     # ------------------------------------------------------------ 预判
     def _predict(self, st: GameState, opp) -> Prediction:
@@ -337,6 +362,19 @@ class Advisor:
             "source": source,
         }
 
+    def _choice_view(self, st: GameState) -> dict[str, Any] | None:
+        ch = getattr(st, "choice", None)
+        if not ch or not ch.get("options"):
+            return None
+        opts = []
+        for o in ch["options"][:4]:
+            card = self.cards.get(o.get("id")) if o.get("id") else None
+            raw = (card.text if card else "") or ""
+            opts.append({"name": o.get("name") or (card.name if card else "?"),
+                         "cost": card.cost if card else None,
+                         "text": re.sub(r"<[^>]+>", "", raw).replace("$", "")})
+        return {"type": ch.get("type"), "min": ch.get("min"), "max": ch.get("max"), "options": opts}
+
     def _defense(self, st: GameState, pred: Prediction, snap: dict[str, Any]) -> list[str]:
         """「怎么防对面的针对牌」：把威胁翻译成具体动作，而不是只报概率。"""
         out: list[str] = []
@@ -418,6 +456,27 @@ class Advisor:
         )
         review_mod.append_game(rec)
         self.last_findings = review_mod.summarize(rec.as_dict())
+        try:
+            import json as _json
+
+            path = review_mod.GAMES_PATH.parent / "last_review.json"
+            path.write_text(
+                _json.dumps(
+                    {
+                        "ts": rec.ts,
+                        "result": rec.result,
+                        "our_class": rec.our_class,
+                        "opp_class": rec.opp_class,
+                        "turns": rec.turns[-1]["turn"] if rec.turns else 0,
+                        "findings": list(getattr(self, "last_findings", [])),
+                        "issues": list(self._issues),
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass
         self._game_turns = []
 
     # ------------------------------------------------------------ 自学习落盘
