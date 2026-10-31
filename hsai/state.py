@@ -167,6 +167,8 @@ class GameState:
         # 先手是谁：手里有幸运币的一定是后手（客户端固定规则）
         self.first_player: int | None = None
         self._pending_names: list[str] = []
+        self._last_cp_name: str | None = None     # 最近一条「轮到他」但还没认出的名字
+        self._first_player_name: str | None = None
         self.turn_events: list[str] = []
         self._hero_entities: dict[int, int] = {}
         self._name_player: dict[str, int] = {}
@@ -315,7 +317,7 @@ class GameState:
         name = ref.get("name")
         eid = d.get("entity")
 
-        # 玩家实体在日志里只按名字引用（`Entity=军文武#5142`），没有实体 id。
+        # 玩家实体在日志里只按名字引用（`Entity=Player#1234`），没有实体 id。
         # CURRENT_PLAYER=1 出现时说明轮到这个人了 —— 这是唯一可靠的「名字 → 玩家」时机。
         pid_from_name: int | None = None
         if eid is None:
@@ -323,6 +325,10 @@ class GameState:
                 return
             pid_from_name = self._name_player.get(name)
             if pid_from_name is None:
+                # FIRST_PLAYER 是按名字给的，要在这条早退之前抓住它
+                if tag == "FIRST_PLAYER" and isinstance(val, int) and val == 1:
+                    self._first_player_name = name
+                    return
                 if tag != T_CURRENT_PLAYER or val != 1:
                     return
                 bound = set(self._name_player.values())
@@ -338,15 +344,30 @@ class GameState:
                         self.first_player if self.turn % 2 == 1 else 3 - self.first_player
                     )
                 else:
-                    # 先手还没确定，别乱猜 —— 猜错会一直错这一整局。
-                    # 先记下来，等手牌揭示出幸运币后再绑定。
+                    # 先认不出这个名字是谁：记下来，等「他打出一张牌」时反推。
+                    # 先手不能靠猜 —— 猜错会错一整局。
                     if name not in self._pending_names:
                         self._pending_names.append(name)
+                    self._last_cp_name = name
                     return
                 self._name_player[name] = pid_from_name
                 self._note(f"识别玩家：{name} = 玩家{pid_from_name}")
             eid = self.player_ids.get(pid_from_name)
             if eid is None:
+                # 中途启动时没见过 CREATE_GAME，没有玩家实体。
+                # 但「轮到谁」这件事只依赖玩家编号，不需要实体 —— 照常处理。
+                if tag == T_CURRENT_PLAYER and isinstance(val, int):
+                    if val == 1:
+                        expected = None
+                        if self.first_player in (1, 2) and self.turn:
+                            expected = (self.first_player if self.turn % 2 == 1
+                                        else 3 - self.first_player)
+                        if expected is None or pid_from_name == expected:
+                            if pid_from_name != self.turn_owner:
+                                self.turn_owner = pid_from_name
+                                self._wake_up(pid_from_name)
+                    elif val == 0 and self.turn_owner == pid_from_name:
+                        self.turn_owner = None
                 return
 
         e = self._entity(eid)
@@ -426,6 +447,9 @@ class GameState:
                     self._note("留牌结束")
             elif text in ("INPUT", "DEALING", "WAITING") and not self.mulligan_done:
                 self.phase = "mulligan"
+        elif tag == "FIRST_PLAYER" and isinstance(val, int) and name:
+            # 客户端明确告诉我们谁先手（按名字），等这个名字绑上玩家后即可确定
+            self._first_player_name = name
         elif tag == T_CONTROLLER and isinstance(val, int):
             e.controller = val
             self._track_visibility(e)
@@ -468,18 +492,41 @@ class GameState:
             return
         hand_ids = [e.card_id for e in self.entities.values()
                     if e.controller == self.our_id and e.zone == ZONE_HAND and e.card_id]
-        if "GAME_005" in hand_ids:
-            self.first_player = 3 - self.our_id      # 后手才有幸运币
-        elif len(hand_ids) >= 3:
-            self.first_player = self.our_id          # 手牌齐了还没有币 → 我是先手
-        else:
+        if "GAME_005" not in hand_ids:
+            # 没有币不能断定自己先手：币可能只是还没揭示出来。
+            # 真正的先手以日志里的 FIRST_PLAYER 为准（见 _bind_by_action）。
             return
+        self.first_player = 3 - self.our_id          # 后手才有幸运币
         self._bind_pending_names()
+
+    def _bind_by_action(self, pid: int) -> None:
+        """用「刚刚轮到的人打出了一张牌」反推名字 → 玩家。
+
+        日志里玩家实体只按名字引用，没有任何一行同时给出名字和编号，
+        所以只能靠行为推断：CURRENT_PLAYER=1 之后第一个出牌的人就是他。
+        """
+        name = self._last_cp_name
+        if not name or name in self._name_player or pid not in (1, 2):
+            self._last_cp_name = None
+            return
+        self._name_player[name] = pid
+        self._last_cp_name = None
+        if self._first_player_name and self._first_player_name == name:
+            self.first_player = pid
+            self._bind_pending_names()
+        elif self._first_player_name and name != self._first_player_name:
+            other = 3 - pid
+            if self._first_player_name not in self._name_player:
+                self._name_player[self._first_player_name] = other
+                self.first_player = other
+                self._bind_pending_names()
 
     def _bind_pending_names(self) -> None:
         """先手确定后，把之前没认出来的名字按出场顺序绑上。"""
         if self.first_player not in (1, 2):
             return
+        if not self._first_player_name or self._first_player_name not in self._name_player:
+            return          # 先手是谁还不知道，别按出场顺序猜（容易把两个人绑反）
         order = [self.first_player, 3 - self.first_player]
         for name in self._pending_names:
             if name in self._name_player:
@@ -546,6 +593,7 @@ class GameState:
             return          # 英雄/技能/附魔不是「打出的牌」
         if new == ZONE_PLAY and e.zone != prev:
             if e.controller == self.opp_id:
+                self._bind_by_action(e.controller)
                 name = self._name(e.card_id)
                 if name:
                     if self._push_feed("opp", e.card_id, name, e.id):
@@ -556,6 +604,7 @@ class GameState:
                         self._note(f"对手打出 {name}")
                         self.turn_events.append(f"对手打出 {name}")
             elif e.controller == self.our_id:
+                self._bind_by_action(e.controller)
                 name = self._name(e.card_id)
                 if name:
                     if self._push_feed("our", e.card_id, name, e.id):
@@ -622,6 +671,18 @@ class GameState:
             self._infer_first_player()
 
     # ------------------------------------------------------------ 读取视图
+    def effective_turn_owner(self) -> int | None:
+        """当前该谁行动。日志没给 CURRENT_PLAYER 时，用「先手 + 回合奇偶」推。
+
+        回合 1 属于先手，之后严格交替，所以 turn 的奇偶足以确定归属。
+        返回 None 表示既没有事件、也没有先手信息，真的不知道。
+        """
+        if self.turn_owner in (1, 2):
+            return self.turn_owner
+        if self.first_player in (1, 2) and self.turn:
+            return self.first_player if self.turn % 2 == 1 else 3 - self.first_player
+        return None
+
     def sides(self) -> tuple[Side, Side]:
         """(我方, 对方)。统一入口，避免外部到处写 _side(self.our_id)。"""
         return self._side(self.our_id), self._side(self.opp_id)

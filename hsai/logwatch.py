@@ -219,30 +219,34 @@ def setup_log_config(extra_roots: Iterable[Path] = (), *, dry_run: bool = False,
 
 
 def tail_start_offset(path: Path, limit: int = READ_LIMIT) -> int:
-    """返回一个安全的起读位置：从最后一个 CREATE_GAME 之前开始。"""
+    """返回最后一个 CREATE_GAME 所在行的起点。
+
+    按块向前扫，直到找到为止 —— 单局日志可能远大于窗口（几 MB），
+    只扫最后一段会找不到锚点，于是从半局开始解析（没有玩家实体），
+    界面就永远显示「回合判断中」。
+    """
     try:
         size = path.stat().st_size
     except OSError:
         return 0
-    start = max(0, size - limit)
-    try:
-        with path.open("rb") as fh:
-            fh.seek(start)
-            chunk = fh.read(size - start)
-    except OSError:
-        return size
-    idx = chunk.rfind(b"CREATE_GAME")
-    if idx <= 0:
-        # 没找到对局起点：文件还小就从头读（客户端刚启动、还没进对局），
-        # 直接跳到 EOF 会让界面一直空着。
-        if size <= 32 * 1024 * 1024:
-            return 0
-        if start > 0:
-            nl = chunk.find(b"\n")
-            return start + nl + 1 if nl >= 0 else size
-        return 0
-    line_start = chunk.rfind(b"\n", 0, idx)
-    return start + (line_start + 1 if line_start >= 0 else idx)
+    window = max(limit, 1)
+    end = size
+    while end > 0:
+        start = max(0, end - window)
+        try:
+            with path.open("rb") as fh:
+                fh.seek(start)
+                chunk = fh.read(end - start)
+        except OSError:
+            return size
+        idx = chunk.rfind(b"CREATE_GAME")
+        if idx >= 0:
+            line_start = chunk.rfind(b"\n", 0, idx)
+            return start + (line_start + 1 if line_start >= 0 else idx)
+        if start == 0:
+            break
+        end = start + 32          # 稍微重叠，避免把一个标记切断
+    return 0
 
 
 class PowerLogWatcher:
@@ -276,10 +280,7 @@ class PowerLogWatcher:
         start = tail_start_offset(self.path)
         # 大文件里找不到 CREATE_GAME（例如日志被截断/滚过）时，绝不要从头重放——
         # 那会把好几局旧对局重新演一遍，用户重启后看到的就是上一局。
-        if start <= 0 and size > 2_000_000:
-            self._offset = size
-        else:
-            self._offset = start
+        self._offset = start
 
     def reset(self) -> None:
         self.state = GameState(self.cards)

@@ -2,7 +2,7 @@
 
 以**真实日志**为准（2026-10 实测，标准客户端 + Verbose=True）：
 
-    D 12:16:40.7652036 GameState.DebugPrintPower() - TAG_CHANGE Entity=军文武#5142 tag=RESOURCES value=1
+    D 12:16:40.7652036 GameState.DebugPrintPower() - TAG_CHANGE Entity=Player#1234 tag=RESOURCES value=1
     D 12:17:37.9187018 PowerTaskList.DebugPrintPower() - TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=15 zone=DECK zonePos=0 cardId= player=1] tag=ZONE value=DECK
     D 12:16:01.6245543 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=1 ...
     D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=74 CardID=HERO_07bk
@@ -54,7 +54,7 @@ KNOWN_TAGS: frozenset[str] = frozenset(
         "RESOURCES", "RESOURCES_USED", "PLAYER_ID",
         "DAMAGE", "HEALTH", "ATK", "COST", "ZONE", "CONTROLLER",
         "TAUNT", "DIVINE_SHIELD", "ARMOR", "NUM_ATTACKS_THIS_TURN",
-        "HERO_ENTITY", "CARDTYPE", "CARD_ID", "ZONE_POSITION", "MULLIGAN_STATE", "EXHAUSTED", "FROZEN",
+        "HERO_ENTITY", "CARDTYPE", "CARD_ID", "ZONE_POSITION", "MULLIGAN_STATE", "EXHAUSTED", "FROZEN", "FIRST_PLAYER",
     }
 )
 

@@ -158,8 +158,8 @@ class Advisor:
             "ts": datetime.now().strftime("%H:%M:%S"),
             "phase": st.phase,
             "turn": st.turn,
-            "is_our_turn": st.turn_owner == st.our_id,
-            "turn_known": st.turn_owner in (1, 2),
+            "is_our_turn": st.effective_turn_owner() == st.our_id,
+            "turn_known": st.effective_turn_owner() in (1, 2),
             "format": "标准",
             "our": ours.as_dict(),
             "opp": opp.as_dict(),
@@ -376,7 +376,7 @@ class Advisor:
     def _track_turn(self, st: GameState, advice: dict[str, Any]) -> None:
         if st.phase != "playing":
             return
-        if st.turn_owner != st.our_id:
+        if st.effective_turn_owner() != st.our_id:
             return
         road = (advice.get("lines") or [{}])[0].get("title") or ""
         if self._turn_rec is None or self._turn_rec.turn != st.turn:
