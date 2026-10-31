@@ -1,0 +1,1604 @@
+D 12:16:01.6245543 GameState.DebugPrintPower() - CREATE_GAME
+D 12:16:01.6245543 GameState.DebugPrintPower() -     GameEntity EntityID=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CARDTYPE value=GAME
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ZONE value=PLAY
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ENTITY_ID value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=937 value=4317
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=GAME_SEED value=257381887
+D 12:16:01.6245543 GameState.DebugPrintPower() -     Player EntityID=2 PlayerID=1 GameAccountId=[hi=0 lo=0]
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CARDTYPE value=PLAYER
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=PLAYER_ID value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=HERO_ENTITY value=74
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=MAXHANDSIZE value=10
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=STARTHANDSIZE value=4
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=TEAM_ID value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ZONE value=PLAY
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ENTITY_ID value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=MAXRESOURCES value=10
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=MAX_EXCAVATE_TIER value=3
+D 12:16:01.6245543 GameState.DebugPrintPower() -     Player EntityID=3 PlayerID=2 GameAccountId=[hi=0 lo=0]
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CARDTYPE value=PLAYER
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=PLAYER_ID value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=HERO_ENTITY value=76
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=MAXHANDSIZE value=10
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=STARTHANDSIZE value=4
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=TEAM_ID value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ZONE value=PLAY
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ENTITY_ID value=3
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=MAXRESOURCES value=10
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=MAX_EXCAVATE_TIER value=3
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=4 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=4
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=5 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=5
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=6 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=6
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=7 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=7
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=8 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=8
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=9 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=9
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=10 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=10
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=11 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=11
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=12 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=12
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=13 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=13
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=14 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=14
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=15 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=15
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=16 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=16
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=17 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=17
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=18 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=18
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=19 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=19
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=20 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=20
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=21 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=21
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=22 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=22
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=23 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=23
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=24 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=24
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=25 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=25
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=26 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=26
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=27 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=27
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=28 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=28
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=29 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=29
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=30 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=30
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=31 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=31
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=32 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=32
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=33 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=33
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=34 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=34
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=35 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=35
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=36 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=36
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=37 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=37
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=38 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=38
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=39 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=39
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=40 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=40
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=41 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=41
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=42 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=42
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=43 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=43
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=44 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=44
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=45 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=45
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=46 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=46
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=47 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=47
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=48 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=48
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=49 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=49
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=50 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=50
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=51 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=51
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=52 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=52
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=53 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=53
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=54 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=54
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=55 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=55
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=56 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=56
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=57 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=57
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=58 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=58
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=59 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=59
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=60 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=60
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=61 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=61
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=62 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=62
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=63 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=63
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=64 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=64
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=65 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=65
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=66 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=66
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=67 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=67
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=68 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=68
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=69 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=69
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=70 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=70
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=71 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=71
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=72 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=72
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=73 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=DECK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=73
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=74 CardID=HERO_07bk
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CARDTYPE value=HERO
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=HEALTH value=30
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=PREMIUM value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=PLAY
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=74
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CLASS value=WARLOCK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=FACTION value=NEUTRAL
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=RARITY value=FREE
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=HERO_POWER value=66935
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=HIDE_WATERMARK value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=EMOTECHARACTER value=181
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=HAS_ACTIVATE_POWER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=EMOTECLASS value=7
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=3085 value=30
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=75 CardID=HERO_07ebp
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CARDTYPE value=HERO_POWER
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=TAG_LAST_KNOWN_COST_IN_HAND value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=COST value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=PREMIUM value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=PLAY
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=75
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CLASS value=WARLOCK
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=FACTION value=NEUTRAL
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=RARITY value=FREE
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CREATOR value=74
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=1037 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=1086 value=66936
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CREATOR_DBID value=123742
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=HAS_ACTIVATE_POWER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=76 CardID=HERO_11
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CARDTYPE value=HERO
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=HEALTH value=30
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=PLAY
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=76
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CLASS value=DEATHKNIGHT
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=RARITY value=FREE
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=HERO_POWER value=78162
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=EMOTECHARACTER value=38
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=HAS_ACTIVATE_POWER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=EMOTECLASS value=11
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=3085 value=30
+D 12:16:01.6245543 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=77 CardID=HERO_11bp
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CARDTYPE value=HERO_POWER
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=TAG_LAST_KNOWN_COST_IN_HAND value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=COST value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ZONE value=PLAY
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=ENTITY_ID value=77
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CLASS value=DEATHKNIGHT
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=FACTION value=NEUTRAL
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=RARITY value=FREE
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CREATOR value=76
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=1037 value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=1086 value=79943
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=CREATOR_DBID value=78065
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     tag=HAS_ACTIVATE_POWER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=STATE value=RUNNING 
+D 12:16:01.6245543 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=PLAYSTATE value=PLAYING 
+D 12:16:01.6245543 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=PLAYSTATE value=PLAYING 
+D 12:16:01.6245543 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=1 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=6 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:01.6245543 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:01.6245543 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=1 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=2 tag=CURRENT_PLAYER value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=2 tag=FIRST_PLAYER value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=1 tag=TURN value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=2 tag=2166 value=6 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=2 tag=467 value=3 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=6 CardID=JAIL_510
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CARDTYPE value=SPELL
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=8
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=COST value=8
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ENTITY_ID value=6
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=RARITY value=RARE
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=478 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=1043 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=1068 value=0
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=6 tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=6 tag=ZONE_POSITION value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=6 tag=ZONE_POSITION value=0 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=6 tag=ZONE_POSITION value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=2 tag=2166 value=28 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=2 tag=467 value=2 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=28 CardID=TIME_005t1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=479 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=COST value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ATK value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=HEALTH value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=PREMIUM value=3
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ENTITY_ID value=28
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=DEATHRATTLE value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=BATTLECRY value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=478 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=1043 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=1068 value=0
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=3085 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=3928 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=IS_FABLED_BUNDLE_CARD value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=4472 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=4997 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=28 tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=28 tag=ZONE_POSITION value=2 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=28 tag=ZONE_POSITION value=0 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=28 tag=ZONE_POSITION value=2 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=2 tag=2166 value=26 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=2 tag=467 value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=26 CardID=TIME_064
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=7
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=479 value=4
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=COST value=7
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ATK value=4
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=HEALTH value=8
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ENTITY_ID value=26
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CLASS value=NEUTRAL
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=RARITY value=LEGENDARY
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=AURA value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=478 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=1043 value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=1068 value=0
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=3085 value=8
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=4472 value=4
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=4997 value=8
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=26 tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=26 tag=ZONE_POSITION value=3 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=26 tag=ZONE_POSITION value=0 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=26 tag=ZONE_POSITION value=3 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=2 tag=467 value=0 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=2 tag=NUM_TURNS_LEFT value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=3 tag=2166 value=63 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=3 tag=467 value=4 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=63 tag=ZONE value=HAND 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=63 tag=ZONE_POSITION value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=63 tag=ZONE_POSITION value=0 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=63 tag=ZONE_POSITION value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=3 tag=2166 value=51 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=3 tag=467 value=3 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=51 tag=ZONE value=HAND 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=51 tag=ZONE_POSITION value=2 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=51 tag=ZONE_POSITION value=0 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=51 tag=ZONE_POSITION value=2 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=3 tag=2166 value=50 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=3 tag=467 value=2 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=50 tag=ZONE value=HAND 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=50 tag=ZONE_POSITION value=3 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=50 tag=ZONE_POSITION value=0 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=50 tag=ZONE_POSITION value=3 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=3 tag=2166 value=67 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=3 tag=467 value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=67 tag=ZONE value=HAND 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=67 tag=ZONE_POSITION value=4 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=67 tag=ZONE_POSITION value=0 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=67 tag=ZONE_POSITION value=4 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=3 tag=467 value=0 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=3 tag=NUM_TURNS_LEFT value=1 
+D 12:16:01.6245543 GameState.DebugPrintPower() -     FULL_ENTITY - Creating ID=78 CardID=
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ENTITY_ID value=78
+D 12:16:01.6245543 GameState.DebugPrintPower() -         tag=ZONE_POSITION value=5
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=1 tag=NEXT_STEP value=BEGIN_MULLIGAN 
+D 12:16:01.6245543 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:01.6245543 GameState.DebugPrintPower() - TAG_CHANGE Entity=GameEntity tag=STEP value=BEGIN_MULLIGAN 
+D 12:16:01.6245543 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=GameEntity EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:01.6245543 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=MULLIGAN_STATE value=INPUT 
+D 12:16:01.6245543 GameState.DebugPrintPower() - TAG_CHANGE Entity=旅店老板 tag=MULLIGAN_STATE value=INPUT 
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     CREATE_GAME
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         GameEntity EntityID=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=CARDTYPE value=GAME
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=ZONE value=PLAY
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=ENTITY_ID value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=937 value=4317
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=GAME_SEED value=257381887
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         Player EntityID=2 PlayerID=1 GameAccountId=[hi=0 lo=0]
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=CARDTYPE value=PLAYER
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=PLAYER_ID value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=HERO_ENTITY value=74
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=MAXHANDSIZE value=10
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=STARTHANDSIZE value=4
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=TEAM_ID value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=ZONE value=PLAY
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=ENTITY_ID value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=MAXRESOURCES value=10
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=MAX_EXCAVATE_TIER value=3
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         Player EntityID=3 PlayerID=2 GameAccountId=[hi=0 lo=0]
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=CARDTYPE value=PLAYER
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=PLAYER_ID value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=HERO_ENTITY value=76
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=MAXHANDSIZE value=10
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=STARTHANDSIZE value=4
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=TEAM_ID value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=ZONE value=PLAY
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=ENTITY_ID value=3
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=MAXRESOURCES value=10
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -             tag=MAX_EXCAVATE_TIER value=3
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=4 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=4
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=5 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=5
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=6 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=6
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=7 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=7
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=8 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=8
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=9 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=9
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=10 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=10
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=11 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=11
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=12 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=12
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=13 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=13
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=14 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=14
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=15 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=15
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=16 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=16
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=17 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=17
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=18 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=18
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=19 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=19
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=20 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=20
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=21 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=21
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=22 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=22
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=23 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=23
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=24 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=24
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=25 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=25
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=26 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=26
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=27 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=27
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=28 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=28
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=29 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=29
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=30 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=30
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=31 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=31
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=32 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=32
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=33 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=33
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=34 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=34
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=35 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=35
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=36 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=36
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=37 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=37
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=38 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=38
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=39 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=39
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=40 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=40
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=41 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=41
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=42 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=42
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=43 zone=DECK zonePos=0 cardId= player=1] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=43
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=44 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=44
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=45 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=45
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=46 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=46
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=47 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=47
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=48 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=48
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=49 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=49
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=50 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=50
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=51
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=52 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=52
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=53 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=53
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=54 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=54
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=55 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=55
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=56 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=56
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=57 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=57
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=58 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=58
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=59 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=59
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=60 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=60
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=61 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=61
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=62 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=62
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=63 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=63
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=64 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=64
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=65 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=65
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=66 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=66
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=67 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=67
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=68 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=68
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=69 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=69
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=70 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=70
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=71 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=71
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=72 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=72
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=73 zone=DECK zonePos=0 cardId= player=2] CardID=
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=73
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=时空大盗拉法姆 id=74 zone=PLAY zonePos=0 cardId=HERO_07bk player=1] CardID=HERO_07bk
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=HERO
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=HEALTH value=30
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=PREMIUM value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=PLAY
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=74
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=FACTION value=NEUTRAL
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=RARITY value=FREE
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=HERO_POWER value=66935
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=HIDE_WATERMARK value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=EMOTECHARACTER value=181
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=EMOTECLASS value=7
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=3085 value=30
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=生命分流 id=75 zone=PLAY zonePos=0 cardId=HERO_07ebp player=1] CardID=HERO_07ebp
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=HERO_POWER
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=COST value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=PREMIUM value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=PLAY
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=75
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=FACTION value=NEUTRAL
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=RARITY value=FREE
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CREATOR value=74
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=1037 value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=1086 value=66936
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CREATOR_DBID value=123742
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=巫妖王 id=76 zone=PLAY zonePos=0 cardId=HERO_11 player=2] CardID=HERO_11
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=HERO
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=HEALTH value=30
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=PLAY
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=76
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CLASS value=DEATHKNIGHT
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=RARITY value=FREE
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=HERO_POWER value=78162
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=EMOTECHARACTER value=38
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=EMOTECLASS value=11
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=3085 value=30
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=食尸鬼冲锋 id=77 zone=PLAY zonePos=0 cardId=HERO_11bp player=2] CardID=HERO_11bp
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=HERO_POWER
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=COST value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ZONE value=PLAY
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=77
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CLASS value=DEATHKNIGHT
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=FACTION value=NEUTRAL
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=RARITY value=FREE
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CREATOR value=76
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=1037 value=2
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=1086 value=79943
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=CREATOR_DBID value=78065
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=STATE value=RUNNING 
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=PLAYSTATE value=PLAYING 
+D 12:16:01.6245543 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=PLAYSTATE value=PLAYING 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=GameEntity EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=6 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=GameEntity EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=CURRENT_PLAYER value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=FIRST_PLAYER value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=TURN value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=2166 value=6 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=467 value=3 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=6 zone=DECK zonePos=0 cardId= player=1] CardID=JAIL_510
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=SPELL
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=8
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=COST value=8
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=6
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=RARITY value=RARE
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=478 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=1043 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=1068 value=0
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=6 zone=DECK zonePos=0 cardId= player=1] tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=6 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=6 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=0 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=6 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=2166 value=28 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=467 value=2 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=28 zone=DECK zonePos=0 cardId= player=1] CardID=TIME_005t1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=479 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=COST value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ATK value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=HEALTH value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=PREMIUM value=3
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=28
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=DEATHRATTLE value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=BATTLECRY value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=478 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=1043 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=1068 value=0
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=3085 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=3928 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=IS_FABLED_BUNDLE_CARD value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=4472 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=4997 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=28 zone=DECK zonePos=0 cardId= player=1] tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=28 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=2 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=28 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=0 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=28 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=2 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=2166 value=26 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=467 value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=26 zone=DECK zonePos=0 cardId= player=1] CardID=TIME_064
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=7
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=479 value=4
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=COST value=7
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ATK value=4
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=HEALTH value=8
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=26
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=CLASS value=NEUTRAL
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=RARITY value=LEGENDARY
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=AURA value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=478 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=1043 value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=1068 value=0
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=3085 value=8
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=4472 value=4
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=4997 value=8
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=26 zone=DECK zonePos=0 cardId= player=1] tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=26 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=3 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=26 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=0 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=26 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=3 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=467 value=0 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=NUM_TURNS_LEFT value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=2166 value=63 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=467 value=4 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=63 zone=DECK zonePos=0 cardId= player=2] tag=ZONE value=HAND 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=63 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=63 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=0 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=63 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=2166 value=51 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=467 value=3 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=DECK zonePos=0 cardId= player=2] tag=ZONE value=HAND 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=2 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=0 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=2 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=2166 value=50 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=467 value=2 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=50 zone=DECK zonePos=0 cardId= player=2] tag=ZONE value=HAND 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=50 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=3 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=50 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=0 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=50 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=3 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=2166 value=67 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=467 value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=67 zone=DECK zonePos=0 cardId= player=2] tag=ZONE value=HAND 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=67 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=4 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=67 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=0 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=67 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=4 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=467 value=0 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=NUM_TURNS_LEFT value=1 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=78 zone=HAND zonePos=5 cardId= player=2] CardID=
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=2
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=78
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -         tag=ZONE_POSITION value=5
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=NEXT_STEP value=BEGIN_MULLIGAN 
+D 12:16:05.5445926 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 12:16:06.0850290 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=STEP value=BEGIN_MULLIGAN 
+D 12:16:06.0850290 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=GameEntity EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:06.0850290 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=MULLIGAN_STATE value=INPUT 
+D 12:16:06.0850290 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=MULLIGAN_STATE value=INPUT 
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.4129958 GameState.DebugPrintPower() - TAG_CHANGE Entity=旅店老板 tag=MULLIGAN_STATE value=DEALING 
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=旅店老板 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=73 zone=DECK zonePos=0 cardId= player=2] tag=ZONE value=HAND 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=73 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=63 zone=HAND zonePos=1 cardId= player=2] tag=ZONE_POSITION value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=63 zone=HAND zonePos=1 cardId= player=2] tag=ZONE value=DECK 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=61 zone=DECK zonePos=0 cardId= player=2] tag=ZONE value=HAND 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=61 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=2 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=HAND zonePos=2 cardId= player=2] tag=ZONE_POSITION value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=HAND zonePos=2 cardId= player=2] tag=ZONE value=DECK 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=MULLIGAN_STATE value=WAITING 
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=旅店老板 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=MULLIGAN_STATE value=DONE 
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.4129958 GameState.DebugPrintPower() - TAG_CHANGE Entity=测试玩家#1234 tag=MULLIGAN_STATE value=DEALING 
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=测试玩家#1234 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.4129958 GameState.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=16 zone=DECK zonePos=0 cardId= player=1] CardID=TIME_005t3
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=479 value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=COST value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ATK value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HEALTH value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=PREMIUM value=3
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ENTITY_ID value=16
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=BATTLECRY value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=DISCOVER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=478 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1037 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1043 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1068 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=USE_DISCOVER_VISUALS value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=3085 value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=3928 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=IS_FABLED_BUNDLE_CARD value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4472 value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4997 value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=16 zone=DECK zonePos=0 cardId= player=1] tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=16 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=1068 value=2 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=1068 value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=1037 value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=ZONE_POSITION value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=1043 value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     HIDE_ENTITY - Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=ZONE value=DECK
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=ZONE value=DECK 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=11 zone=DECK zonePos=0 cardId= player=1] CardID=BE_726
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CARDTYPE value=SPELL
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=COST value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=TAG_SCRIPT_DATA_NUM_1 value=2
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=PREMIUM value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ENTITY_ID value=11
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=RARITY value=RARE
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ZONE_POSITION value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=478 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=QUEST_PROGRESS_TOTAL value=2
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1037 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1043 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1068 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1380 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=SPELL_SCHOOL value=6
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1724 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=OBJECTIVE value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=2485 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=TAG_SCRIPT_DATA_NUM_3 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=3085 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=3669 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=3908 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4472 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4623 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4904 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=OLD_GOD_CTHUN_TOOLTIP value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=OBJECTIVE_COUNTDOWN value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4997 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=11 zone=DECK zonePos=0 cardId= player=1] tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=11 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=3 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=1068 value=2 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=1068 value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=1037 value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=ZONE_POSITION value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=1043 value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     HIDE_ENTITY - Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=ZONE value=DECK
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=ZONE value=DECK 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=MULLIGAN_STATE value=WAITING 
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=测试玩家#1234 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=MULLIGAN_STATE value=DONE 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=TURN value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=NEXT_STEP value=MAIN_READY 
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=42 zone=DECK zonePos=0 cardId= player=1] EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=9 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.4129958 GameState.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=42 zone=DECK zonePos=0 cardId= player=1] CardID=EDR_000
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=9
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=479 value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=COST value=9
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ATK value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HEALTH value=12
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=PREMIUM value=3
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ENTITY_ID value=42
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CLASS value=NEUTRAL
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CARDRACE value=DRAGON
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=RARITY value=LEGENDARY
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=BATTLECRY value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=REVEALED value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=478 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=START_OF_GAME_KEYWORD value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1043 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1068 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_DIAMOND_QUALITY value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=2936 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=3085 value=12
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4392 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4472 value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4997 value=12
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=34 zone=DECK zonePos=0 cardId= player=1] EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=0 Target=0 SubOption=-1 TriggerKeyword=START_OF_GAME_KEYWORD
+D 12:16:40.4129958 GameState.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=34 zone=DECK zonePos=0 cardId= player=1] CardID=JAIL_509
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=479 value=5
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=COST value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ATK value=5
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HEALTH value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=TAG_SCRIPT_DATA_NUM_1 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ENTITY_ID value=34
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CARDRACE value=UNDEAD
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=RARITY value=LEGENDARY
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=REVEALED value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=478 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=START_OF_GAME_KEYWORD value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1043 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1068 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=2105 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=2936 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=3085 value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4472 value=5
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4818 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4997 value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -     FULL_ENTITY - Creating ID=79 CardID=JAIL_509
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=479 value=5
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=COST value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ATK value=5
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HEALTH value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ZONE value=SETASIDE
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ENTITY_ID value=79
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CARDRACE value=UNDEAD
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=RARITY value=LEGENDARY
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CREATOR value=34
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=START_OF_GAME_KEYWORD value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1037 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CREATOR_DBID value=126125
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=2105 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=2936 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=3085 value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4818 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4901 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=79 tag=4901 value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=79 tag=TAG_SCRIPT_DATA_NUM_1 value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=79 tag=4741 value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=79 tag=COPIED_FROM_ENTITY_ID value=34 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=79 tag=3669 value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=79 tag=REVEALED value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -         FULL_ENTITY - Creating ID=80 CardID=
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=ZONE value=SETASIDE
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=CONTROLLER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=ENTITY_ID value=80
+D 12:16:40.4129958 GameState.DebugPrintPower() -         SHOW_ENTITY - Updating Entity=80 CardID=JAIL_509e
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=CONTROLLER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=CARDTYPE value=ENCHANTMENT
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=TRIGGER_VISUAL value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=ATTACHED value=2
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=ZONE value=SETASIDE
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=ENTITY_ID value=80
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=CLASS value=NEUTRAL
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=CREATOR value=34
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=1037 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=1068 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=CREATOR_DBID value=126125
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=SPAWN_TIME_COUNT value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -             tag=4901 value=0
+D 12:16:40.4129958 GameState.DebugPrintPower() -         TAG_CHANGE Entity=80 tag=1068 value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -         TAG_CHANGE Entity=80 tag=1068 value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -         TAG_CHANGE Entity=80 tag=ZONE value=PLAY 
+D 12:16:40.4129958 GameState.DebugPrintPower() -         TAG_CHANGE Entity=测试玩家#1234 tag=4741 value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -         TAG_CHANGE Entity=测试玩家#1234 tag=LAST_AFFECTED_BY value=34 
+D 12:16:40.4129958 GameState.DebugPrintPower() -         TAG_CHANGE Entity=80 tag=TAG_SCRIPT_DATA_ENT_1 value=79 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     HIDE_ENTITY - Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=34 zone=DECK zonePos=0 cardId= player=1] tag=ZONE value=DECK
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=34 zone=DECK zonePos=0 cardId= player=1] tag=REVEALED value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=42 zone=DECK zonePos=0 cardId= player=1] EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=0 Target=0 SubOption=-1 TriggerKeyword=START_OF_GAME_KEYWORD
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=42 zone=DECK zonePos=0 cardId= player=1] tag=TAG_SCRIPT_DATA_NUM_1 value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     FULL_ENTITY - Creating ID=81 CardID=EDR_000
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=9
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=479 value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=COST value=9
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ATK value=4
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HEALTH value=12
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=PREMIUM value=3
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ZONE value=SETASIDE
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ENTITY_ID value=81
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CLASS value=NEUTRAL
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CARDRACE value=DRAGON
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=RARITY value=LEGENDARY
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=BATTLECRY value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CREATOR value=42
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=START_OF_GAME_KEYWORD value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=1037 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=CREATOR_DBID value=113321
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_DIAMOND_QUALITY value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=2936 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=3085 value=12
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4392 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -         tag=4901 value=1
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=81 tag=4901 value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=81 tag=REVEALED value=1 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=MAXRESOURCES value=15 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=MAXRESOURCES value=15 
+D 12:16:40.4129958 GameState.DebugPrintPower() -     HIDE_ENTITY - Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=42 zone=DECK zonePos=0 cardId= player=1] tag=ZONE value=DECK
+D 12:16:40.4129958 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=42 zone=DECK zonePos=0 cardId= player=1] tag=REVEALED value=0 
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=GameEntity EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=4 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.4129958 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.4129958 GameState.DebugPrintPower() - TAG_CHANGE Entity=79 tag=3669 value=0 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=MULLIGAN_STATE value=DEALING 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=旅店老板 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=73 zone=DECK zonePos=0 cardId= player=2] tag=ZONE value=HAND 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=73 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=1 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=63 zone=HAND zonePos=1 cardId= player=2] tag=ZONE_POSITION value=0 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=63 zone=HAND zonePos=1 cardId= player=2] tag=ZONE value=DECK 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=61 zone=DECK zonePos=0 cardId= player=2] tag=ZONE value=HAND 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=61 zone=DECK zonePos=0 cardId= player=2] tag=ZONE_POSITION value=2 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=HAND zonePos=2 cardId= player=2] tag=ZONE_POSITION value=0 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=51 zone=HAND zonePos=2 cardId= player=2] tag=ZONE value=DECK 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=MULLIGAN_STATE value=WAITING 
+D 12:16:40.4129958 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 12:16:40.7652036 GameState.DebugPrintPower() - TAG_CHANGE Entity=GameEntity tag=STEP value=MAIN_READY 
+D 12:16:40.7652036 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=测试玩家#1234 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=NUM_TURNS_IN_PLAY value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=NUM_TURNS_IN_PLAY value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=NUM_TURNS_IN_PLAY value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空大盗拉法姆 id=74 zone=PLAY zonePos=0 cardId=HERO_07bk player=1] tag=NUM_TURNS_IN_PLAY value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=生命分流 id=75 zone=PLAY zonePos=0 cardId=HERO_07ebp player=1] tag=NUM_TURNS_IN_PLAY value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=巫妖王 id=76 zone=PLAY zonePos=0 cardId=HERO_11 player=2] tag=NUM_TURNS_IN_PLAY value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=食尸鬼冲锋 id=77 zone=PLAY zonePos=0 cardId=HERO_11bp player=2] tag=NUM_TURNS_IN_PLAY value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=RESOURCES value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=NEXT_STEP value=MAIN_START_TRIGGERS 
+D 12:16:40.7652036 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.7652036 GameState.DebugPrintPower() - TAG_CHANGE Entity=GameEntity tag=STEP value=MAIN_START_TRIGGERS 
+D 12:16:40.7652036 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=测试玩家#1234 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=NEXT_STEP value=MAIN_START 
+D 12:16:40.7652036 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.7652036 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=80 zone=SETASIDE zonePos=0 cardId= player=1] EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=6 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.7652036 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.7652036 GameState.DebugPrintPower() - TAG_CHANGE Entity=GameEntity tag=STEP value=MAIN_START 
+D 12:16:40.7652036 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=测试玩家#1234 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=2166 value=12 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=467 value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=12 zone=DECK zonePos=0 cardId= player=1] CardID=TIME_005t8
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=3
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=479 value=3
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=COST value=3
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=ATK value=3
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=HEALTH value=3
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=PREMIUM value=3
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=ENTITY_ID value=12
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=CARDRACE value=MURLOC
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=BATTLECRY value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=478 value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=1037 value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=1043 value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=1068 value=0
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=3085 value=3
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=3928 value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=IS_FABLED_BUNDLE_CARD value=1
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=4472 value=3
+D 12:16:40.7652036 GameState.DebugPrintPower() -         tag=4997 value=3
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=12 zone=DECK zonePos=0 cardId= player=1] tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=12 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=4 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=12 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=0 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=12 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=4 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=NUM_CARDS_DRAWN_THIS_TURN value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=995 value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=12 zone=DECK zonePos=0 cardId= player=1] tag=1570 value=1 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=467 value=0 
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=NEXT_STEP value=MAIN_ACTION 
+D 12:16:40.7652036 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:40.7652036 GameState.DebugPrintPower() - TAG_CHANGE Entity=GameEntity tag=STEP value=MAIN_ACTION 
+D 12:16:40.7652036 GameState.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=测试玩家#1234 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:40.7652036 GameState.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=NEXT_STEP value=MAIN_END 
+D 12:16:40.7652036 GameState.DebugPrintPower() - BLOCK_END
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=旅店老板 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=MULLIGAN_STATE value=DONE 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=MULLIGAN_STATE value=DEALING 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=测试玩家#1234 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=16 zone=DECK zonePos=0 cardId= player=1] CardID=TIME_005t3
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=4
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=479 value=4
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=COST value=4
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=ATK value=4
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=HEALTH value=4
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=PREMIUM value=3
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=16
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=BATTLECRY value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=DISCOVER value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=478 value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=1037 value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=1043 value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=1068 value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=USE_DISCOVER_VISUALS value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=3085 value=4
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=3928 value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=IS_FABLED_BUNDLE_CARD value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=4472 value=4
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=4997 value=4
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=16 zone=DECK zonePos=0 cardId= player=1] tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=16 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=1 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=1068 value=2 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=1068 value=0 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=1037 value=1 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=ZONE_POSITION value=0 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=1043 value=0 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     HIDE_ENTITY - Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=ZONE value=DECK
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=毁灭 id=6 zone=HAND zonePos=1 cardId=JAIL_510 player=1] tag=ZONE value=DECK 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=11 zone=DECK zonePos=0 cardId= player=1] CardID=BE_726
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=SPELL
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=COST value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=TAG_SCRIPT_DATA_NUM_1 value=2
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=PREMIUM value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=ZONE value=HAND
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=11
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=RARITY value=RARE
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=ZONE_POSITION value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=478 value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=QUEST_PROGRESS_TOTAL value=2
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=1037 value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=1043 value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=1068 value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=1380 value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=SPELL_SCHOOL value=6
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=1724 value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=OBJECTIVE value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=2485 value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=TAG_SCRIPT_DATA_NUM_3 value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=3085 value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=3669 value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=3908 value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=4472 value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=4623 value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=4904 value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=OLD_GOD_CTHUN_TOOLTIP value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=OBJECTIVE_COUNTDOWN value=1
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -         tag=4997 value=0
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=11 zone=DECK zonePos=0 cardId= player=1] tag=NUM_TURNS_IN_HAND value=1 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=11 zone=DECK zonePos=0 cardId= player=1] tag=ZONE_POSITION value=3 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=1068 value=2 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=1068 value=0 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=1037 value=1 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=ZONE_POSITION value=0 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=1043 value=0 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     HIDE_ENTITY - Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=ZONE value=DECK
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=时空领主戴欧斯 id=26 zone=HAND zonePos=3 cardId=TIME_064 player=1] tag=ZONE value=DECK 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=MULLIGAN_STATE value=WAITING 
+D 12:16:42.0493037 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 12:16:42.2136337 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=测试玩家#1234 EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=-1 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:42.2136337 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=MULLIGAN_STATE value=DONE 
+D 12:16:42.2136337 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=TURN value=1 
+D 12:16:42.2136337 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=GameEntity tag=NEXT_STEP value=MAIN_READY 
+D 12:16:42.2136337 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=42 zone=DECK zonePos=0 cardId= player=1] EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=9 Target=0 SubOption=-1 TriggerKeyword=TAG_NOT_SET
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=42 zone=DECK zonePos=0 cardId= player=1] CardID=EDR_000
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=9
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=479 value=4
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=COST value=9
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=ATK value=4
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=HEALTH value=12
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=PREMIUM value=3
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=42
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=CLASS value=NEUTRAL
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=CARDRACE value=DRAGON
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=RARITY value=LEGENDARY
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=BATTLECRY value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=REVEALED value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=478 value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=START_OF_GAME_KEYWORD value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=1043 value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=1068 value=0
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=HAS_DIAMOND_QUALITY value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=2936 value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=3085 value=12
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=4392 value=1
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=4472 value=4
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() -         tag=4997 value=12
+D 12:16:47.3091116 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=34 zone=DECK zonePos=0 cardId= player=1] EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=0 Target=0 SubOption=-1 TriggerKeyword=START_OF_GAME_KEYWORD
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -     SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=34 zone=DECK zonePos=0 cardId= player=1] CardID=JAIL_509
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=4
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=479 value=5
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=COST value=4
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=ATK value=5
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=HEALTH value=4
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=TAG_SCRIPT_DATA_NUM_1 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=ZONE value=DECK
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=34
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=CARDRACE value=UNDEAD
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=RARITY value=LEGENDARY
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=REVEALED value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=478 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=START_OF_GAME_KEYWORD value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=1043 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=1068 value=0
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=2105 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=2936 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=3085 value=4
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=4472 value=5
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=4818 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=4997 value=4
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=背叛者高弗雷 id=79 zone=SETASIDE zonePos=0 cardId=JAIL_509 player=1] CardID=JAIL_509
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=4
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=479 value=5
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=COST value=4
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=ATK value=5
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=HEALTH value=4
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=ZONE value=SETASIDE
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=79
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=CLASS value=WARLOCK
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=CARDRACE value=UNDEAD
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=RARITY value=LEGENDARY
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=CREATOR value=34
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=START_OF_GAME_KEYWORD value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=1037 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=CREATOR_DBID value=126125
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=2105 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=2936 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=3085 value=4
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=4818 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -         tag=4901 value=1
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=背叛者高弗雷 id=79 zone=SETASIDE zonePos=0 cardId=JAIL_509 player=1] tag=4901 value=0 
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=背叛者高弗雷 id=79 zone=SETASIDE zonePos=0 cardId=JAIL_509 player=1] tag=TAG_SCRIPT_DATA_NUM_1 value=1 
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=背叛者高弗雷 id=79 zone=SETASIDE zonePos=0 cardId=JAIL_509 player=1] tag=4741 value=1 
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=背叛者高弗雷 id=79 zone=SETASIDE zonePos=0 cardId=JAIL_509 player=1] tag=COPIED_FROM_ENTITY_ID value=34 
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=背叛者高弗雷 id=79 zone=SETASIDE zonePos=0 cardId=JAIL_509 player=1] tag=3669 value=1 
+D 12:16:47.3488957 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=背叛者高弗雷 id=79 zone=SETASIDE zonePos=0 cardId=JAIL_509 player=1] tag=REVEALED value=1 
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -         FULL_ENTITY - Updating [entityName=UNKNOWN ENTITY [cardType=INVALID] id=80 zone=SETASIDE zonePos=0 cardId= player=1] CardID=
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=ZONE value=SETASIDE
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=CONTROLLER value=1
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=ENTITY_ID value=80
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -         SHOW_ENTITY - Updating Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=80 zone=SETASIDE zonePos=0 cardId= player=1] CardID=JAIL_509e
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=CONTROLLER value=1
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=CARDTYPE value=ENCHANTMENT
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=TRIGGER_VISUAL value=1
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=ATTACHED value=2
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=ZONE value=SETASIDE
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=ENTITY_ID value=80
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=CLASS value=NEUTRAL
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=CREATOR value=34
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=1037 value=1
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=1068 value=0
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=CREATOR_DBID value=126125
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=SPAWN_TIME_COUNT value=1
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -             tag=4901 value=0
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -         TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=80 zone=SETASIDE zonePos=0 cardId= player=1] tag=1068 value=1 
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -         TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=80 zone=SETASIDE zonePos=0 cardId= player=1] tag=1068 value=0 
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -         TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=80 zone=SETASIDE zonePos=0 cardId= player=1] tag=ZONE value=PLAY 
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -         TAG_CHANGE Entity=测试玩家#1234 tag=4741 value=1 
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -         TAG_CHANGE Entity=测试玩家#1234 tag=LAST_AFFECTED_BY value=34 
+D 12:16:47.3993123 PowerTaskList.DebugPrintPower() -         TAG_CHANGE Entity=[entityName=UNKNOWN ENTITY [cardType=INVALID] id=80 zone=SETASIDE zonePos=0 cardId= player=1] tag=TAG_SCRIPT_DATA_ENT_1 value=79 
+D 12:16:52.7478170 PowerTaskList.DebugPrintPower() -     HIDE_ENTITY - Entity=[entityName=背叛者高弗雷 id=34 zone=DECK zonePos=0 cardId=JAIL_509 player=1] tag=ZONE value=DECK
+D 12:16:52.7478170 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=背叛者高弗雷 id=34 zone=DECK zonePos=0 cardId=JAIL_509 player=1] tag=REVEALED value=0 
+D 12:16:52.7478170 PowerTaskList.DebugPrintPower() - BLOCK_END
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() - BLOCK_START BlockType=TRIGGER Entity=[entityName=伊瑟拉，翡翠守护巨龙 id=42 zone=DECK zonePos=0 cardId=EDR_000 player=1] EffectCardId=System.Collections.Generic.List`1[System.String] EffectIndex=0 Target=0 SubOption=-1 TriggerKeyword=START_OF_GAME_KEYWORD
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=伊瑟拉，翡翠守护巨龙 id=42 zone=DECK zonePos=0 cardId=EDR_000 player=1] tag=TAG_SCRIPT_DATA_NUM_1 value=1 
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -     FULL_ENTITY - Updating [entityName=伊瑟拉，翡翠守护巨龙 id=81 zone=SETASIDE zonePos=0 cardId=EDR_000 player=1] CardID=EDR_000
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=CONTROLLER value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=CARDTYPE value=MINION
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=TAG_LAST_KNOWN_COST_IN_HAND value=9
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=479 value=4
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=COST value=9
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=ATK value=4
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=HEALTH value=12
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=PREMIUM value=3
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=ZONE value=SETASIDE
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=ENTITY_ID value=81
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=ELITE value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=CLASS value=NEUTRAL
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=CARDRACE value=DRAGON
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=RARITY value=LEGENDARY
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=BATTLECRY value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=CREATOR value=42
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=START_OF_GAME_KEYWORD value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=1037 value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=CREATOR_DBID value=113321
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=SPAWN_TIME_COUNT value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=HAS_DIAMOND_QUALITY value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=HAS_SIGNATURE_QUALITY value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=HAS_ACTIVATE_POWER value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=2936 value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=3085 value=12
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=4392 value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -         tag=4901 value=1
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=伊瑟拉，翡翠守护巨龙 id=81 zone=SETASIDE zonePos=0 cardId=EDR_000 player=1] tag=4901 value=0 
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=伊瑟拉，翡翠守护巨龙 id=81 zone=SETASIDE zonePos=0 cardId=EDR_000 player=1] tag=REVEALED value=1 
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=测试玩家#1234 tag=MAXRESOURCES value=15 
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=旅店老板 tag=MAXRESOURCES value=15 
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -     HIDE_ENTITY - Entity=[entityName=伊瑟拉，翡翠守护巨龙 id=42 zone=DECK zonePos=0 cardId=EDR_000 player=1] tag=ZONE value=DECK
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() -     TAG_CHANGE Entity=[entityName=伊瑟拉，翡翠守护巨龙 id=42 zone=DECK zonePos=0 cardId=EDR_000 player=1] tag=REVEALED value=0 
+D 12:16:52.7826903 PowerTaskList.DebugPrintPower() - BLOCK_END

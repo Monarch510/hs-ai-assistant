@@ -1,0 +1,239 @@
+{
+  "version": 1,
+  "note": "关键词与文本效果的解释表。引擎按这里的定义去理解卡牌；改这里就能改行为，不用动代码。",
+  "keywords": {
+    "TAUNT": {
+      "cn": "嘲讽",
+      "engine": {
+        "blocks_attack": true
+      },
+      "modelled": true
+    },
+    "DIVINE_SHIELD": {
+      "cn": "圣盾",
+      "engine": {
+        "absorbs_one_hit": true
+      },
+      "modelled": true
+    },
+    "CHARGE": {
+      "cn": "冲锋",
+      "engine": {
+        "can_attack_now": true
+      },
+      "modelled": true
+    },
+    "RUSH": {
+      "cn": "突袭",
+      "engine": {
+        "can_attack_minions_now": true
+      },
+      "modelled": true
+    },
+    "WINDFURY": {
+      "cn": "风怒",
+      "engine": {
+        "attacks_per_turn": 2
+      },
+      "modelled": true
+    },
+    "LIFESTEAL": {
+      "cn": "吸血",
+      "engine": {
+        "heals_on_damage": true
+      },
+      "modelled": true
+    },
+    "POISONOUS": {
+      "cn": "剧毒",
+      "engine": {
+        "kills_on_damage": true
+      },
+      "modelled": true
+    },
+    "SPELL_DAMAGE": {
+      "cn": "法术伤害",
+      "engine": {
+        "spell_bonus": true
+      },
+      "modelled": true
+    },
+    "FREEZE": {
+      "cn": "冻结",
+      "engine": {
+        "skip_attack": true
+      },
+      "modelled": true
+    },
+    "STEALTH": {
+      "cn": "潜行",
+      "engine": {},
+      "modelled": false,
+      "why": "不影响我方决策，只影响对方能否指定"
+    },
+    "REBORN": {
+      "cn": "复生",
+      "engine": {},
+      "modelled": false,
+      "why": "需要处理死亡后重新召唤，目前不计"
+    },
+    "DEATHRATTLE": {
+      "cn": "亡语",
+      "engine": {},
+      "modelled": false,
+      "why": "死亡触发，按局面静态评估时不算"
+    },
+    "BATTLECRY": {
+      "cn": "战吼",
+      "engine": {},
+      "modelled": "partial",
+      "why": "只有「战吼：造成N点伤害」被计入"
+    },
+    "AURA": {
+      "cn": "光环",
+      "engine": {},
+      "modelled": false,
+      "why": "持续性光环不建模"
+    },
+    "DISCOVER": {
+      "cn": "发现",
+      "engine": {
+        "category": "discover"
+      },
+      "modelled": true
+    },
+    "CHOOSE_ONE": {
+      "cn": "抉择",
+      "engine": {},
+      "modelled": false
+    },
+    "COMBO": {
+      "cn": "连击",
+      "engine": {},
+      "modelled": false
+    },
+    "OVERLOAD": {
+      "cn": "过载",
+      "engine": {},
+      "modelled": false,
+      "why": "影响下回合法力，目前不计"
+    }
+  },
+  "patterns": [
+    {
+      "name": "brawl_like",
+      "regex": "消灭除了该随从外的所有其他随从",
+      "effect": {
+        "destroy": true,
+        "scope": "all_minions",
+        "aoe": true
+      },
+      "note": "绝命乱斗这种写法：随机留一个，其余全灭"
+    },
+    {
+      "name": "aoe_enemy",
+      "regex": "对所有敌方随从造成(\\d+)点伤害",
+      "effect": {
+        "damage": "$1",
+        "scope": "enemy_minions",
+        "aoe": true
+      }
+    },
+    {
+      "name": "aoe_all_min",
+      "regex": "对所有随从造成(\\d+)点伤害",
+      "effect": {
+        "damage": "$1",
+        "scope": "all_minions",
+        "aoe": true
+      }
+    },
+    {
+      "name": "aoe_all",
+      "regex": "对所有角色造成(\\d+)点伤害",
+      "effect": {
+        "damage": "$1",
+        "scope": "all_minions",
+        "aoe": true
+      }
+    },
+    {
+      "name": "face_damage",
+      "regex": "对敌方英雄造成(\\d+)点伤害",
+      "effect": {
+        "damage": "$1",
+        "scope": "enemy_hero"
+      }
+    },
+    {
+      "name": "damage",
+      "regex": "造成(\\d+)点伤害",
+      "effect": {
+        "damage": "$1",
+        "scope": "target"
+      }
+    },
+    {
+      "name": "destroy_all",
+      "regex": "消灭所有随从",
+      "effect": {
+        "destroy": true,
+        "scope": "all_minions",
+        "aoe": true
+      }
+    },
+    {
+      "name": "destroy_one",
+      "regex": "消灭一个随从",
+      "effect": {
+        "destroy": true,
+        "scope": "target"
+      }
+    },
+    {
+      "name": "heal",
+      "regex": "恢复(\\d+)点生命值",
+      "effect": {
+        "heal": "$1"
+      }
+    },
+    {
+      "name": "buff",
+      "regex": "获得\\+(\\d+)/\\+(\\d+)",
+      "effect": {
+        "buff_atk": "$1",
+        "buff_hp": "$2"
+      }
+    },
+    {
+      "name": "draw",
+      "regex": "抽\\s*(一|二|两|三|四|五|\\d+)\\s*张",
+      "effect": {
+        "draw": ""
+      }
+    },
+    {
+      "name": "summon",
+      "regex": "召唤一个(\\d+)/(\\d+)的",
+      "effect": {
+        "summon_atk": "$1",
+        "summon_hp": "$2"
+      }
+    },
+    {
+      "name": "freeze",
+      "regex": "冻结",
+      "effect": {
+        "freeze": true
+      }
+    },
+    {
+      "name": "gain_mana",
+      "regex": "获得\\s*(?:一|1)?\\s*个?\\s*(?:空的)?\\s*法力水晶",
+      "effect": {
+        "mana": 1
+      },
+      "note": "幸运币等：本回合获得 1 费"
+    }
+  ]
+}

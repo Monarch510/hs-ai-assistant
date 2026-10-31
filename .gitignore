@@ -1,0 +1,23 @@
+# 运行时产物（可重建）
+data/cards_*.json
+data/observations.jsonl
+data/games.jsonl
+data/policy_weights.json
+data/mulligan_weights.json
+data/our_deck.json
+data/meta.json
+data/meta.backup.json
+data/hsai.log
+data/window.json
+data/install_dir.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,96 @@
+D 20:00:00.0000000 GameState.DebugPrintPower() - CREATE_GAME
+D 20:00:00.0100000 GameState.DebugPrintPower() -     GameEntity EntityID=1
+D 20:00:00.0100000 GameState.DebugPrintPower() -         tag=10 value=85
+D 20:00:00.0200000 GameState.DebugPrintPower() -     Player EntityID=2 PlayerID=1 GameAccountId=[hi=144115193835963207 lo=1]
+D 20:00:00.0200000 GameState.DebugPrintPower() -         tag=30 value=1
+D 20:00:00.0300000 GameState.DebugPrintPower() -     Player EntityID=3 PlayerID=2 GameAccountId=[hi=144115193835963207 lo=2]
+D 20:00:00.0300000 GameState.DebugPrintPower() -         tag=30 value=2
+D 20:00:00.1000000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=4 CardID=HERO_08
+D 20:00:00.1000000 GameState.DebugPrintPower() -     tag=49 value=1
+D 20:00:00.1000000 GameState.DebugPrintPower() -     tag=50 value=1
+D 20:00:00.1000000 GameState.DebugPrintPower() -     tag=45 value=30
+D 20:00:00.1100000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=5 CardID=HERO_01
+D 20:00:00.1100000 GameState.DebugPrintPower() -     tag=49 value=1
+D 20:00:00.1100000 GameState.DebugPrintPower() -     tag=50 value=2
+D 20:00:00.1100000 GameState.DebugPrintPower() -     tag=45 value=30
+D 20:00:00.1200000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=6 CardID=
+D 20:00:00.1200000 GameState.DebugPrintPower() -     tag=49 value=1
+D 20:00:00.1200000 GameState.DebugPrintPower() -     tag=50 value=1
+D 20:00:00.1200000 GameState.DebugPrintPower() -     tag=48 value=2
+D 20:00:00.1300000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=7 CardID=
+D 20:00:00.1300000 GameState.DebugPrintPower() -     tag=49 value=1
+D 20:00:00.1300000 GameState.DebugPrintPower() -     tag=50 value=2
+D 20:00:00.1300000 GameState.DebugPrintPower() -     tag=48 value=2
+D 20:00:00.2000000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=10 CardID=NEW1_012
+D 20:00:00.2000000 GameState.DebugPrintPower() -     tag=49 value=3
+D 20:00:00.2000000 GameState.DebugPrintPower() -     tag=50 value=1
+D 20:00:00.2000000 GameState.DebugPrintPower() -     tag=48 value=1
+D 20:00:00.2100000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=11 CardID=CORE_CS2_024
+D 20:00:00.2100000 GameState.DebugPrintPower() -     tag=49 value=3
+D 20:00:00.2100000 GameState.DebugPrintPower() -     tag=50 value=1
+D 20:00:00.2100000 GameState.DebugPrintPower() -     tag=48 value=2
+D 20:00:00.2200000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=12 CardID=CORE_CS2_033
+D 20:00:00.2200000 GameState.DebugPrintPower() -     tag=49 value=3
+D 20:00:00.2200000 GameState.DebugPrintPower() -     tag=50 value=1
+D 20:00:00.2200000 GameState.DebugPrintPower() -     tag=48 value=4
+D 20:00:00.2300000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=13 CardID=CORE_CS2_029
+D 20:00:00.2300000 GameState.DebugPrintPower() -     tag=49 value=3
+D 20:00:00.2300000 GameState.DebugPrintPower() -     tag=50 value=1
+D 20:00:00.2300000 GameState.DebugPrintPower() -     tag=48 value=4
+D 20:00:00.2400000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=40 CardID=
+D 20:00:00.2400000 GameState.DebugPrintPower() -     tag=49 value=3
+D 20:00:00.2400000 GameState.DebugPrintPower() -     tag=50 value=2
+D 20:00:00.2500000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=41 CardID=
+D 20:00:00.2500000 GameState.DebugPrintPower() -     tag=49 value=3
+D 20:00:00.2500000 GameState.DebugPrintPower() -     tag=50 value=2
+D 20:00:00.2600000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=42 CardID=
+D 20:00:00.2600000 GameState.DebugPrintPower() -     tag=49 value=3
+D 20:00:00.2600000 GameState.DebugPrintPower() -     tag=50 value=2
+D 20:00:00.2700000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=43 CardID=
+D 20:00:00.2700000 GameState.DebugPrintPower() -     tag=49 value=3
+D 20:00:00.2700000 GameState.DebugPrintPower() -     tag=50 value=2
+D 20:00:12.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=17 value=2
+D 20:00:12.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=20 value=1
+D 20:00:12.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=23 value=1
+D 20:00:12.1000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=26 value=1
+D 20:00:12.1000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=27 value=0
+D 20:00:14.0000000 GameState.DebugPrintPower() - BLOCK_START BlockType=PLAY Entity=[entityName=法力浮龙 id=10 zone=HAND zonePos=3 cardId=NEW1_012 player=1] EffectCardId= EffectIndex=0 Target=0 SubOption=-1
+D 20:00:14.0100000 GameState.DebugPrintPower() - TAG_CHANGE Entity=10 tag=49 value=1
+D 20:00:14.0200000 GameState.DebugPrintPower() - TAG_CHANGE Entity=10 tag=2 value=10
+D 20:00:14.0300000 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=27 value=1
+D 20:00:14.1000000 GameState.DebugPrintPower() - BLOCK_END
+D 20:00:15.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=20 value=2
+D 20:00:15.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=23 value=2
+D 20:00:15.1000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=26 value=1
+D 20:00:15.1000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=27 value=0
+D 20:00:17.0000000 GameState.DebugPrintPower() - SHOW_ENTITY - Updating Entity=40 CardID=NEW1_025
+D 20:00:17.0000000 GameState.DebugPrintPower() - BLOCK_START BlockType=PLAY Entity=[entityName=血帆海盗 id=40 zone=HAND zonePos=1 cardId=NEW1_025 player=2] EffectCardId= EffectIndex=0 Target=0 SubOption=-1
+D 20:00:17.0100000 GameState.DebugPrintPower() - TAG_CHANGE Entity=40 tag=49 value=1
+D 20:00:17.0200000 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=27 value=1
+D 20:00:17.1000000 GameState.DebugPrintPower() - BLOCK_END
+D 20:00:18.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=20 value=3
+D 20:00:18.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=23 value=1
+D 20:00:18.1000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=26 value=2
+D 20:00:18.1000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=27 value=0
+D 20:00:19.0000000 GameState.DebugPrintPower() - FULL_ENTITY - Creating ID=14 CardID=EX1_015
+D 20:00:19.0000000 GameState.DebugPrintPower() -     tag=49 value=3
+D 20:00:19.0000000 GameState.DebugPrintPower() -     tag=50 value=1
+D 20:00:19.0000000 GameState.DebugPrintPower() -     tag=48 value=2
+D 20:00:21.0000000 GameState.DebugPrintPower() - BLOCK_START BlockType=PLAY Entity=[entityName=寒冰箭 id=11 zone=HAND zonePos=2 cardId=CORE_CS2_024 player=1] EffectCardId= EffectIndex=0 Target=40 SubOption=-1
+D 20:00:21.0100000 GameState.DebugPrintPower() - TAG_CHANGE Entity=40 tag=45 value=0
+D 20:00:21.0200000 GameState.DebugPrintPower() - TAG_CHANGE Entity=40 tag=49 value=4
+D 20:00:21.0300000 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=27 value=2
+D 20:00:21.1000000 GameState.DebugPrintPower() - BLOCK_END
+D 20:00:23.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=20 value=4
+D 20:00:23.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=23 value=2
+D 20:00:23.1000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=26 value=2
+D 20:00:23.1000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=27 value=0
+D 20:00:25.0000000 GameState.DebugPrintPower() - SHOW_ENTITY - Updating Entity=41 CardID=CORE_EX1_604
+D 20:00:25.0000000 GameState.DebugPrintPower() - BLOCK_START BlockType=PLAY Entity=[entityName=暴乱狂战士 id=41 zone=HAND zonePos=1 cardId=CORE_EX1_604 player=2] EffectCardId= EffectIndex=0 Target=0 SubOption=-1
+D 20:00:25.0100000 GameState.DebugPrintPower() - TAG_CHANGE Entity=41 tag=49 value=1
+D 20:00:25.0200000 GameState.DebugPrintPower() - TAG_CHANGE Entity=3 tag=27 value=2
+D 20:00:25.1000000 GameState.DebugPrintPower() - BLOCK_END
+D 20:00:27.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=20 value=5
+D 20:00:27.0000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=1 tag=23 value=1
+D 20:00:27.1000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=26 value=3
+D 20:00:27.1000000 GameState.DebugPrintPower() - TAG_CHANGE Entity=2 tag=27 value=0
