@@ -109,6 +109,7 @@ class Effect:
     summon_count: int = 1   # 一次召唤几个
     mana: int = 0            # 本回合获得的法力（例如幸运币）
     armor: int = 0           # 获得护甲（战士/德鲁伊英雄技能）
+    discover: bool = False   # 发现：从三张里选一张
     aoe: bool = False
     known: bool = True
     note: str = ""
@@ -184,6 +185,8 @@ def parse_effect(card: Card) -> Effect:
 
     if re.search(r"获得\s*(?:一|1)?\s*个?\s*(?:空的)?\s*法力水晶", text):
         eff.mana = 1
+    if "发现" in text:
+        eff.discover = True
     # 护甲的写法很杂：「获得2点护甲」「+2护甲」「本回合+2护甲」
     if m := re.search(r"(\d+)\s*点?护甲", text):
         eff.armor = int(m.group(1))
@@ -212,6 +215,7 @@ def parse_effect(card: Card) -> Effect:
     eff.known = bool(
         eff.damage or eff.heal or eff.draw or eff.buff_atk or eff.buff_hp
         or eff.destroy or eff.summon_atk or eff.freeze or eff.mana or eff.armor
+        or eff.discover
     ) or card.type in ("MINION", "WEAPON", "HERO")
     if not eff.known:
         eff.note = "效果未能建模"

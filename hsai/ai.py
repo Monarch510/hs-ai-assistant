@@ -90,7 +90,9 @@ def build_prompt(snap: dict[str, Any]) -> str:
             tags.append(kw)
         if c.get("can_attack"):
             tags.append("可攻")
-        return " ".join(parts) + (f"（{'、'.join(tags)}）" if tags else "")
+        head = " ".join(parts) + (f"（{'、'.join(tags)}）" if tags else "")
+        eff = str(c.get("effect") or "").strip()
+        return head + (f" — {eff[:24]}" if eff else "")
 
     def units(items: list[dict[str, Any]]) -> str:
         return "、".join(unit(c) for c in (items or [])[:7]) or "空"
@@ -486,3 +488,20 @@ def plan_route(
     if got is not None and conv is not None:
         conv.remember(prompt, text)
     return got
+
+
+STRATEGY_RULES = (
+    "\n\n打法优先级（必须遵守）："
+    "\n1. 第一优先级是斩杀对手：只要本回合的伤害够杀死对手，就按最短路径打出去，"
+    "其它任何事情都不做（不解场、不铺场、不过牌）。"
+    "\n2. 高攻随从优先打脸：攻击力 5 点以上的随从默认直接打英雄，"
+    "不要拿它去换低攻随从；只有换了能挡住下一回合的斩杀时，才允许让它去换。"
+    "\n3. 换怪交给低攻随从和法术，先把对方的威胁清掉，同时保住自己的场面。"
+    "\n4. 当你判断下一回合可能被斩杀时，按以下顺序找活路："
+    "\n   a. 先看自己牌库里还有没有解牌、回血或护甲；"
+    "\n   b. 有抽牌手段就先抽牌，去把解牌摸上来；"
+    "\n   c. 没有抽牌就找发现类效果，用发现去找解牌；"
+    "\n   d. 以上都不行，才用现有手段直接解场。"
+)# 追加到两个系统提示词末尾（模块导入时执行一次）
+SESSION_SYSTEM = SESSION_SYSTEM + STRATEGY_RULES
+ROUTE_SYSTEM = ROUTE_SYSTEM + STRATEGY_RULES

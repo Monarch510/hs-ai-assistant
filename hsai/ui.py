@@ -36,9 +36,9 @@ from .state import GameState
 STATE_PATH = DATA_DIR / "window.json"
 
 # 窗口默认宽度（窄一点，贴边时不挡牌桌）
-DEFAULT_WIDTH = 237
+DEFAULT_WIDTH = 300
 # 改了布局参数就 +1：老配置文件里的宽度会被忽略，位置照旧保留
-LAYOUT_VERSION = 5
+LAYOUT_VERSION = 6
 
 # ---------------------------------------------------------------- 配色
 # BG 同时是「透明键」：窗口上凡是这个颜色的像素都会被抠掉，露出下面的游戏。
@@ -114,10 +114,13 @@ class Overlay:
         self._ai_text = ""
         self._ai_pick: tuple[str, str] | None = None
         self._ai_route: list[dict] | None = None
+        # 工作线程只写这个字段，主线程在 _tick 里取走 —— Tk 不是线程安全的，
+        # 从子线程直接调 root.after 有可能静默失败，导致建议永远不出现
+        self._ai_result: tuple | None = None
         self._ai_reviewed = False
         self._ai_mulligan: list[dict] | None = None
         self._ai_mulligan_done = False
-        self._ai_conv = ai_mod.Conversation(ai_mod.SESSION_SYSTEM, keep=ai_mod.KEEP_TURNS)
+        self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
         self._last_review = self._load_last_review()
         self._ai_busy = False
         self._ai_turn: tuple[int, bool] | None = None
@@ -329,6 +332,7 @@ class Overlay:
                 # 日志停了也要继续走：否则「对局结束 8 秒后收起」这类
                 # 靠时间推进的逻辑永远不会触发，面板就停在「对局中」
                 self._update(self._last_state)
+            self._drain_ai_results()
             self._fail_streak = 0
             if self._render_broken:
                 # 下一帧画成功了就恢复正常
@@ -343,6 +347,18 @@ class Overlay:
                 self._render_broken = True
                 self._show_render_error()
         self.root.after(320, self._tick)
+
+    def _drain_ai_results(self) -> None:
+        """把工作线程算好的结果搬到界面上（只在主线程做）。"""
+        res = self._ai_result
+        if res is not None:
+            self._ai_result = None
+            text, pick, steps = res
+            self._ai_done(text, pick, steps)
+        rows = getattr(self, "_ai_mulligan_rows", None)
+        if rows is not None:
+            self._ai_mulligan_rows = None
+            self._ai_mulligan_done_cb(rows)
 
     def _show_render_error(self) -> None:
         """画面卡死时把细条变成错误提示，并按 F8 可恢复。"""
@@ -390,7 +406,7 @@ class Overlay:
         snap["demo"] = self.manager.is_demo
         snap["source"] = self.manager.name
         if snap.get("phase") == "mulligan" and (snap.get("turn") or 0) <= 1:
-            self._ai_conv = ai_mod.Conversation(ai_mod.SESSION_SYSTEM, keep=ai_mod.KEEP_TURNS)
+            self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
 
         phase = snap.get("phase")
         if phase == "game_over":
@@ -561,8 +577,10 @@ class Overlay:
             parts.append(f"{rev['turns']} 回合")
         head = " · ".join(parts)
         tk.Label(inner, text=head, bg=PANEL, fg=TEXT,
-                 font=(FONT, self.font_size, "bold"), anchor="w").pack(fill="x", pady=(0, 3))
-        rows = list(rev.get("findings") or []) + list(rev.get("issues") or [])
+                 font=(FONT, self.font_size, "bold"), anchor="w", justify="left",
+                 wraplength=self.width - 46).pack(fill="x", pady=(0, 3))
+        rows = [r for r in (list(rev.get("findings") or []) + list(rev.get("issues") or []))
+                if str(r).strip()]
         if not rows:
             rows = ["上一局没有可复盘的记录"]
         for line in rows[:5]:
@@ -575,6 +593,19 @@ class Overlay:
         self._render_collapsed()      # 必须调用：它负责把 panel 真正 pack 上去
 
     # ------------------------------------------------------------ AI 解释（可选）
+    @staticmethod
+    def _has_options(snap: dict[str, Any]) -> bool:
+        our = snap.get("our") or {}
+        mana = our.get("mana") or 0
+        if any((c.get("cost") or 0) <= mana for c in (our.get("hand") or [])):
+            return True
+        if any(m.get("can_attack") for m in (our.get("board") or [])):
+            return True
+        hp = our.get("hero_power") or {}
+        if not our.get("hero_power_used") and (hp.get("cost") or 0) <= mana:
+            return True
+        return False
+
     def _maybe_ai(self, snap: dict[str, Any], st: GameState | None = None) -> None:
         """每回合最多请求一次 AI 解释，不跟着 320ms 的刷新跑。"""
         if not ai_mod.is_ready():
@@ -585,6 +616,10 @@ class Overlay:
                 threading.Thread(target=self._ai_mulligan_worker, args=(snap,), daemon=True).start()
             return
         if snap.get("phase") == "game_over":
+            # 这一局的复盘已经写入文件，重新读一遍，
+            # 否则等待界面会一直显示程序启动时读到的那一份
+            self._last_review = self._load_last_review()
+            self._last_review_shown = False
             if not self._ai_reviewed:
                 self._ai_reviewed = True
                 threading.Thread(target=self._ai_review_worker, args=(snap,),
@@ -605,6 +640,9 @@ class Overlay:
             tuple(sorted(str(m.get("id") or m.get("name")) for m in (our.get("board") or []))),
             our.get("health"),
         )
+        # 没费、没牌可出、随从都打过 —— 这回合只能结束，问 AI 纯属浪费 token
+        if not choice_sig and not self._has_options(snap):
+            return
         key = (int(snap.get("turn") or 0), True, choice_sig, board_sig)
         if key == self._ai_turn:
             return
@@ -620,7 +658,7 @@ class Overlay:
             rows = ai_mulligan.advise(snap)
         except Exception:
             rows = []
-        self.root.after(0, lambda: self._ai_mulligan_done_cb(rows))
+        self._ai_mulligan_rows = rows
 
     def _ai_mulligan_done_cb(self, rows: list[dict]) -> None:
         self._ai_mulligan = rows or None
@@ -642,23 +680,54 @@ class Overlay:
             options = [str(o.get("name")) for o in (choice.get("options") or [])]
             actions: list[str] = []
             if len(options) >= 2:
-                actions = options            # 发现/抉择：选项就是合法动作
+                # 发现/抉择期间只问「选哪个」，不出整回合路线 ——
+                # 选项只能选一个，列成多步会让人以为要全打出去
+                got = ai_mod.decide_and_explain(snap, options)
+                if got is not None:
+                    pick = (options[got["pick"]], got["reason"])
+                    self._ai_result = (got["explain"], pick, None)
+                return
             elif st is not None and not (snap.get("advice") or {}).get("lethal"):
                 board = board_from_state(st)
                 actions = [a.desc for a in policy_mod.legal_actions(board, 0, self.cards)]
+            else:
+                actions = []
             if actions:
                 # 要一整回合的路线（含站位），不是单步
                 route = ai_mod.plan_route(snap, actions, conv=self._ai_conv)
                 if route is not None:
                     text = route["explain"]
                     steps = route["steps"]
+                    # 按顺序模拟一遍：费用不够的步骤要标出来，
+                    # 否则会出现「3+3+3 费但只有 5 费」这种排不下来的路线
+                    if st is not None:
+                        try:
+                            board_now = board_from_state(st)
+                            checked = policy_mod.validate_sequence(
+                                board_now, [x["text"] for x in steps], self.cards)
+                            for step, chk in zip(steps, checked):
+                                if not chk["ok"]:
+                                    step["matched"] = False
+                                    step["why"] = chk["why"]
+                        except Exception:
+                            pass
                     pick = (steps[0]["text"], route["reason"]) if steps else None
-                    self.root.after(0, lambda: self._ai_done(text, pick, steps))
+                    self._ai_result = (text, pick, steps)
                     return
+                # 路线解析失败就退回「单步建议」，别让面板什么都不显示
+                self._log("plan_route 返回空，退回单步决策")
+                got = ai_mod.decide_and_explain(snap, actions)
+                if got is not None:
+                    pick = (actions[got["pick"]], got["reason"])
+                    self._ai_result = (got["explain"], pick, None)
+                else:
+                    self._log("decide_and_explain 也失败，本次无 AI 建议")
+                    self._ai_result = ("", None, None)
+                return
         except Exception:
             pass
         text = ""
-        self.root.after(0, lambda: self._ai_done(text, pick))
+        self._ai_result = (text, pick, None)
 
     def _ai_review_worker(self, snap: dict[str, Any]) -> None:
         """对局结束：让 AI 总结教训，写进本地 lessons.jsonl（不进仓库）。"""
@@ -779,7 +848,8 @@ class Overlay:
                          font=(FONT, self.font_size - 1), anchor="w", justify="left",
                          wraplength=self.width - 70).pack(side="left")
                 if not step.get("matched"):
-                    tk.Label(row, text="需人工", bg=PANEL, fg="#c9a05a",
+                    tip = step.get("why") or "需人工"
+                    tk.Label(row, text=tip, bg=PANEL, fg="#c9a05a",
                              font=(FONT, self.font_size - 3)).pack(side="right")
         elif self._ai_pick:
             inner_pick = self._section("AI 决策", "模型选择")

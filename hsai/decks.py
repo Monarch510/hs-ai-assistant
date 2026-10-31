@@ -126,6 +126,15 @@ def best_match(decks: Iterable[SavedDeck], seen: Iterable[str], our_class: str =
         return None, 0.0
     if len(candidates) == 1:
         return candidates[0], 1.0
+    # 已看到的牌里会混进「生成牌」（幸运币、衍生物、发现出来的牌），
+    # 它们本来就不在任何卡组里，直接拉低命中率。先把这些剔掉。
+    pool: set[str] = set()
+    for d in candidates:
+        pool |= set(d.cards)
+    seen_set = {c for c in seen_set if c in pool}
+    if not seen_set:
+        return None, 0.0
+
     best: tuple[SavedDeck | None, float] = (None, 0.0)
     for deck in candidates:
         if not seen_set:

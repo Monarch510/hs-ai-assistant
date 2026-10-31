@@ -101,14 +101,14 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
             for j, t in enumerate(foe.board):
                 if t.alive and t.taunt:
                     acts.append(Action("attack", unit_idx=i, target=f"enemy:{j}",
-                                       desc=f"{u.name} 攻击嘲讽 {t.name}"))
+                                       desc=f"{u.name} {u.atk}/{u.hp} 攻击嘲讽 {t.name} {t.atk}/{t.hp}"))
         else:
             acts.append(Action("attack", unit_idx=i, target="enemy_hero",
-                               desc=f"{u.name} 攻击英雄"))
+                               desc=f"{u.name} {u.atk}/{u.hp} 攻击英雄"))
             for j, t in enumerate(foe.board):
                 if t.alive:
                     acts.append(Action("attack", unit_idx=i, target=f"enemy:{j}",
-                                       desc=f"{u.name} 攻击 {t.name}"))
+                                       desc=f"{u.name} {u.atk}/{u.hp} 攻击 {t.name} {t.atk}/{t.hp}"))
 
     full_board = len([u for u in me.board if u.alive]) >= 7
     for i, card in enumerate(me.hand):
@@ -592,3 +592,27 @@ def _score_from_gain(gain: float) -> int:
     if gain >= 100:
         return 99
     return max(1, min(97, int(round(55 + math.log1p(max(gain, 0)) * 9))))
+
+
+def validate_sequence(board: Board, descs: list[str], cards: CardDB,
+                      side: int = 0) -> list[dict[str, Any]]:
+    """把一串「动作描述」按顺序模拟一遍，检查费用和可执行性。
+
+    AI 规划路线时只看得到开局的法力，很容易排出「3+3+3 费但只有 5 费」的路线。
+    这里逐步扣费，扣不起的那步标成费用不足，后面的也一并标出来。
+    """
+    work = board.clone()
+    work.active = side
+    out: list[dict[str, Any]] = []
+    for desc in descs:
+        acts = legal_actions(work, side, cards)
+        act = next((a for a in acts if a.desc == desc), None)
+        if act is None:
+            out.append({"desc": desc, "ok": False, "why": "当前不可执行"})
+            continue
+        if act.cost > work.sides[side].mana:
+            out.append({"desc": desc, "ok": False, "why": "费用不足"})
+            continue
+        out.append({"desc": desc, "ok": True, "why": ""})
+        work = apply_action(work, side, act, cards)
+    return out

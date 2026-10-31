@@ -77,6 +77,26 @@ class Entity:
         return (self.card_id or "").upper().startswith("HERO")
 
 
+_EFFECT_CACHE: dict[str, tuple[str, bool]] = {}
+
+
+def _cached_effect(state: "GameState", card_id: str | None) -> str:
+    """效果摘要（带缓存）。给 AI 看牌面用，避免每帧重复解析。"""
+    if not card_id:
+        return ""
+    hit = _EFFECT_CACHE.get(card_id)
+    if hit is None:
+        hit = state._effect_text(card_id)
+        _EFFECT_CACHE[card_id] = hit
+    summary, known = hit
+    if not known:
+        return ""
+    # 随从没有可解析效果时，摘要就是「攻/血 + 关键字」，和前面重复了，丢掉
+    if re.match(r"^\d+/\d+", summary):
+        return ""
+    return summary
+
+
 def _clean_text(raw: str) -> str:
     """去掉富文本标记：<b>、$（伤害）、#（治疗）、&（换行）、{0}（占位符）。"""
     t = re.sub(r"<[^>]+>", "", raw or "")
@@ -508,6 +528,12 @@ class GameState:
             parts.append(f"召唤{eff.summon_atk}/{eff.summon_hp}")
         if eff.freeze:
             parts.append("冻结")
+        if eff.mana:
+            parts.append(f"获得{eff.mana}费")
+        if eff.armor:
+            parts.append(f"+{eff.armor}护甲")
+        if eff.discover:
+            parts.append("发现")
         if parts:
             return " · ".join(parts), True
         if card.is_minion:
@@ -933,6 +959,7 @@ class GameState:
             "can_attack": self.can_attack(e),
             "exhausted": e.tags.get("EXHAUSTED") in (1, "1", True),
             "text": _clean_text(card.text if card else ""),
+            "effect": _cached_effect(self, e.card_id),
             "zone": e.zone,
         }
         return view
