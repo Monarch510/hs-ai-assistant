@@ -40,9 +40,9 @@ from .state import GameState
 STATE_PATH = DATA_DIR / "window.json"
 
 # 窗口默认宽度（窄一点，贴边时不挡牌桌）
-DEFAULT_WIDTH = 300
+DEFAULT_WIDTH = 260
 # 改了布局参数就 +1：老配置文件里的宽度会被忽略，位置照旧保留
-LAYOUT_VERSION = 6
+LAYOUT_VERSION = 7
 
 # ---------------------------------------------------------------- 配色
 # BG 同时是「透明键」：窗口上凡是这个颜色的像素都会被抠掉，露出下面的游戏。
@@ -357,7 +357,8 @@ class Overlay:
                 self.bar_label.config(fg=MUTED)
                 self._last_sig = None
         except Exception as exc:  # 单帧出错不能让窗口崩掉
-            self._log(f"tick error: {exc}")
+            import traceback as _tb
+            self._log(f"tick error: {exc}\n" + _tb.format_exc(limit=15))
             self._fail_streak = getattr(self, "_fail_streak", 0) + 1
             # 连续失败说明画面已经冻住了：与其让你以为在打，不如直接说坏了
             self._last_error = str(exc)
@@ -621,13 +622,14 @@ class Overlay:
         tk.Label(inner, text=head, bg=PANEL, fg=TEXT,
                  font=(FONT, self.font_size, "bold"), anchor="w", justify="left",
                  wraplength=self.width - 46).pack(fill="x", pady=(0, 3))
-        rows = [r for r in (list(rev.get("findings") or []) + list(rev.get("issues") or [])
+        rows = [r for r in (list(rev.get("findings") or [])
+                            + list(rev.get("issues") or [])
                             + list(getattr(self, "_rule_report", []) or []))
-                if str(r).strip()]
+                if str(r).strip() and "未建模" not in str(r)]
         if not rows:
             rows = ["上一局没有可复盘的记录"]
         for line in rows[:5]:
-            tk.Label(inner, text="· " + str(line), bg=PANEL, fg=TEXT_SOFT,
+            tk.Label(inner, text=str(line), bg=PANEL, fg=TEXT_SOFT,
                      font=(FONT, self.font_size - 1), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x", pady=1)
         lessons = [str(x) for x in (getattr(self, "_ai_lessons", []) or []) if str(x).strip()]
@@ -635,18 +637,10 @@ class Overlay:
             tk.Label(inner, text="AI 复盘", bg=PANEL, fg=GOLD,
                      font=(FONT, self.font_size - 2, "bold"), anchor="w").pack(fill="x", pady=(5, 1))
             for line in lessons[:3]:
-                tk.Label(inner, text="· " + line, bg=PANEL, fg=TEXT_SOFT,
+                tk.Label(inner, text=line, bg=PANEL, fg=TEXT_SOFT,
                          font=(FONT, self.font_size - 2), anchor="w", justify="left",
                          wraplength=self.width - 46).pack(fill="x")
 
-        unknown = [str(x) for x in (rev.get("unmodelled") or []) if str(x).strip()]
-        if unknown:
-            tk.Label(inner, text="未能解析的牌", bg=PANEL, fg=GOLD,
-                     font=(FONT, self.font_size - 2, "bold"), anchor="w").pack(fill="x", pady=(5, 1))
-            for name in unknown[:8]:
-                tk.Label(inner, text="· " + name, bg=PANEL, fg="#c9a05a",
-                         font=(FONT, self.font_size - 2), anchor="w", justify="left",
-                         wraplength=self.width - 46).pack(fill="x")
         tk.Label(inner, text="开一局后这里会自动切换到对局信息", bg=PANEL, fg="#5b636e",
                  font=(FONT, self.font_size - 3), anchor="w").pack(fill="x", pady=(6, 0))
         self.collapsed = False
@@ -815,13 +809,16 @@ class Overlay:
         if not names or self._effect_busy:
             return
         self._effect_busy = True
-        self._effect_done.update(names[:4])
+        batch = names[:6]
+        # 不在这里标记「已处理」——失败要能重试
         threading.Thread(target=self._effects_worker,
-                         args=(names[:4],), daemon=True).start()
+                         args=(batch,), daemon=True).start()
 
     def _effects_worker(self, names: list[str]) -> None:
         try:
             self._effect_result = self._auto_effects({"unmodelled": names})
+            # 只有真正跑完（无论通过/被拒）才算处理过；抛异常则下一帧重试
+            self._effect_done.update(names)
         except Exception as exc:
             self._log(f"effects worker failed: {exc}")
             self._effect_result = []
@@ -1009,6 +1006,26 @@ class Overlay:
                      bg=BG, fg=GOLD if cthun.get("tripled") else MUTED,
                      font=(FONT, self.font_size - 3), anchor="w").pack(fill="x")
 
+        # 对战信息：对手在上，双方血量/手牌/牌库/场攻
+        def _row(side, label):
+            hp = side.get("health")
+            armor = side.get("armor") or 0
+            live = f"{hp + armor} 血"
+            if armor:
+                live += f"（{hp}+{armor}甲）"
+            board = [m for m in (side.get("board") or []) if m.get("atk")]
+            atk = sum(int(m.get("atk") or 0) for m in board)
+            weapon = (side.get("weapon") or {}).get("atk") or 0
+            return (f"{label} {live} · 手牌 {side.get('hand_count')} · "
+                    f"牌库 {side.get('deck_count')} · 场攻 {atk + weapon}")
+
+        inner_b = self._section("对战信息")
+        for side, label in ((snap.get("opp") or {}, "对手"), (snap.get("our") or {}, "我方")):
+            tk.Label(inner_b, text=_row(side, label), bg=PANEL,
+                     fg=TEXT if label == "对手" else TEXT_SOFT,
+                     font=(FONT, self.font_size - 1), anchor="w", justify="left",
+                     wraplength=self.width - 46).pack(fill="x", pady=1)
+
         self._render_prediction(snap.get("prediction") or {})
         if snap.get("phase") != "mulligan":
             self._ai_mulligan = None      # 留牌阶段结束，这块不再显示
@@ -1075,7 +1092,7 @@ class Overlay:
         if findings:
             inner = self._section("复盘", "这局")
             for line in findings[:3]:
-                tk.Label(inner, text="· " + line, bg=PANEL, fg=TEXT_SOFT,
+                tk.Label(inner, text=line, bg=PANEL, fg=TEXT_SOFT,
                          font=(FONT, self.font_size - 1), anchor="w", justify="left",
                          wraplength=self.width - 46).pack(fill="x", pady=1)
 
@@ -1086,7 +1103,7 @@ class Overlay:
             tk.Label(inner, text="防对面的牌", bg=PANEL, fg="#8b949e",
                      font=(FONT, self.font_size - 3), anchor="w").pack(fill="x")
             for line in defense:
-                tk.Label(inner, text="· " + line, bg=PANEL, fg="#e3b341",
+                tk.Label(inner, text=line, bg=PANEL, fg="#e3b341",
                          font=(FONT, self.font_size - 2), anchor="w", justify="left",
                          wraplength=self.width - 46).pack(fill="x", pady=1)
 
@@ -1110,7 +1127,8 @@ class Overlay:
         head.pack(fill="x", padx=9, pady=(7, 0))
         tk.Label(head, text=title, bg=PANEL, fg=GOLD,
                  font=(FONT, self.font_size - 1, "bold"), anchor="w").pack(side="left")
-        if kicker:
+        if kicker and kicker not in ("核心", "决策"):
+            # 「核心」「决策」这类后缀没信息量，不显示
             tk.Label(head, text=kicker, bg=PANEL, fg="#5b636e",
                      font=(FONT, self.font_size - 3), anchor="e").pack(side="right")
         inner = tk.Frame(card, bg=PANEL)

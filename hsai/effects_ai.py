@@ -24,7 +24,12 @@ from .model import parse_effect
 
 EFFECTS_PATH = DATA_DIR / "effects.json"
 MAX_NEW_COVER = 3          # 一条规则最多新覆盖几张牌
-MAX_HITS = 12              # 一条规则最多能命中几张牌（防「造成X点伤害」这种万能规则）
+MAX_HITS = 12
+# 这些字段必须是整数（或 "" 这种分组引用），否则会让解析结果变成字符串
+NUMERIC_FIELDS = {
+    "damage", "draw", "heal", "armor", "buff_atk", "buff_hp",
+    "summon_atk", "summon_hp", "summon_count", "mana", "min_atk",
+}              # 一条规则最多能命中几张牌（防「造成X点伤害」这种万能规则）
 
 
 FIELDS = ("damage", "scope", "draw", "heal", "buff_atk", "buff_hp",
@@ -101,6 +106,17 @@ def validate_rule(cards, rule: dict[str, Any], target_ids: list[str]) -> tuple[b
     """验证一条候选规则。返回 (是否通过, 原因)。"""
     if not isinstance(rule, dict) or not rule.get("regex"):
         return False, "规则缺少 regex"
+
+    # 数值字段必须是整数或 "" 引用 —— 字符串会让解析结果变成脏数据
+    effect = rule.get("effect") or {}
+    for field, value in effect.items():
+        if field not in NUMERIC_FIELDS:
+            continue
+        if isinstance(value, int):
+            continue
+        if isinstance(value, str) and value.startswith("$"):
+            continue
+        return False, f"字段 {field} 不是数字：{value!r}"
 
     # 闸门②：先记录全库现状
     before = {cid: _effect_signature(c) for cid, c in cards.by_id.items()}

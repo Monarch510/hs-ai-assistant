@@ -199,6 +199,14 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
             continue
         if card.cost > me.mana:
             continue
+        branches = choose_one_branches(card, cards)
+        if len(branches) >= 2:
+            for k, (label, _eff) in enumerate(branches):
+                acts.append(Action("play", card_idx=i, cost=card.cost,
+                                   target=f"choose:{k}",
+                                   desc=f"打出 {card.name}（{card.cost}费）→ {label}",
+                                   card_id=card.id))
+            continue
         eff = parse_effect(card)
         if card.is_minion and full_board:
             continue
@@ -421,6 +429,14 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
     if action.card_idx < 0 or action.card_idx >= len(me.hand):
         return nb
     card = me.hand.pop(action.card_idx)
+    if (action.target or "").startswith("choose:"):
+        try:
+            k = int(action.target.split(":", 1)[1])
+            br = choose_one_branches(card, cards)
+            if k < len(br):
+                card = dataclasses.replace(card, text="抉择：" + br[k][0])
+        except (ValueError, IndexError):
+            pass
     if (action.target or "").startswith("cthun:"):
         skill = action.target.split(":", 1)[1]
         tripled = len(getattr(me, "cthun_used", set()) or []) >= 4

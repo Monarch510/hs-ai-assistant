@@ -106,6 +106,8 @@ class Effect:
     destroy: bool = False
     steal: bool = False       # 夺取控制权
     buff_hand: bool = False   # 顺带 buff 手牌里的随从
+    summon_both: bool = False # 双方都召唤（「为每个玩家召唤」）
+    opp_hand_delta: int = 0   # 对手手牌张数变化（偷牌为负）
     min_atk: int = 0          # 群体消灭的攻击力门槛（0 表示不限）
     freeze: bool = False
     summon_atk: int = 0
@@ -121,6 +123,16 @@ class Effect:
     def is_empty(self) -> bool:
         return not (self.damage or self.draw or self.heal or self.buff_atk or self.mana or self.armor or self.buff_hp
                     or self.destroy or self.freeze or self.summon_atk)
+
+
+def _as_int(v) -> int:
+    """把规则里的值转成整数；转不了就当 0（防止字符串混进数值字段）。"""
+    if isinstance(v, int):
+        return v
+    if isinstance(v, str):
+        m = re.search(r"-?\d+", v)
+        return int(m.group(0)) if m else 0
+    return 0
 
 
 def parse_effect(card: Card) -> Effect:
@@ -168,6 +180,44 @@ def parse_effect(card: Card) -> Effect:
         eff.draw = _num(m.group(1))
     if m := _SUMMON_RE.search(text):
         eff.summon_atk, eff.summon_hp = int(m.group(1)), int(m.group(2))
+    if m := re.search(r"手牌中的随从牌获得\+(\d+)生命值", text):
+        eff.buff_hand = True
+        eff.buff_hp = max(eff.buff_hp, int(m.group(1)))
+    if "为每个玩家召唤" in text:
+        eff.summon_both = True
+        eff.summon_count = 2
+        eff.summon_atk, eff.summon_hp = 2, 3
+        if "变形" in text:
+            # 变形：用「+1/+1」近似「变成费用+1的随从」
+            eff.buff_atk = max(eff.buff_atk, 1)
+            eff.buff_hp = max(eff.buff_hp, 1)
+    # 梦境碎片：卡面就是一行属性加成（「+2/+2和扰魔」「+4生命值和嘲讽」）
+    if (card.id or "").startswith("EDR_100t") or text.strip().startswith("+"):
+        m2 = re.search(r"\+(\d+)/\+(\d+)", text)
+        m3 = re.search(r"\+(\d+)攻击力", text)
+        m4 = re.search(r"\+(\d+)生命值", text)
+        if m2:
+            eff.buff_atk, eff.buff_hp = int(m2.group(1)), int(m2.group(2))
+        if m3:
+            eff.buff_atk = max(eff.buff_atk, int(m3.group(1)))
+        if m4:
+            eff.buff_hp = max(eff.buff_hp, int(m4.group(1)))
+        if eff.buff_atk or eff.buff_hp:
+            eff.buff_hand = True          # 这类是给手牌/随从的加成
+            eff.note = "梦境碎片"
+    if "梦魇的恩赠" in text:
+        eff.buff_atk, eff.buff_hp = max(eff.buff_atk, 2), max(eff.buff_hp, 2)
+        eff.note = "梦境系列（随机之一，按 +2/+2 估）"
+    if "偷取" in text and "手牌" in text:
+        if m := re.search(r"偷取[^。]*?(\d+)\s*张手牌", text):
+            eff.draw = max(eff.draw, int(m.group(1)))
+            eff.opp_hand_delta = -int(m.group(1))
+    if (m := re.search(r"随机召唤消耗总计\s*(\d+)\s*点法力值", text)):
+        # 按 1 点法力 = 1/2 的身材折算：N 点 = N/2 个 2/4
+        total = int(m.group(1))
+        n = max(1, total // 2)
+        eff.summon_count = n
+        eff.summon_atk, eff.summon_hp = 2, 4
     if "拼装" in text:
         # 拼装：从卡池里取一张牌（等价于「发现/生成」这类资源）
         eff.discover = True
@@ -192,7 +242,7 @@ def parse_effect(card: Card) -> Effect:
         if extra.heal and not eff.heal:
             eff.heal = extra.heal
         if extra.draw and not eff.draw:
-            eff.draw = extra.draw
+            eff.draw = _as_int(extra.draw)
         if extra.buff_atk and not eff.buff_atk:
             eff.buff_atk, eff.buff_hp = extra.buff_atk, extra.buff_hp
         if extra.destroy and not eff.destroy:
@@ -212,7 +262,7 @@ def parse_effect(card: Card) -> Effect:
 
     # 召唤：中文数字 + 数量 + 攻/血（「召唤两个1/1的僵尸」「召唤五个2/1的」）
     _cn = {"一": 1, "两": 2, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7}
-    if m := re.search(r"召唤\s*(一|两|二|三|四|五|六|七|\d+)\s*个?\s*(\d+)\s*/\s*(\d+)", text):
+    if m := re.search(r"召唤\s*(一|两|二|三|四|五|六|七|\d+)\s*[个只位]?\s*(\d+)\s*/\s*(\d+)", text):
         token = m.group(1)
         eff.summon_count = int(token) if token.isdigit() else _cn.get(token, 1)
         eff.summon_atk, eff.summon_hp = int(m.group(2)), int(m.group(3))
@@ -231,6 +281,10 @@ def parse_effect(card: Card) -> Effect:
         if m := re.search(r"抽\s*(一|二|两|三|四|五|\d+)\s*张", text):
             token = m.group(1)
             eff.draw = int(token) if token.isdigit() else {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5}[token]
+    if "回溯这张牌" in text:
+        eff.known = True
+        eff.note = "回溯：暂按无效果处理"
+        return eff
     eff.known = bool(
         eff.damage or eff.heal or eff.draw or eff.buff_atk or eff.buff_hp
         or eff.destroy or eff.summon_atk or eff.summon_hp or eff.summon_count > 1
@@ -438,7 +492,7 @@ class Board:
             else:
                 self.damage_hero(other, eff.damage)
                 self.note(f"{unit.name} 的亡语对敌方英雄造成 {eff.damage} 点")
-        if eff.summon_atk or eff.summon_hp:
+        if (eff.summon_atk or eff.summon_hp) and not eff.summon_both:
             for _ in range(max(1, eff.summon_count)):
                 side.board.append(Unit(
                     card_id="", name="亡语召唤物",
@@ -477,6 +531,36 @@ class Board:
                     except Exception:
                         pass
                     break
+
+        if eff.summon_both:
+            # 防止同一次结算里被召唤两次（调用方可能重复应用效果）
+            if getattr(self, "_both_done", False):
+                return
+            self._both_done = True
+            for target_side in (my_side, foe_side):
+                for _ in range(max(1, eff.summon_count)):
+                    if len([u for u in target_side.board if u.alive]) >= 7:
+                        break
+                    target_side.board.append(Unit(
+                        card_id="", name="召唤物",
+                        atk=max(0, eff.summon_atk), hp=max(1, eff.summon_hp),
+                        attacks_left=0))
+
+        if eff.summon_both and (eff.buff_atk or eff.buff_hp):
+            # 「将你的随从变形」：按卡面顺序，含刚召唤的两只
+            for u in my_side.board:
+                if u.alive:
+                    u.atk += eff.buff_atk
+                    u.hp += eff.buff_hp
+            self.note(f"{len([u for u in my_side.board if u.alive])} 个随从变形 +{eff.buff_atk}/+{eff.buff_hp}")
+
+        if eff.opp_hand_delta:
+            keep = max(0, len(foe_side.hand) + eff.opp_hand_delta)
+            foe_side.hand = foe_side.hand[:keep]
+            # 偷到手里的牌：只记张数（占位 None，下游已做防护）
+            if eff.draw:
+                my_side.hand.extend([None] * int(eff.draw))
+            self.note(f"对手手牌 -{abs(eff.opp_hand_delta)} 张")
 
         if eff.steal:
             for u in list(foe_side.board):
@@ -660,7 +744,10 @@ def resource_score(side_state, cards=None) -> float:
         if card is None:
             continue
         eff = parse_effect(card)
-        score += eff.draw
+        try:
+            score += float(eff.draw or 0)
+        except (TypeError, ValueError):
+            pass
         if eff.discover:
             score += 1.0
         if eff.mana:

@@ -107,7 +107,21 @@ def _clean_text(raw: str) -> str:
 
 
 def _int(v: Any) -> int | None:
-    return v if isinstance(v, int) else None
+    """把标签值转成整数；转不了就返回 None 并记一行日志（不崩）。"""
+    if isinstance(v, int):
+        return v
+    if isinstance(v, str):
+        try:
+            return int(v)
+        except ValueError:
+            try:
+                from datetime import datetime as _dt
+                from .cards import DATA_DIR
+                with open(DATA_DIR / "hsai.log", "a", encoding="utf-8") as fh:
+                    fh.write(f"[{_dt.now():%H:%M:%S}] 标签不是整数：{v!r}\n")
+            except OSError:
+                pass
+    return None
 
 
 @dataclass
@@ -330,19 +344,19 @@ class GameState:
         if d.get("card_id"):
             e.card_id = d["card_id"]
         if ref.get("zone") is not None:
-            e.zone = int(ref["zone"])
+            e.zone = _int(ref["zone"])
             e.tags[T_ZONE] = e.zone
         if ref.get("zone_pos") is not None:
-            e.zone_pos = int(ref["zone_pos"])
+            e.zone_pos = _int(ref["zone_pos"])
         # 完整实体块里带着 ZONE_POSITION 标签，这才是场面从左到右的顺序
         tags = d.get("tags") or {}
         if tags.get("ZONE_POSITION") is not None:
             try:
-                e.zone_pos = int(tags["ZONE_POSITION"])
+                e.zone_pos = _int(tags["ZONE_POSITION"])
             except (TypeError, ValueError):
                 pass
         if ref.get("controller") is not None:
-            e.controller = int(ref["controller"])
+            e.controller = _int(ref["controller"])
             e.tags[T_CONTROLLER] = e.controller
         if e.card_id:
             self._track_visibility(e)
@@ -357,9 +371,9 @@ class GameState:
             e.card_id = d["card_id"]
         ref = d.get("ref") or {}
         if ref.get("zone") is not None:
-            e.zone = int(ref["zone"])
+            e.zone = _int(ref["zone"])
         if ref.get("controller") is not None:
-            e.controller = int(ref["controller"])
+            e.controller = _int(ref["controller"])
         self._track_visibility(e)
 
     def _on_tag_change(self, ev: pl.Event) -> None:
@@ -612,7 +626,29 @@ class GameState:
                 self.first_player = other
                 self._bind_pending_names()
 
+    def _fix_our_id_by_name(self) -> None:
+        """名字绑好后校正「谁是我」：只有战网 ID（带 #）的那个才是玩家本人。
+
+        GameAccountId 在练习/对人机时并不可靠（实测会把两边都给出非零值，
+        甚至先给对手），但名字一定能区分：'军文武#5142' vs 'UNKNOWN'/'旅店老板'。
+        """
+        # 谁的手牌能看到具体牌，谁就是我方（对手手牌没有 card_id）
+        visible = {1: 0, 2: 0}
+        for e in self.entities.values():
+            if getattr(e, "zone", None) == ZONE_HAND and getattr(e, "card_id", None):
+                ctrl = getattr(e, "controller", None)
+                if ctrl in (1, 2):
+                    visible[ctrl] += 1
+        only = [p for p, n in visible.items() if n > 0 and visible[3 - p] == 0]
+        if len(only) != 1:
+            return
+        pid = only[0]
+        if self.our_id != pid:
+            self.our_id, self.opp_id = pid, 3 - pid
+            self._note(f"按可见手牌校正：我方是玩家 {pid}")
+
     def _bind_pending_names(self) -> None:
+        self._fix_our_id_by_name()
         """先手确定后，把之前没认出来的名字按出场顺序绑上。"""
         if self.first_player not in (1, 2):
             return
@@ -765,7 +801,7 @@ class GameState:
         if ref.get("card_id"):
             e.card_id = ref["card_id"]
         if ref.get("controller") is not None:
-            e.controller = int(ref["controller"])
+            e.controller = _int(ref["controller"])
         zone = ref.get("zone")
         # 引用行里的 zone 可能是旧快照（比如选择/目标行引用的是打牌前的手牌），
         # 已经离手的牌不许被它拉回手牌 —— 否则建议会一直让你打一张已经打出去的牌。
@@ -777,7 +813,7 @@ class GameState:
             e.tags[T_ZONE] = zone
             self._on_zone_change(e, prev, zone)
         if ref.get("zone_pos") is not None:
-            e.zone_pos = int(ref["zone_pos"])
+            e.zone_pos = _int(ref["zone_pos"])
         self._track_visibility(e)
 
     def _on_block_start(self, ev: pl.Event) -> None:
@@ -826,6 +862,7 @@ class GameState:
 
     def sides(self) -> tuple[Side, Side]:
         """(我方, 对方)。统一入口，避免外部到处写 _side(self.our_id)。"""
+        self._fix_our_id_by_name()
         return self._side(self.our_id), self._side(self.opp_id)
 
     def player_entity(self, pid: int) -> Entity | None:
@@ -1001,8 +1038,8 @@ class GameState:
             "id": e.card_id or "",
             "entity_id": e.id,
             "name": card.name if card else (e.card_id or "?"),
-            "cost": (int(e.tags["COST"]) if isinstance(e.tags.get("COST"), (int, str))
-                     and str(e.tags.get("COST")).isdigit() else (card.cost if card else 0)),
+            "cost": (_int(e.tags.get("COST")) if _int(e.tags.get("COST")) is not None
+                     else (card.cost if card else 0)),
             "type_cn": card.type_cn if card else "",
             "atk": atk,
             "health": max(0, hp),
@@ -1042,7 +1079,7 @@ class GameState:
             return False
         # 客户端给了明确状态就以它为准（比拿 EXHAUSTED 推断准）
         if e.tags.get("ATTACKABLE") is not None:
-            return bool(int(e.tags["ATTACKABLE"] or 0))
+            return bool(_int(e.tags.get("ATTACKABLE")) or 0)
         if e.tags.get("EXHAUSTED") in (1, "1", True):
             return False
         if e.tags.get("FROZEN") in (1, "1", True):
