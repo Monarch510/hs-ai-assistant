@@ -27,3 +27,4 @@ data/lessons.jsonl*
 data/last_review.json
 data/advice_log.jsonl
 data/*.bak
+data/opp_history.jsonl

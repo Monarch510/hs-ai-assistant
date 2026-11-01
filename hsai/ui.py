@@ -184,92 +184,12 @@ class Overlay:
         self.body = tk.Frame(self.panel, bg=BG, padx=10, pady=8)
         self.body.pack(fill="both", expand=True)
 
-        self._build_hint_row()
 
         self.root.bind("<Button-3>", self._popup_menu)
         self.container.bind("<Button-3>", self._popup_menu)
         self._build_menu()
         self._bind_drag_everywhere()
 
-
-    def _build_hint_row(self) -> None:
-        """底部一行输入框：写下你的判断 -> AI 翻成权重修正 -> 引擎立刻按新权重重算。"""
-        self.hint_row = tk.Frame(self.panel, bg=PANEL)
-        self.hint_var = tk.StringVar()
-        self.hint_entry = tk.Entry(
-            self.hint_row, textvariable=self.hint_var, bg="#1b1f24", fg=TEXT,
-            insertbackground=TEXT, relief="flat", font=(FONT, self.font_size - 1),
-        )
-        self.hint_entry.pack(side="left", fill="x", expand=True, padx=(8, 4), pady=5)
-        self.hint_entry.bind("<Return>", lambda _e: self._submit_hint())
-        self.hint_entry.bind("<Button-1>", lambda _e: self.root.focus_force(), add="+")
-        self.hint_btn = tk.Label(self.hint_row, text="纠正", bg="#2d333b", fg=TEXT,
-                                 font=(FONT, self.font_size - 2), padx=8, cursor="hand2")
-        self.hint_btn.pack(side="right", padx=(0, 6), pady=5)
-        self.hint_btn.bind("<Button-1>", lambda _e: self._submit_hint())
-        self.hint_note = tk.Label(self.panel, text="", bg=BG, fg=MUTED,
-                                  font=(FONT, self.font_size - 3), anchor="w",
-                                  padx=10, wraplength=self.width - 20)
-
-    def _ensure_hint_packed(self) -> None:
-        """补一次 pack：Tk 会吞掉第一次对「建好即 forget」容器的 pack。"""
-        if self.hint_row.winfo_manager():
-            return
-        self.hint_note.pack(side="bottom", fill="x")
-        self.hint_row.pack(side="bottom", fill="x")
-
-    def _submit_hint(self) -> None:
-        text = (self.hint_var.get() or "").strip()
-        if not text:
-            return
-        if self._hint_busy:
-            if self._hint_started and time.time() - self._hint_started < 20:
-                self.hint_note.config(text="上一次还在分析，请稍候…", fg="#d29922")
-                return
-            self._hint_busy = False          # 卡住太久，允许重新提交
-        self._hint_busy = True
-        self._hint_started = time.time()
-        self.hint_var.set("")
-        self.hint_note.config(text=f"正在分析「{text[:14]}」…", fg="#c9a05a")
-        if not self.hint_note.winfo_manager():
-            self.hint_note.place(relx=0, rely=1.0, y=-32, anchor="sw",
-                                 relwidth=1.0, height=18)
-        snap = dict(self._last_snap or {})
-        threading.Thread(target=self._hint_worker, args=(text, snap), daemon=True).start()
-
-    def _hint_worker(self, text: str, snap: dict) -> None:
-        try:
-            got = ai_mod.analyze_hint(text, snap)
-        except Exception:
-            got = None
-        self._hint_result = (text, got)
-
-    def _apply_hint(self) -> None:
-        if self._hint_result is None:
-            return
-        text, got = self._hint_result
-        self._hint_result = None
-        self._hint_busy = False
-        self._hint_started = 0.0
-        if not got:
-            self.hint_note.config(text=f"「{text[:14]}」没能转成可执行的调整", fg="#d29922")
-            return
-        weights = got.get("weights") or {}
-        if weights:
-            model_mod.set_overrides(weights)
-            try:
-                weights_mod.record(
-                    str(((self._last_snap or {}).get("our") or {}).get("class_en") or ""),
-                    str(((self._last_snap or {}).get("prediction") or {}).get("name") or ""),
-                    weights,
-                )
-            except Exception:
-                pass
-            shown = " ".join(f"{k}×{v}" for k, v in weights.items())
-            self.hint_note.config(text=f"✓ 已调整：{shown}", fg="#3fb950")
-        else:
-            self.hint_note.config(text=f"「{text[:14]}」→ 不调整权重", fg="#d29922")
-        self._last_sig = None
 
     def _make_close(self, parent: tk.Widget, side: str = "right") -> tuple[tk.Frame, tk.Label]:
         """做一个「一看就是关闭按钮」的方块：深红底 + 白叉，悬停变亮。
@@ -440,32 +360,19 @@ class Overlay:
             self._log(f"tick error: {exc}")
             self._fail_streak = getattr(self, "_fail_streak", 0) + 1
             # 连续失败说明画面已经冻住了：与其让你以为在打，不如直接说坏了
-            if self._fail_streak >= 20 and not getattr(self, "_render_broken", False):
+            self._last_error = str(exc)
+            if self._fail_streak >= 3 and not getattr(self, "_render_broken", False):
                 self._render_broken = True
                 self._show_render_error()
         self.root.after(320, self._tick)
 
-    def _check_hint_timeout(self) -> None:
-        """输入纠正卡住超过 20 秒就复位，否则用户会一直等下去。"""
-        if not self._hint_busy or not self._hint_started:
-            return
-        waited = time.time() - self._hint_started
-        if waited < 20:
-            return
-        self._hint_busy = False
-        self._hint_started = 0.0
-        self._hint_result = None
-        self.hint_note.config(text="分析超时，请重试（或检查网络）", fg="#d29922")
-        self._log(f"hint timeout after {waited:.0f}s")
-
     def _drain_ai_results(self) -> None:
         """把工作线程算好的结果搬到界面上（只在主线程做）。"""
-        self._check_hint_timeout()
+
         if self._effect_result is not None:
             self._effect_report.extend(self._effect_result)
             self._effect_result = None
-        if self._hint_result is not None:
-            self._apply_hint()
+
         res = self._ai_result
         if res is not None:
             self._ai_result = None
@@ -600,6 +507,19 @@ class Overlay:
         self.source_label.config(text="示例" if self.manager.is_demo else "", fg=YELLOW)
         for child in self.body.winfo_children():
             child.destroy()
+
+        if getattr(self, "_render_broken", False):
+            box = tk.Frame(self.body, bg="#3d1418")
+            box.pack(fill="x", pady=(0, 6))
+            tk.Label(box, text="⚠ 面板出错，建议可能不更新",
+                     bg="#3d1418", fg="#ffb3ad",
+                     font=(FONT, self.font_size - 1, "bold"), anchor="w",
+                     padx=6, pady=3).pack(fill="x")
+            if getattr(self, "_last_error", ""):
+                tk.Label(box, text=str(self._last_error)[:80], bg="#3d1418",
+                         fg="#e0a0a0", font=(FONT, self.font_size - 3),
+                         anchor="w", justify="left", wraplength=self.width - 24,
+                         padx=6).pack(fill="x")
         tk.Label(self.body, text="等待对局开始…", bg=BG, fg=MUTED,
                  font=(FONT, self.font_size), anchor="w").pack(fill="x", pady=6)
         parent = self.manager.name.split("：")[0]
@@ -791,7 +711,8 @@ class Overlay:
                     deck_cards = [self.cards.get(cid) for cid in auto.cards]
                 idx, why, gap = policy_mod.pick_choice(
                     choice.get("options") or [], board_now, self.cards, 0,
-                    board_now.sides[0].mana, deck_cards=deck_cards)
+                    board_now.sides[0].mana, deck_cards=deck_cards,
+                    tripled=bool((snap.get("cthun") or {}).get("tripled")))
                 self._ai_pick = (str((choice.get("options") or [{}])[idx].get("name")), why)
                 self._pick_source = "引擎"
                 self._ai_route = None
@@ -1014,19 +935,7 @@ class Overlay:
 
     def _render(self, snap: dict[str, Any]) -> None:
 
-        # 对局中显示输入框，其它时候收起。
-        # 用 place 而不是 pack：Tk 会吞掉「建好即 pack_forget」容器的第一次 pack。
-        show_hint = snap.get("phase") == "playing"
-        if show_hint and not self.hint_row.winfo_manager():
-            self.hint_row.place(relx=0, rely=1.0, anchor="sw", relwidth=1.0, height=32)
-            self.hint_note.place(relx=0, rely=1.0, y=-32, anchor="sw", relwidth=1.0, height=18)
-            self.body.pack_configure(pady=(8, 54))
-        elif not show_hint and self.hint_row.winfo_manager():
-            self.hint_row.place_forget()
-            self.hint_note.place_forget()
-            self.body.pack_configure(pady=(8, 8))
-
-        # 建议必须对应「当前」手牌和场面：局面一变，上一帧的推荐就作废
+        # 局面一变：作废旧建议，并把这条建议记进 advice_log.jsonl
         sig = (
             snap.get("turn"),
             ((snap.get("our") or {}).get("mana")),

@@ -176,6 +176,8 @@ class GameState:
         self.revealed_turns: dict[str, int] = {}
         self.our_hand_ids: list[str] = []
         self.our_played: list[str] = []
+        # 只记「从手牌打出」的牌（召唤、衍生物不算），被动技能计数要用
+        self.our_hand_played: list[str] = []
         self.our_deck_ids: list[str] = []
         self.log: deque[str] = deque(maxlen=60)
         # 出牌流水：谁、打了什么、引擎把它理解成了什么
@@ -191,6 +193,8 @@ class GameState:
         self.quest_progress: dict[int, dict[str, int]] = {}
         # 实体 -> 它进入战场的回合数（判断突袭刚入场用）
         self.played_turn: dict[int, int] = {}
+        # 实体 -> 从休眠醒来的回合（醒来当回合不能攻击）
+        self.woke_turn: dict[int, int] = {}
         # 克苏恩的四个技能：整局里分别触发过没有（集齐四个后它的技能效果 ×3）
         self.cthun_used: set[str] = set()
         # 当前待做的选择（发现/抉择/弃牌等）：选项列表 + 来源牌
@@ -497,6 +501,9 @@ class GameState:
             if isinstance(val, int):
                 slot = self.quest_progress.setdefault(eid, {})
                 slot["progress" if tag == "QUEST_PROGRESS" else "total"] = val
+        elif tag == "DORMANT" and eid:
+            if isinstance(val, int) and val == 0:
+                self.woke_turn[eid] = self.turn
         elif tag == "ZONE_POSITION" and eid:
             # 场面/手牌的从左到右顺序，客户端用这个标签维护
             if isinstance(val, int):
@@ -700,6 +707,8 @@ class GameState:
                         self._note(f"我方打出 {name}")
                         if e.card_id:
                             self.our_played.append(e.card_id)
+                            if prev == ZONE_HAND:
+                                self.our_hand_played.append(e.card_id)
         elif new == ZONE_GRAVE:
             if e.controller == self.opp_id:
                 self._track_visibility(e)
@@ -734,10 +743,15 @@ class GameState:
                            "max": d.get("max") or 1, "options": []}
         if self.choice is None:
             return
-        for ref in refs:
+        # 选项候选：优先用「备用区/手牌」里的实体。
+        # 打出触发牌时，那张牌自己也在 PLAY 区并被客户端列进来 —— 它不是选项。
+        cand = [r for r in refs
+                if r.get("card_id") and r.get("zone") in (ZONE_SETASIDE, ZONE_HAND)]
+        if not cand:
+            cand = [r for r in refs
+                    if r.get("card_id") and r.get("zone") == ZONE_PLAY]
+        for ref in cand:
             cid = ref.get("card_id")
-            if not cid or ref.get("zone") not in (ZONE_SETASIDE, ZONE_HAND, ZONE_PLAY):
-                continue
             entry = {"id": cid, "name": self._name(cid), "eid": ref.get("id")}
             if all(o["eid"] != entry["eid"] for o in self.choice["options"]):
                 self.choice["options"].append(entry)
@@ -993,6 +1007,11 @@ class GameState:
             "atk": atk,
             "health": max(0, hp),
             "durability": e.tags.get("DURABILITY"),
+            "dormant": e.tags.get("DORMANT") in (1, "1", True),
+            "attackable": e.tags.get("ATTACKABLE"),
+            "woke_turn": self.woke_turn.get(e.id),
+            "played_turn": self.played_turn.get(e.id),
+            "turn_now": self.turn,
             "keyword": card.keyword_cn if card else "",
             "damage": e.damage,
             "taunt": bool(card.has("TAUNT") if card else e.tags.get(T_TAUNT)),
@@ -1021,6 +1040,9 @@ class GameState:
         atk = e.atk if e.atk is not None else (card.atk if card else 0)
         if atk <= 0:
             return False
+        # 客户端给了明确状态就以它为准（比拿 EXHAUSTED 推断准）
+        if e.tags.get("ATTACKABLE") is not None:
+            return bool(int(e.tags["ATTACKABLE"] or 0))
         if e.tags.get("EXHAUSTED") in (1, "1", True):
             return False
         if e.tags.get("FROZEN") in (1, "1", True):

@@ -43,6 +43,34 @@ def _load_json(path: Path) -> dict[str, Any]:
         return {}
 
 
+def _woke_this_turn(card, view: dict[str, Any]) -> bool:
+    """休眠随从是不是本回合刚醒——刚醒的这回合不能攻击。"""
+    text = (card.text or "") if card is not None else ""
+    m = re.search(r"(\d+)\s*(?:或\s*\d+\s*)?回合后唤醒", text)
+    played = view.get("played_turn")
+    now = view.get("turn_now")
+    if not m or played is None or not isinstance(now, int):
+        return False
+    return (now - int(played)) == int(m.group(1))
+
+
+def _still_dormant(card, view: dict[str, Any]) -> bool:
+    """还没到唤醒回合的休眠随从。
+
+    卡面写「N回合后唤醒」，入场回合记为 T，那么到 T+N 才醒。
+    """
+    text = (card.text or "") if card is not None else ""
+    # 文本不一定写「休眠」，但只要有「N回合后唤醒」就是休眠牌
+    m = re.search(r"(\d+)\s*(?:或\s*\d+\s*)?回合后唤醒", text)
+    if not m:
+        return False
+    played = view.get("played_turn")
+    now = view.get("turn_now")
+    if played is None or not isinstance(now, int):
+        return bool(view.get("dormant"))
+    return (now - int(played)) < int(m.group(1))
+
+
 def _unit_from_view(view: dict[str, Any], cards: CardDB) -> Unit:
     card = cards.get(view.get("id") or "")
     keyword = view.get("keyword") or ""
@@ -58,11 +86,15 @@ def _unit_from_view(view: dict[str, Any], cards: CardDB) -> Unit:
         rush=bool(card and card.has("RUSH")),
         # 突袭刚入场：这回合能打随从，不能打脸
         rush_only=bool(card and card.has("RUSH") and view.get("fresh")),
+        dormant=bool(view.get("dormant")) or _still_dormant(card, view),
         windfury=bool(card and card.has("WINDFURY")),
         lifesteal=bool(card and card.has("LIFESTEAL")),
         poisonous=bool(card and card.has("POISONOUS")),
         spell_damage=0,
-        attacks_left=1 if view.get("can_attack") else 0,
+        attacks_left=(0 if (_woke_this_turn(card, view)
+                            or (view.get("woke_turn") is not None
+                                and view.get("woke_turn") == view.get("turn_now")))
+                      else (1 if (view.get("attackable") or view.get("can_attack")) else 0)),
     )
 
 
@@ -83,6 +115,9 @@ def _log_err(msg: str) -> None:
             fh.write(f"[{_dt.now():%H:%M:%S}] {msg}\n")
     except OSError:
         pass
+
+
+_PASSIVE_RULE: dict = {}
 
 
 def board_from_state(st: GameState) -> Board:
@@ -126,9 +161,38 @@ def board_from_state(st: GameState) -> Board:
         can_hit = hero is not None and st.can_attack(hero)
         windfury_hero = "风怒" in str((ours.weapon or {}).get("keyword") or "")
         me.weapon_attacks_left = (2 if windfury_hero else 1) if can_hit else 0
+    # 帝国之眼在场：每回合 2 次技能，已用过的不能重复（进度来自日志）
+    if any("帝国之眼" in (u.name or "") for u in me.board):
+        me.cthun_uses_left = 2
+        me.cthun_used = set(getattr(st, "cthun_used", set()) or set())
+
     # 被动英雄技能：记录计数器进度（例如「每使用五张随从牌」）
     hp_card = st.cards.get((ours.hero_power or {}).get("id") or "") if ours.hero_power else None
-    rule = policy.passive_rule(hp_card)
+    if hp_card is None and st.cards is not None:
+        # 视图缺失时从实体里找。注意：客户端会把被动技能挂到错误的一方
+        # （实测萨满的「兹伊的力量」挂在了法师对手身上），所以按「职业归属」认，
+        # 不按 controller。
+        our_class = (ours.class_en or "").upper()
+        same_class = []
+        mine = []
+        for _e in st.entities.values():
+            _c = st.cards.get(getattr(_e, "card_id", "") or "")
+            if _c is None or getattr(_c, "type", "") != "HERO_POWER":
+                continue
+            if our_class and (getattr(_c, "card_class", "") or "").upper() != our_class:
+                continue
+            same_class.append(_c)
+            if getattr(_e, "controller", None) == st.our_id:
+                mine.append(_c)
+        # 同职业对战时无法靠职业区分，只能退回 controller
+        if len(same_class) == 1:
+            hp_card = same_class[0]
+        elif mine:
+            hp_card = mine[0]
+    # 英雄技能视图有时会缺失（用掉/被替换），一旦认出规则就缓存住，别每帧重算
+    if hp_card is not None and not _PASSIVE_RULE:
+        _PASSIVE_RULE.update(policy.passive_rule(hp_card))
+    rule = _PASSIVE_RULE
     if rule:
         me.passive_rule = rule
         played = [st.cards.get(cid) for cid in (st.our_played or [])]
@@ -222,6 +286,7 @@ class Advisor:
             "feed": list(st.feed)[-10:],
             "choice": self._choice_view(st),
             "cthun": st.cthun_view(),
+            "unmodelled": list(getattr(st, "unmodelled", [])),
             "opp_played": [st._name(c) for c in list(st.revealed_opp_order)[-12:] if c],
         }
 
@@ -283,6 +348,7 @@ class Advisor:
             self.last_findings = []
             self._issues = []
             self._unknown_turn_seen = set()
+            _PASSIVE_RULE.clear()
         self._collect_issues(st, snap)
         if st.game_over:
             # 每一帧都给，别只在第一次 game_over 时给（否则窗口二次渲染就丢了）
@@ -303,6 +369,7 @@ class Advisor:
 
     # ------------------------------------------------------------ 预判
     _last_pred_name: str = ""
+    _passive_rule: dict = {}
 
     def _predict(self, st: GameState, opp) -> Prediction:
         # 只看「卡组自带的牌」：衍生物（复活的食尸鬼、骷髅这类）不代表卡组形态
@@ -419,12 +486,17 @@ class Advisor:
         except Exception:
             pass
         opts = []
-        for o in ch["options"][:4]:
+        for o in ch["options"][:6]:
             card = self.cards.get(o.get("id")) if o.get("id") else None
             raw = (card.text if card else "") or ""
             opts.append({"name": o.get("name") or (card.name if card else "?"),
                          "cost": card.cost if card else None,
                          "text": re.sub(r"<[^>]+>", "", raw).replace("$", "")})
+        # 克苏恩技能的选择里会混进打出的那张源牌，只保留技能项
+        skills = ("克苏恩的愤怒", "克苏恩的领域", "克苏恩的凝视", "克苏恩的仆从")
+        only_skills = [o for o in opts if o.get("name") in skills]
+        if len(only_skills) >= 2:
+            opts = only_skills
         return {"type": ch.get("type"), "min": ch.get("min"), "max": ch.get("max"), "options": opts}
 
     def _defense(self, st: GameState, pred: Prediction, snap: dict[str, Any]) -> list[str]:

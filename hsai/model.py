@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import math
 import re
@@ -103,6 +104,9 @@ class Effect:
     buff_atk: int = 0
     buff_hp: int = 0
     destroy: bool = False
+    steal: bool = False       # 夺取控制权
+    buff_hand: bool = False   # 顺带 buff 手牌里的随从
+    min_atk: int = 0          # 群体消灭的攻击力门槛（0 表示不限）
     freeze: bool = False
     summon_atk: int = 0
     summon_hp: int = 0
@@ -153,12 +157,27 @@ def parse_effect(card: Card) -> Effect:
         eff.buff_atk, eff.buff_hp = int(m.group(1)), int(m.group(2))
     if "消灭所有随从" in text:
         eff.destroy, eff.scope = True, "all_minions"
+    elif "消灭所有" in text and "随从" in text:
+        # 「消灭所有攻击力大于或等于5的随从」这类带条件的群体消灭
+        eff.destroy, eff.scope, eff.aoe = True, "all_minions", True
+        if m := re.search(r"攻击力(?:大于|小于)(?:或等于)?(\d+)", text):
+            eff.min_atk = int(m.group(1))
     elif "消灭一个" in text:
         eff.destroy, eff.scope = True, "target"
     if m := _DRAW_RE.search(text):
         eff.draw = _num(m.group(1))
     if m := _SUMMON_RE.search(text):
         eff.summon_atk, eff.summon_hp = int(m.group(1)), int(m.group(2))
+    if "拼装" in text:
+        # 拼装：从卡池里取一张牌（等价于「发现/生成」这类资源）
+        eff.discover = True
+    if "夺取" in text and "控制权" in text:
+        eff.steal = True
+    if "双倍" in text and "法力值消耗" in text:
+        # 加成 = 本牌费用的两倍（费用在解析时已知）
+        eff.buff_atk = eff.buff_hp = max(1, (card.cost or 0) * 2)
+        if "手牌" in text:
+            eff.buff_hand = True
     if "冻结" in text:
         eff.freeze = True
     # 随从的战吼伤害也算进去（例如「战吼：造成2点伤害」）
@@ -214,8 +233,9 @@ def parse_effect(card: Card) -> Effect:
             eff.draw = int(token) if token.isdigit() else {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5}[token]
     eff.known = bool(
         eff.damage or eff.heal or eff.draw or eff.buff_atk or eff.buff_hp
-        or eff.destroy or eff.summon_atk or eff.freeze or eff.mana or eff.armor
-        or eff.discover
+        or eff.destroy or eff.summon_atk or eff.summon_hp or eff.summon_count > 1
+        or eff.freeze or eff.mana or eff.armor
+        or eff.discover or eff.steal
     ) or card.type in ("MINION", "WEAPON", "HERO")
     if not eff.known:
         eff.note = "效果未能建模"
@@ -235,7 +255,9 @@ class Unit:
     divine: bool = False
     charge: bool = False
     rush: bool = False
-    rush_only: bool = False      # 本回合只能攻击随从（突袭刚入场）
+    rush_only: bool = False
+    reborn: bool = False          # 已经复生过（避免无限复活）
+    dormant: bool = False         # 休眠：不能攻击，也不能被攻击      # 本回合只能攻击随从（突袭刚入场）
     windfury: bool = False
     lifesteal: bool = False
     poisonous: bool = False
@@ -306,6 +328,8 @@ class SideState:
     weapon_attacks_left: int = 0     # 英雄本回合还能用武器攻击几次
     minions_played: int = 0          # 本局已打出的随从数（被动技能计数器用）
     passive_rule: dict = field(default_factory=dict)   # 被动技能的计数规则
+    cthun_uses_left: int = 0         # 这回合帝国之眼还能用几次技能
+    cthun_used: set = field(default_factory=set)       # 这个克苏恩已经用过的技能
 
     def clone(self) -> "SideState":
         return SideState(
@@ -325,6 +349,8 @@ class SideState:
             weapon_attacks_left=self.weapon_attacks_left,
             minions_played=self.minions_played,
             passive_rule=dict(self.passive_rule),
+            cthun_uses_left=self.cthun_uses_left,
+            cthun_used=set(self.cthun_used),
         )
 
     @property
@@ -365,7 +391,61 @@ class Board:
         dealt = unit.take_damage(amount)
         if not unit.alive and unit in board_side.board:
             board_side.board.remove(unit)
+            self._on_death(board_side, unit)
         return dealt
+
+    def _on_death(self, side: SideState, unit: Unit) -> None:
+        card_kw = self.cards.get(unit.card_id) if (self.cards and unit.card_id) else None
+        kw_text = ((card_kw.keyword_cn if card_kw else "") or "") + ((card_kw.text or "") if card_kw else "")
+        if "复生" in kw_text and not unit.reborn:
+            side.board.append(Unit(
+                card_id=unit.card_id, name=unit.name,
+                atk=unit.atk, hp=1, max_hp=1,
+                taunt=unit.taunt, divine=False,
+                rush=unit.rush, windfury=unit.windfury,
+                lifesteal=unit.lifesteal, poisonous=unit.poisonous,
+                attacks_left=0, reborn=True,
+            ))
+            self.note(f"{unit.name} 复生（1 血）")
+        """亡语：随从死亡时按卡面结算（目前只处理「召唤」类）。
+
+        不处理的话，斩杀计算会忽略「打死嘲讽后亡语又招出一个嘲讽」，
+        把打不穿的场面算成能穿。
+        """
+        card = self.cards.get(unit.card_id) if (self.cards and unit.card_id) else None
+        text = (card.text or "") if card is not None else ""
+        if "亡语" not in text:
+            return
+        eff = parse_effect(card)
+        if eff.heal:
+            side.hero_hp += eff.heal
+            self.note(f"{unit.name} 的亡语回复 {eff.heal} 点")
+        if eff.armor:
+            side.armor += eff.armor
+        # 亡语抽牌：不往手牌塞占位（会让 legal_actions 崩），直接忽略
+        if eff.damage:
+            # 亡语伤害打的是「那一方的敌人」——也就是我们
+            idx = 0 if side is self.sides[0] else 1
+            other = self.sides[1 - idx]
+            hits_hero = any(k in text for k in ("所有敌人", "随机分配", "敌方英雄"))
+            minions_only = "所有随从" in text and not hits_hero
+            if eff.aoe or eff.scope in ("enemy_minions", "all", "enemy"):
+                for u in list(other.board):
+                    self.damage_unit(other, u, eff.damage)
+                if hits_hero or not minions_only:
+                    self.damage_hero(other, eff.damage)
+                self.note(f"{unit.name} 的亡语造成 {eff.damage} 点群体伤害")
+            else:
+                self.damage_hero(other, eff.damage)
+                self.note(f"{unit.name} 的亡语对敌方英雄造成 {eff.damage} 点")
+        if eff.summon_atk or eff.summon_hp:
+            for _ in range(max(1, eff.summon_count)):
+                side.board.append(Unit(
+                    card_id="", name="亡语召唤物",
+                    atk=max(0, eff.summon_atk), hp=max(1, eff.summon_hp),
+                    taunt="嘲讽" in text, attacks_left=0,
+                ))
+            self.note(f"{unit.name} 的亡语召唤了随从")
 
     def damage_hero(self, side: SideState, amount: int) -> int:
         absorbed = min(side.armor, amount)
@@ -387,10 +467,32 @@ class Board:
         foe_side = next(s for s in self.sides if s is not caster)
         my_side = caster
 
+        if eff.buff_hand and eff.buff_atk and caster.hand:
+            for k, hc in enumerate(caster.hand):
+                if hc is not None and getattr(hc, "type", "") == "MINION":
+                    try:
+                        caster.hand[k] = dataclasses.replace(
+                            hc, atk=(hc.atk or 0) + eff.buff_atk,
+                            health=(hc.health or 0) + eff.buff_hp)
+                    except Exception:
+                        pass
+                    break
+
+        if eff.steal:
+            for u in list(foe_side.board):
+                if u.alive:
+                    foe_side.board.remove(u)
+                    u.attacks_left = 0
+                    my_side.board.append(u)
+                    self.note(f"夺取了 {u.name} 的控制权")
+                    break
+
         if eff.destroy:
             if eff.scope == "all_minions":
                 for s in (my_side, foe_side):
                     for u in list(s.board):
+                        if eff.min_atk and u.atk < eff.min_atk:
+                            continue
                         self.damage_unit(s, u, 9999)
             elif target is not None:
                 owner = foe_side if target in foe_side.board else my_side
@@ -566,7 +668,7 @@ def resource_score(side_state, cards=None) -> float:
 
     hp = getattr(side_state, "hero_power", None)
     if hp is not None and not is_passive_hero_power(hp):
-        eff = hero_power_effect(hp)
+        _, _, eff = hero_power_effect(side_state.hero_class, hp)
         if eff.draw or eff.discover:
             score += 1.0
 
