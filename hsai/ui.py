@@ -646,7 +646,7 @@ class Overlay:
         self.collapsed = False
         self._render_collapsed()      # 必须调用：它负责把 panel 真正 pack 上去
 
-    # ------------------------------------------------------------ AI 解释（可选）
+    # ------------------------------------------------------------ 是否值得问 AI
     @staticmethod
     def _has_options(snap: dict[str, Any]) -> bool:
         our = snap.get("our") or {}
@@ -1006,6 +1006,8 @@ class Overlay:
                      bg=BG, fg=GOLD if cthun.get("tripled") else MUTED,
                      font=(FONT, self.font_size - 3), anchor="w").pack(fill="x")
 
+        self._render_prediction(snap.get("prediction") or {})
+
         # 对战信息：对手在上，双方血量/手牌/牌库/场攻
         def _row(side, label):
             hp = side.get("health")
@@ -1025,8 +1027,6 @@ class Overlay:
                      fg=TEXT if label == "对手" else TEXT_SOFT,
                      font=(FONT, self.font_size - 1), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x", pady=1)
-
-        self._render_prediction(snap.get("prediction") or {})
         if snap.get("phase") != "mulligan":
             self._ai_mulligan = None      # 留牌阶段结束，这块不再显示
 
@@ -1078,23 +1078,6 @@ class Overlay:
                      font=(FONT, self.font_size - 2), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x")
         self._render_advice(snap.get("advice") or {})
-        if self._ai_busy or self._ai_text:
-            inner_ai = self._section("AI 解释", "思考中" if self._ai_busy else "AI")
-            self._ai_label = tk.Label(
-                inner_ai, text=(self._ai_text or "正在请求解释…"), bg=PANEL,
-                fg=TEXT_SOFT, font=(FONT, self.font_size - 1), anchor="w", justify="left",
-                wraplength=self.width - 46,
-            )
-            self._ai_label.pack(fill="x", pady=1)
-        # 最近出牌不再常驻显示；识别失败的信息放到对局结束的复盘里
-
-        findings = list(snap.get("review") or []) + list(snap.get("issues") or [])
-        if findings:
-            inner = self._section("复盘", "这局")
-            for line in findings[:3]:
-                tk.Label(inner, text=line, bg=PANEL, fg=TEXT_SOFT,
-                         font=(FONT, self.font_size - 1), anchor="w", justify="left",
-                         wraplength=self.width - 46).pack(fill="x", pady=1)
 
         defense = (snap.get("advice") or {}).get("defense") or []
         # 只有「本回合建议」这张卡片真的画出来了，才往里加内容
@@ -1299,7 +1282,7 @@ class Overlay:
         # 注意：这个方法只拿到 advice，没有 snap
         lethal_on = bool((advice or {}).get("lethal"))
         ref_mode = bool(getattr(self, "_ai_pick", None)) and not lethal_on
-        inner = self._section("本回合建议",
+        inner = self._section("我的信息",
                               "参考" if ref_mode else ("斩杀" if lethal_on else "决策"))
         if ref_mode and self._ai_pick and (lines[0].get("title") if lines else "") != self._ai_pick[0]:
             tk.Label(inner, text="与 AI 决策不一致，供对照" if self._pick_source == "AI"

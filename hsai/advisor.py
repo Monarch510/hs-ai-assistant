@@ -280,6 +280,9 @@ class Advisor:
             "turn_known": st.effective_turn_owner() in (1, 2),
             "format": "标准",
             "our": ours.as_dict(),
+            # 牌库张数：日志里没有「剩余牌库」字段，只能 卡组张数 - 已抽到。
+            # 卡组张数优先用登记过的（40 张卡组也能算对）。
+            "deck_total": len(self.our_deck) or 30,
             "opp": opp.as_dict(),
             "prediction": self._prediction_dict(pred),
             "log": list(st.log)[-6:],
@@ -289,6 +292,11 @@ class Advisor:
             "unmodelled": list(getattr(st, "unmodelled", [])),
             "opp_played": [st._name(c) for c in list(st.revealed_opp_order)[-12:] if c],
         }
+
+        if snap.get("our"):
+            total = int(snap.get("deck_total") or 30)
+            drawn = int(getattr(st, "our_drawn", 0) or 0)
+            snap["our"]["deck_count"] = max(0, total - drawn)
 
         # 有些客户端在留牌阶段不给我方手牌的 cardId，等它揭示出来时已经进入对局了。
         # 所以兜底：第一回合开始、还没出牌、手牌 >=3 张时，补一次留牌建议。

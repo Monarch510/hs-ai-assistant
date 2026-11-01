@@ -209,6 +209,11 @@ class GameState:
         self.played_turn: dict[int, int] = {}
         # 实体 -> 从休眠醒来的回合（醒来当回合不能攻击）
         self.woke_turn: dict[int, int] = {}
+        # 我方抽到的牌数（牌库→手牌），用来算牌库剩余：30 - 抽到
+        self.our_drawn: int = 0
+        # 日志里每回合有「本回合抽了几张」的计数器，按增量累计更准
+        self._draw_tag_last: int = 0
+        self._draw_tag_turn: int = 0
         # 克苏恩的四个技能：整局里分别触发过没有（集齐四个后它的技能效果 ×3）
         self.cthun_used: set[str] = set()
         # 当前待做的选择（发现/抉择/弃牌等）：选项列表 + 来源牌
@@ -449,6 +454,16 @@ class GameState:
         e.tags[tag] = val
         if tag == T_ZONE and isinstance(val, int):
             e.zone = val
+            if e.controller == self.our_id:
+                # 进出牌库都要记：抽牌(-1)、换牌回库(+1)、塞进牌库(+1)、
+                # 从牌库被拉出/爆牌(-1)。这样 30 张 + 净变化 才是真实剩余。
+                if prev_zone == ZONE_HAND and val == ZONE_DECK:
+                    # 换牌回库：牌库变多
+                    self.our_drawn = max(0, self.our_drawn - 1)
+                elif prev_zone != ZONE_DECK and val == ZONE_DECK:
+                    # 往牌库里塞牌（洗入、置于牌库顶等）：牌库变多
+                    self.our_drawn = max(0, self.our_drawn - 1)
+                # 抽牌不再按区域变化计（会重复），统一走 NUM_CARDS_DRAWN_THIS_TURN
             self._on_zone_change(e, prev_zone, val)
         elif tag == T_PLAYER_ID and isinstance(val, int):
             self.player_ids[val] = eid
@@ -515,6 +530,18 @@ class GameState:
             if isinstance(val, int):
                 slot = self.quest_progress.setdefault(eid, {})
                 slot["progress" if tag == "QUEST_PROGRESS" else "total"] = val
+        elif tag == "NUM_CARDS_DRAWN_THIS_TURN" and eid:
+            try:
+                val_i = int(val)
+            except (TypeError, ValueError):
+                val_i = None
+            if val_i is not None and e.controller == self.our_id:
+                if self.turn != self._draw_tag_turn:
+                    self._draw_tag_turn = self.turn
+                    self._draw_tag_last = 0
+                if val_i > self._draw_tag_last:
+                    self.our_drawn += val_i - self._draw_tag_last
+                    self._draw_tag_last = val_i
         elif tag == "DORMANT" and eid:
             if isinstance(val, int) and val == 0:
                 self.woke_turn[eid] = self.turn
@@ -952,7 +979,8 @@ class GameState:
         s.hand = [self._card_view(e) for e in hand if e.card_id]
         s.hand_count = len(hand)
         s.board = [self._card_view(e) for e in board if self._is_minion(e)]
-        s.deck_count = len(deck)
+        # 实体计数会漏掉部分牌（日志不全），改用「起始 30 - 已抽到」
+        s.deck_count = max(0, 30 - self.our_drawn)
         s.secrets = [x["id"] for x in secrets if x.get("id")]
         s.weapon = weapon
         s.hero_power = self._card_view(hp) if hp is not None and hp.card_id else None
