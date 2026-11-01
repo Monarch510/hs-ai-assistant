@@ -114,8 +114,13 @@ def validate_rule(cards, rule: dict[str, Any], target_ids: list[str]) -> tuple[b
             continue
         if isinstance(value, int):
             continue
-        if isinstance(value, str) and value.startswith("$"):
-            continue
+        if isinstance(value, str):
+            if value.startswith("$"):
+                continue
+            # AI 常把数字写成字符串（"2"）：转成整数就行，没必要拒绝
+            if value.strip().lstrip("+-").isdigit():
+                effect[field] = int(value.strip())
+                continue
         return False, f"字段 {field} 不是数字：{value!r}"
 
     # 闸门②：先记录全库现状
@@ -134,7 +139,11 @@ def validate_rule(cards, rule: dict[str, Any], target_ids: list[str]) -> tuple[b
         return False, f"规则太宽泛：命中了 {len(hits)} 张牌（上限 {MAX_HITS}）"
     newly = [cid for cid in hits if not before[cid][-1]]      # 原本未建模、现在能解析
     if len(newly) > MAX_NEW_COVER:
-        return False, f"规则太宽泛：一次新覆盖 {len(newly)} 张牌（上限 {MAX_NEW_COVER}）"
+        # 命中的牌如果和目标是同一段文本（同一张牌的多个版本），不算宽泛
+        target_texts = {(cards.get(t).text or "") for t in target_ids if cards.get(t)}
+        new_texts = {(cards.get(n).text or "") for n in newly if cards.get(n)}
+        if not (target_texts and new_texts <= target_texts):
+            return False, f"规则太宽泛：一次新覆盖 {len(newly)} 张牌（上限 {MAX_NEW_COVER}）"
 
     # 闸门②：模拟应用后，已有的解析结果不能变
     import copy

@@ -177,10 +177,17 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
 
     # 帝国之眼在场：每回合可用两次技能，已用过的不能重复
     if me.cthun_uses_left > 0:
+        # 找到场上那只克苏恩，用它当实例标识（同一只内技能不能重复）
+        key = "default"
+        for idx, u in enumerate(me.board):
+            if u.name and u.name.startswith("克苏恩"):
+                key = f"{u.card_id}#{idx}"
+                break
+        used_here = (getattr(me, "_cthun_by_unit", {}) or {}).get(key, set())
         for skill in CTHUN_SKILL_NAMES:
-            if skill in me.cthun_used:
+            if skill in used_here:
                 continue
-            acts.append(Action("cthun_skill", target=f"cthun:{skill}",
+            acts.append(Action("cthun_skill", target=f"cthun:{key}:{skill}",
                                desc=f"克苏恩技能：{skill}"))
 
     # 预备：把带「预备」的牌拖到牌库上，花掉剩余法力换减费
@@ -406,11 +413,20 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
     if action.kind == "cthun_skill":
         if me.cthun_uses_left <= 0:
             return nb
-        skill = (action.target or "").split(":", 1)[-1]
-        if skill in me.cthun_used:
+        _parts = (action.target or "").split(":")
+        skill = _parts[-1]
+        # 规则：强化需要「同一只克苏恩把四个技能各用一次」。
+        # 不同克苏恩实例各自计数，所以同一个技能在别的克苏恩身上用不算用过。
+        key = _parts[1] if len(_parts) > 2 else "default"
+        per_unit = getattr(me, "_cthun_by_unit", None)
+        if per_unit is None:
+            per_unit = me._cthun_by_unit = {}
+        used_here = per_unit.setdefault(key, set())
+        if skill in used_here:
             return nb
-        tripled = len(st_used := (set(me.cthun_used) | set(getattr(me, "_log_cthun", set())))) >= 4
+        tripled = len(used_here | set(getattr(me, "_log_cthun", set()))) >= 4
         nb.note(apply_cthun_skill(nb, side, skill, tripled=tripled))
+        used_here.add(skill)
         me.cthun_used.add(skill)
         me.cthun_uses_left -= 1
         return nb

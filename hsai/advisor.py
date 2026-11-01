@@ -421,10 +421,25 @@ class Advisor:
             side=0,
         )
         lethal = result["lethal"]
+        lines = policy.advice_lines(result)
+
+        # 复活类牌：手牌里有「复活」字样时，告诉最值得复活的是谁
+        grave = [g for g in (st.sides()[0].graveyard or []) if (g.get("atk") or 0) + (g.get("hp") or 0) > 0]
+        revive_cards = [c for c in board.sides[0].hand
+                        if c is not None and "复活" in (c.text or "")]
+        if grave and revive_cards:
+            best = max(grave, key=lambda g: (g.get("cost") or 0) * 2
+                       + (g.get("atk") or 0) + (g.get("hp") or 0))
+            lines.insert(0, {
+                "title": f"复活 {best.get('name')} 最划算",
+                "detail": (f"墓地里 {len(grave)} 只可选，它 {best.get('atk')}/{best.get('hp')}，"
+                           f"{best.get('cost')} 费"),
+            })
+
         return {
             "lethal": bool(lethal["lethal"]),
             "lethal_damage": int(lethal["damage"]),
-            "lines": policy.advice_lines(result),
+            "lines": lines,
         }
 
     def _ensure_deck(self, st: GameState) -> None:

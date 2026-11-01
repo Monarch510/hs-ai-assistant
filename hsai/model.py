@@ -108,6 +108,7 @@ class Effect:
     buff_hand: bool = False   # 顺带 buff 手牌里的随从
     summon_both: bool = False # 双方都召唤（「为每个玩家召唤」）
     opp_hand_delta: int = 0   # 对手手牌张数变化（偷牌为负）
+    set_hp: int = 0           # 把随从血量设为固定值（生而平等）
     min_atk: int = 0          # 群体消灭的攻击力门槛（0 表示不限）
     freeze: bool = False
     summon_atk: int = 0
@@ -218,6 +219,13 @@ def parse_effect(card: Card) -> Effect:
         n = max(1, total // 2)
         eff.summon_count = n
         eff.summon_atk, eff.summon_hp = 2, 4
+    if m := re.search(r"将所有随从的生命值变为(\d+)", text):
+        eff.set_hp = int(m.group(1))
+    if "随机触发" in text and "亡语" in text:
+        # 随机触发一个已死友方随从的亡语：具体效果无法预知，按「无收益」记录
+        eff.known = True
+        eff.note = "随机亡语（效果不计）"
+        return eff
     if "拼装" in text:
         # 拼装：从卡池里取一张牌（等价于「发现/生成」这类资源）
         eff.discover = True
@@ -289,7 +297,7 @@ def parse_effect(card: Card) -> Effect:
         eff.damage or eff.heal or eff.draw or eff.buff_atk or eff.buff_hp
         or eff.destroy or eff.summon_atk or eff.summon_hp or eff.summon_count > 1
         or eff.freeze or eff.mana or eff.armor
-        or eff.discover or eff.steal
+        or eff.discover or eff.steal or eff.set_hp
     ) or card.type in ("MINION", "WEAPON", "HERO")
     if not eff.known:
         eff.note = "效果未能建模"
@@ -531,6 +539,13 @@ class Board:
                     except Exception:
                         pass
                     break
+
+        if eff.set_hp:
+            for side_ in (my_side, foe_side):
+                for u in side_.board:
+                    if u.alive and u.hp > eff.set_hp:
+                        u.hp = eff.set_hp
+            self.note(f"所有随从生命值变为 {eff.set_hp}")
 
         if eff.summon_both:
             # 防止同一次结算里被召唤两次（调用方可能重复应用效果）

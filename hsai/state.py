@@ -141,6 +141,7 @@ class Side:
     board: list[dict[str, Any]] = field(default_factory=list)
     deck_count: int = 0
     secrets: list[str] = field(default_factory=list)
+    graveyard: list[dict[str, Any]] = field(default_factory=list)   # 已死的随从
     weapon: dict[str, Any] | None = None
     hero_power: dict[str, Any] | None = None
 
@@ -213,6 +214,9 @@ class GameState:
         self.our_drawn: int = 0
         # 日志里每回合有「本回合抽了几张」的计数器，按增量累计更准
         self._draw_tag_last: int = 0
+        # 实体 -> (死亡回合, 死亡顺序)；顺序按发生先后递增
+        self.grave_meta: dict[int, tuple[int, int]] = {}
+        self._grave_seq: int = 0
         self._draw_tag_turn: int = 0
         # 克苏恩的四个技能：整局里分别触发过没有（集齐四个后它的技能效果 ×3）
         self.cthun_used: set[str] = set()
@@ -454,6 +458,9 @@ class GameState:
         e.tags[tag] = val
         if tag == T_ZONE and isinstance(val, int):
             e.zone = val
+            if val == ZONE_GRAVE and e.id not in self.grave_meta:
+                self._grave_seq += 1
+                self.grave_meta[e.id] = (self.turn, self._grave_seq)
             if e.controller == self.our_id:
                 # 进出牌库都要记：抽牌(-1)、换牌回库(+1)、塞进牌库(+1)、
                 # 从牌库被拉出/爆牌(-1)。这样 30 张 + 净变化 才是真实剩余。
@@ -934,6 +941,22 @@ class GameState:
                 return c.name
         return card_id
 
+    def _grave_view(self, e) -> dict[str, Any]:
+        """墓地里的一只随从。用卡面原始数值，因为死掉的实体标签会被清零。"""
+        card = self.cards.get(e.card_id) if (self.cards and e.card_id) else None
+        text = (card.text if card else "") or ""
+        return {
+            "id": e.card_id,
+            "name": card.name if card else self._name(e.card_id),
+            "cost": card.cost if card else 0,
+            "atk": card.atk if card else 0,
+            "hp": card.health if card else 0,
+            "text": text,
+            "deathrattle": ("亡语" in text) or bool(card and card.has("DEATHRATTLE")),
+            "dropped_turn": (self.grave_meta.get(e.id) or (0, 0))[0],
+            "seq": (self.grave_meta.get(e.id) or (0, 0))[1],
+        }
+
     def _side(self, pid: int) -> Side:
         s = Side(player_id=pid)
         h = self.hero(pid)
@@ -951,7 +974,7 @@ class GameState:
         if s.max_mana == 0:
             s.max_mana, s.mana = self._mana_from_turn(pid)
 
-        hand, deck, board, secrets, weapon, hp = [], [], [], [], None, None
+        hand, deck, board, secrets, grave, weapon, hp = [], [], [], [], [], None, None
         for e in self.entities.values():
             if e.controller != pid or e.id == 1:   # 1 是 GameEntity，别当手牌/随从
                 continue
@@ -971,6 +994,10 @@ class GameState:
                     weapon = self._card_view(e)
                 elif card is None or card.is_minion:
                     board.append(e)
+            elif e.zone == ZONE_GRAVE:
+                card = self.cards.get(e.card_id) if (self.cards and e.card_id) else None
+                if card is not None and card.is_minion:
+                    grave.append(e)
             elif e.zone == ZONE_SECRET:
                 secrets.append(self._card_view(e))
 
@@ -981,6 +1008,7 @@ class GameState:
         s.board = [self._card_view(e) for e in board if self._is_minion(e)]
         # 实体计数会漏掉部分牌（日志不全），改用「起始 30 - 已抽到」
         s.deck_count = max(0, 30 - self.our_drawn)
+        s.graveyard = [self._grave_view(e) for e in grave if e.card_id]
         s.secrets = [x["id"] for x in secrets if x.get("id")]
         s.weapon = weapon
         s.hero_power = self._card_view(hp) if hp is not None and hp.card_id else None
@@ -1152,3 +1180,27 @@ def replay_log_text(text: str, cards: CardDB | None = None) -> GameState:
     st = GameState(cards)
     st.apply_many(pl.parse_text(text))
     return st
+
+
+def query_grave(
+    entries: list[dict[str, Any]],
+    *,
+    deathrattle: bool | None = None,
+    min_cost: int | None = None,
+    max_cost: int | None = None,
+    keyword: str = "",
+) -> list[dict[str, Any]]:
+    """查墓地：按亡语、费用区间、名字/文本关键字过滤。"""
+    out = []
+    for g in entries or []:
+        if deathrattle is not None and bool(g.get("deathrattle")) != deathrattle:
+            continue
+        cost = g.get("cost") or 0
+        if min_cost is not None and cost < min_cost:
+            continue
+        if max_cost is not None and cost > max_cost:
+            continue
+        if keyword and keyword not in str(g.get("name") or "") and keyword not in str(g.get("text") or ""):
+            continue
+        out.append(g)
+    return out
