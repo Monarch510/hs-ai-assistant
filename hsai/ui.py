@@ -433,6 +433,7 @@ class Overlay:
         snap["source"] = self.manager.name
         if snap.get("phase") == "mulligan" and (snap.get("turn") or 0) <= 1:
             model_mod.clear_overrides()          # 新对局清掉上一局的临时修正
+            self._ai_lessons = []                # 上一局的 AI 教训不能带到这局
             self._effect_done.clear()
             self._effect_report = []
             self._rule_report = []
@@ -615,7 +616,12 @@ class Overlay:
         rev = self._last_review or {}
         inner = self._section("上一局", "复盘")
         cn = lambda x: cards_mod.CLASS_CN.get(str(x or ""), str(x or "?"))
-        parts = [f"{cn(rev.get('our_class'))} vs {cn(rev.get('opp_class'))}"]
+        # 对局结束后客户端会清掉英雄信息，职业经常是「未知」——那就不显示
+        _our_c = cn(rev.get('our_class'))
+        _opp_c = cn(rev.get('opp_class'))
+        parts = []
+        if "?" not in _our_c and "?" not in _opp_c and "未知" not in (_our_c + _opp_c):
+            parts.append(f"{_our_c} vs {_opp_c}")
         if rev.get("result"):
             parts.append("胜" if rev["result"] == "win" else "负")
         if rev.get("turns"):
@@ -635,6 +641,11 @@ class Overlay:
                      font=(FONT, self.font_size - 1), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x", pady=1)
         lessons = [str(x) for x in (getattr(self, "_ai_lessons", []) or []) if str(x).strip()]
+        # 只显示和这局对手职业对得上的教训（教训里会提到职业名）
+        opp_cn = str((rev.get("opp_class") and cards_mod.CLASS_CN.get(str(rev.get("opp_class")), "")) or "")
+        others = {v for k, v in cards_mod.CLASS_CN.items() if v and v != opp_cn}
+        if opp_cn:
+            lessons = [x for x in lessons if not any(c in x for c in others)]
         if lessons:
             tk.Label(inner, text="AI 复盘", bg=PANEL, fg=GOLD,
                      font=(FONT, self.font_size - 2, "bold"), anchor="w").pack(fill="x", pady=(5, 1))

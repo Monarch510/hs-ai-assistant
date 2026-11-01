@@ -175,6 +175,7 @@ class GameState:
         self.entities: dict[int, Entity] = {}
         self.player_ids: dict[int, int] = {}  # player_id -> entity id
         self.player_entities: dict[int, Entity] = {}
+        self._last_class: dict[int, str] = {}
         self.our_id: int = 1
         self.opp_id: int = 2
         self._our_id_locked = False
@@ -186,6 +187,15 @@ class GameState:
         self.game_over = False
         self.winner: int | None = None
         self.mulligan_done = False
+        # 局与局之间必须隔离：抽牌数、墓地、休眠/入场回合、克苏恩进度
+        self.our_drawn = 0
+        self._draw_tag_last = 0
+        self._draw_tag_turn = 0
+        self.grave_meta = {}
+        self._grave_seq = 0
+        self.woke_turn = {}
+        self.played_turn = {}
+        self.cthun_used = set()
         self.revealed_opp: Counter[str] = Counter()
         self.revealed_opp_order: list[str] = []
         self.revealed_turns: dict[str, int] = {}
@@ -542,12 +552,14 @@ class GameState:
                 val_i = int(val)
             except (TypeError, ValueError):
                 val_i = None
-            if val_i is not None and e.controller == self.our_id:
-                if self.turn != self._draw_tag_turn:
-                    self._draw_tag_turn = self.turn
-                    self._draw_tag_last = 0
-                if val_i > self._draw_tag_last:
+            mine = (e.controller == self.our_id) or (e.id == self.player_ids.get(self.our_id))
+            if val_i is not None and mine:
+                # 这个计数器每回合归零，所以按「段内最大值」累加：
+                # 值变大 = 这回合又抽了一张；值变小 = 新回合，重新计
+                if val_i >= self._draw_tag_last:
                     self.our_drawn += val_i - self._draw_tag_last
+                    self._draw_tag_last = val_i
+                else:
                     self._draw_tag_last = val_i
         elif tag == "DORMANT" and eid:
             if isinstance(val, int) and val == 0:
