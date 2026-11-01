@@ -21,6 +21,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from . import memory
 from .cards import DATA_DIR
 
 CONFIG_PATH = DATA_DIR / "ai.json"
@@ -140,6 +141,8 @@ def build_prompt(snap: dict[str, Any]) -> str:
     hp = our.get("hero_power") or {}
     if hp.get("name"):
         used = "已用" if our.get("hero_power_used") else "可用"
+        if "被动" in str(hp.get("text") or "")[:20]:
+            used = "被动技能，无需主动使用"
         cost = f"{hp.get('cost')}费" if hp.get("cost") is not None else ""
         effect = re.sub(r"<[^>]+>", "", str(hp.get("text") or "")).replace("$", "")
         effect = re.sub(r"@（[^）]*）", "", effect).strip()
@@ -211,11 +214,17 @@ def append_lessons(lessons: list[str], *, result: str = "") -> int:
 
 
 def build_decision_prompt(snap: dict[str, Any], actions: list[str]) -> str:
+    our = snap.get("our") or {}
+    opp = snap.get("opp") or {}
+    pred = snap.get("prediction") or {}
     lines = [build_prompt(snap), "", "合法动作（选一个编号）："]
     for i, desc in enumerate(actions):
         lines.append(f"{i}. {desc}")
+    our_cls = str(our.get("class_en") or "")
+    opp_cls = str(opp.get("class_en") or "")
+    arch = str(pred.get("name") or "")
     lessons: list[str] = []
-    for item in recent_lessons(5):
+    for item in memory.query_lessons(our_cls, opp_cls, arch, 2):
         key = item[:6]
         if any(key in seen or seen in item[:6] for seen in [l[:6] for l in lessons]):
             continue
@@ -224,9 +233,18 @@ def build_decision_prompt(snap: dict[str, Any], actions: list[str]) -> str:
             break
     if lessons:
         lines.append("")
-        lines.append("你之前的教训：")
+        lines.append("你之前的教训（同对局）：")
         for item in lessons:
             lines.append(f"- {item}")
+    # 相似局面下你上次的选择，比抽象教训更容易照着做
+    cases = memory.query_cases(our_cls, opp_cls, arch,
+                               int(our.get("mana") or 0), len(our.get("board") or []), 2)
+    if cases:
+        lines.append("")
+        lines.append("类似局面下你上次的选择：")
+        for row in cases:
+            outcome = "赢了" if row.get("result") == "win" else ("输了" if row.get("result") else "")
+            lines.append(f"- 第{row.get('turn')}回合、{row.get('mana')}费：{row.get('action')}（{outcome}）")
     return "\n".join(lines)
 
 
@@ -505,3 +523,158 @@ STRATEGY_RULES = (
 )# 追加到两个系统提示词末尾（模块导入时执行一次）
 SESSION_SYSTEM = SESSION_SYSTEM + STRATEGY_RULES
 ROUTE_SYSTEM = ROUTE_SYSTEM + STRATEGY_RULES
+
+
+RULES_SYSTEM = (
+    "你在为炉石传说解析器补「卡牌效果规则」。用户会给出引擎读不懂的卡牌及其原文，"
+    "以及现有规则的格式示例。请为每张牌写一条**尽量窄**的正则规则。"
+    '只输出 JSON 数组，元素形如 {"name": "牌名", "regex": "正则", "effect": {"字段": "值或$1"}, "note": "说明"}。'
+    "effect 可用字段：damage, draw, heal, armor, buff_atk, buff_hp, destroy, freeze, "
+    "summon_atk, summon_hp, summon_count, mana, discover, scope, aoe。"
+    "数字用 $1/$2 引用正则分组。正则不要用「造成(\\d+)点伤害」这种万能写法。"
+    "不要输出数组以外的内容。"
+)
+
+
+def parse_rules(text: str) -> list[dict[str, Any]]:
+    if not text:
+        return []
+    body = text.strip().strip("`")
+    start, end = body.find("["), body.rfind("]")
+    if start < 0 or end <= start:
+        return []
+    try:
+        items = json.loads(body[start:end + 1])
+    except ValueError:
+        return []
+    out: list[dict[str, Any]] = []
+    for row in items:
+        if not isinstance(row, dict) or not row.get("regex"):
+            continue
+        if not isinstance(row.get("effect"), dict):
+            continue
+        out.append({
+            "name": str(row.get("name") or ""),
+            "regex": str(row["regex"]),
+            "effect": row["effect"],
+            "note": str(row.get("note") or "")[:60],
+        })
+    return out[:6]
+
+
+def effects_rules(unmodelled: list[dict[str, Any]],
+                  cfg: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """给未建模的牌请求规则建议。返回候选规则列表。"""
+    cfg = cfg or load_config()
+    if not (cfg.get("enabled") and cfg.get("api_key")) or not unmodelled:
+        return []
+    lines = ["需要补规则的卡牌："]
+    for item in unmodelled[:4]:
+        lines.append(f"- {item.get('name')}（{item.get('type') or '?'}）：{item.get('text') or ''}")
+    existing = _load_existing_patterns()
+    if existing:
+        lines.append("")
+        lines.append("现有规则格式示例：")
+        for pat in existing[:3]:
+            lines.append(f"  {json.dumps(pat, ensure_ascii=False)}")
+    text = _chat([
+        {"role": "system", "content": RULES_SYSTEM},
+        {"role": "user", "content": "\n".join(lines)},
+    ], cfg, max_tokens=700)
+    return parse_rules(text)
+
+
+def _load_existing_patterns() -> list[dict[str, Any]]:
+    try:
+        data = json.loads((DATA_DIR / "effects.json").read_text(encoding="utf-8"))
+        return list(data.get("patterns") or [])
+    except (OSError, ValueError):
+        return []
+
+CRITIQUE_SYSTEM = (
+    "你在帮一个炉石 AI 改进它的评估函数。用户会给出一局的摘要："
+    "双方职业、对局结果、机器复盘（例如有没有漏斩）、它当时的出牌倾向。"
+    "请指出这套评估函数最可能的一个偏差，并给出小幅的权重调整建议。"
+    "可用权重：tempo（场面价值）、face（打脸进度）、hand（手牌差）、"
+    "health（血量差）、taunt（被墙挡住）、aoe_risk（对面清场风险）。"
+    '只输出 JSON：{"weights": {"名称": 数值}, "reason": "不超过60字"}。'
+    "数值范围 0.5-2.0，最多调一项，不要大改。信息不足就输出 {}。"
+)
+
+from .model import DEFAULT_WEIGHTS as _DW
+
+WEIGHT_KEYS = tuple(_DW.keys())
+
+
+def parse_critique(text: str) -> dict[str, Any] | None:
+    """解析 AI 对评估函数的调整建议；越界或未知权重一律丢弃。"""
+    body = (text or "").strip().strip("`")
+    start, end = body.find("{"), body.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        data = json.loads(body[start:end + 1])
+    except ValueError:
+        return None
+    weights = data.get("weights") if isinstance(data.get("weights"), dict) else {}
+    clean: dict[str, float] = {}
+    for key, val in weights.items():
+        if key not in WEIGHT_KEYS:
+            continue
+        try:
+            num = float(val)
+        except (TypeError, ValueError):
+            continue
+        if 0.5 <= num <= 2.0:
+            clean[key] = round(num, 2)
+    if not clean:
+        return None
+    note = data.get("reason") or data.get("note") or ""
+    return {"weights": clean, "reason": str(note)[:120]}
+
+
+def critique(summary: str, cfg: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """让 AI 对引擎的评估函数提一条建议（只建议，不自动生效）。"""
+    cfg = cfg or load_config()
+    if not (cfg.get("enabled") and cfg.get("api_key")):
+        return None
+    text = _chat(
+        [
+            {"role": "system", "content": CRITIQUE_SYSTEM},
+            {"role": "user", "content": summary},
+        ],
+        cfg,
+        max_tokens=200,
+    )
+    return parse_critique(text)
+
+
+HINT_SYSTEM = (
+    "用户在打炉石时给出自己的判断，你要把它翻译成对评估函数权重的调整。"
+    "可用权重：tempo（场面价值）、face（打脸进度）、hand（手牌差）、"
+    "health（血量差）、taunt（被墙挡住）、aoe_risk（对面清场风险）。"
+    "只调需要调的项，倍数范围 0.5-2.0；不做调整就输出空 weights。"
+    '只输出 JSON：{"weights": {"名称": 倍数}, "note": "不超过40字，说明你怎么改的"}。'
+)
+
+
+def analyze_hint(text: str, snap: dict[str, Any] | None = None,
+                 cfg: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """把用户的一句话判断，转成引擎权重的调整建议。"""
+    cfg = cfg or load_config()
+    text = (text or "").strip()
+    if not text or not (cfg.get("enabled") and cfg.get("api_key")):
+        return None
+    context = build_prompt(snap or {})[:600]
+    got = _chat(
+        [
+            {"role": "system", "content": HINT_SYSTEM},
+            {"role": "user", "content": f"当前局面：\n{context}\n\n我的判断：{text}"},
+        ],
+        cfg,
+        max_tokens=160,
+    )
+    parsed = parse_critique(got)
+    if parsed is None:
+        return {"weights": {}, "note": "没能转成可执行的调整"}
+    return parsed

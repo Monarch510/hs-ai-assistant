@@ -49,13 +49,33 @@ class LessonsTest(unittest.TestCase):
         self.assertEqual(ai.append_lessons([]), 0)
         self.assertEqual(ai.recent_lessons(), [])
 
-    def test_prompt_contains_lessons(self) -> None:
-        ai.append_lessons(["对面 6 费前别铺满"])
+    def test_prompt_contains_matched_lessons(self) -> None:
+        from hsai import memory
+
+        memory.LESSONS_PATH = self.tmp
+        memory.add_lessons(
+            ["对面 6 费前别铺满"],
+            {"our_class": "SHAMAN", "opp_class": "DEATHKNIGHT", "archetype": "掘骨恶鬼"},
+        )
         prompt = ai.build_decision_prompt(
-            {"turn": 5, "our": {}, "opp": {}}, ["打脸", "结束回合"]
+            {"turn": 5,
+             "our": {"class_en": "SHAMAN"},
+             "opp": {"class_en": "DEATHKNIGHT"},
+             "prediction": {"name": "掘骨恶鬼"}},
+            ["打脸", "结束回合"],
         )
         self.assertIn("对面 6 费前别铺满", prompt)
         self.assertIn("1. 结束回合", prompt)
+
+    def test_unrelated_lesson_is_not_injected(self) -> None:
+        from hsai import memory
+
+        memory.LESSONS_PATH = self.tmp
+        memory.add_lessons(["对控制留解牌"], {"opp_class": "PRIEST"})
+        prompt = ai.build_decision_prompt(
+            {"turn": 5, "our": {}, "opp": {"class_en": "ROGUE"}}, ["结束回合"]
+        )
+        self.assertNotIn("对控制留解牌", prompt)
 
 
 if __name__ == "__main__":

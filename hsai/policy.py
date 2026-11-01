@@ -18,6 +18,7 @@ from typing import Any, Iterable
 
 from .cards import Card, CardDB
 from .infer import Prediction
+from . import model as model_mod
 from .model import (
     Board,
     Effect,
@@ -26,6 +27,7 @@ from .model import (
     evaluate,
     hero_power_effect,
     parse_effect,
+    is_passive_hero_power,
 )
 
 EPS = 0.35          # 提升小于这个值就不算改进
@@ -103,8 +105,9 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
                     acts.append(Action("attack", unit_idx=i, target=f"enemy:{j}",
                                        desc=f"{u.name} {u.atk}/{u.hp} 攻击嘲讽 {t.name} {t.atk}/{t.hp}"))
         else:
-            acts.append(Action("attack", unit_idx=i, target="enemy_hero",
-                               desc=f"{u.name} {u.atk}/{u.hp} 攻击英雄"))
+            if not u.rush_only:
+                acts.append(Action("attack", unit_idx=i, target="enemy_hero",
+                                   desc=f"{u.name} {u.atk}/{u.hp} 攻击英雄"))
             for j, t in enumerate(foe.board):
                 if t.alive:
                     acts.append(Action("attack", unit_idx=i, target=f"enemy:{j}",
@@ -143,7 +146,8 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
         acts.append(Action("play", card_idx=i, cost=card.cost, desc=f"打出 {card.name}", card_id=card.id))
 
     name, hp_cost, hp_eff = hero_power_effect(me.hero_class, me.hero_power)
-    if not me.hero_power_used and me.mana >= hp_cost:
+    passive_hp = is_passive_hero_power(me.hero_power)
+    if not passive_hp and not me.hero_power_used and me.mana >= hp_cost:
         if hp_eff.damage and hp_eff.scope == "enemy_hero":
             acts.append(Action("hero_power", cost=hp_cost, target="enemy_hero",
                                desc=f"英雄技能：{name}（打脸）"))
@@ -244,9 +248,11 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
             attacks_left=2 if card.has("WINDFURY") else 1,
             frozen=card.has("FREEZE"),
         )
-        u.can_attack_now = u.charge
+        u.can_attack_now = u.charge or u.rush
         if not u.charge:
-            u.attacks_left = 0
+            # 突袭：入场当回合就能动，但只能吃随从，不能打脸
+            u.attacks_left = 1 if u.rush else 0
+            u.rush_only = u.rush
         me.board.append(u)
         eff = parse_effect(card)
         if eff.damage or eff.buff_atk or eff.heal or eff.draw:
@@ -363,7 +369,8 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
 
     hp_name, hp_cost, hp_eff = hero_power_effect(me.hero_class, me.hero_power)
     hero_power = 0
-    if not me.hero_power_used and mana >= hp_cost and hp_eff.damage:
+    if (not is_passive_hero_power(me.hero_power) and not me.hero_power_used
+            and mana >= hp_cost and hp_eff.damage):
         hero_power = hp_eff.damage
 
     total = usable + spell_dmg + hero_power
@@ -616,3 +623,84 @@ def validate_sequence(board: Board, descs: list[str], cards: CardDB,
         out.append({"desc": desc, "ok": True, "why": ""})
         work = apply_action(work, side, act, cards)
     return out
+
+
+def score_choice(card, effect, board: Board, side: int, mana: int) -> tuple[float, str]:
+    """给「发现/抉择」的某个选项打分。返回 (分数, 一句话理由)。
+
+    评分维度有限是刻意的：只评判能确定的事（能不能解掉随从、能不能立刻打、
+    身材值多少），不确定的效果一律不加分，让它在面板上显得"没把握"。
+    """
+    score = 0.0
+    reasons: list[str] = []
+    foe = board.sides[1 - side]
+    me = board.sides[side]
+    cost = getattr(card, "cost", 0) or 0
+
+    # 能立刻打出去才有价值；打不起的选项只是"存着"
+    if cost > mana:
+        score -= 1.5
+    if effect.known:
+        if effect.damage and effect.scope in ("any", "minion", "enemy", "target", "enemy_minion"):
+            killable = [u for u in foe.board if u.alive and u.hp <= effect.damage]
+            if killable:
+                score += 3.0 + max(u.atk for u in killable) * 0.3
+                reasons.append(f"能解掉{len(killable)}个随从")
+            elif effect.scope == "enemy_hero" or effect.scope == "any":
+                score += 1.0
+                reasons.append("能打脸")
+        if effect.draw:
+            score += 1.8 * effect.draw
+            reasons.append(f"过{effect.draw}张")
+        if effect.destroy:
+            score += 3.0
+            reasons.append("硬解")
+        if effect.heal:
+            score += 0.8
+            reasons.append("回血")
+        if effect.armor:
+            score += 0.7
+            reasons.append("加甲")
+        if effect.mana:
+            score += 1.2
+            reasons.append("加费")
+        if effect.discover:
+            score += 1.0
+            reasons.append("再发现")
+    if getattr(card, "type", "") == "MINION":
+        atk = getattr(card, "atk", 0) or 0
+        hp = getattr(card, "health", 0) or 0
+        value = (atk + hp) / max(1, cost)
+        score += min(2.5, value * 0.8)
+        reasons.append(f"{atk}/{hp} 每费{value:.1f}")
+        kw = str(getattr(card, "keyword", "") or "")
+        for token, bonus in (("嘲讽", 0.6), ("圣盾", 0.8), ("突袭", 0.6),
+                             ("吸血", 0.6), ("风怒", 0.5)):
+            if token in kw:
+                score += bonus
+    return score, "，".join(reasons[:3]) or "没看出明确收益"
+
+
+def pick_choice(options: list, board: Board, cards, side: int, mana: int) -> tuple[int, str, float]:
+    """从发现/抉择选项里挑一个。返回 (下标, 理由, 与第二名的分差)。"""
+    if not options:
+        return 0, "", 0.0
+    scored: list[tuple[float, int, str]] = []
+    for idx, opt in enumerate(options):
+        card = cards.by_name_or_id(str(opt.get("name") or ""))
+        effect = parse_effect(card) if card is not None else Effect(known=False)
+        if card is None:
+            scored.append((-9.0, idx, "认不出这张牌"))
+            continue
+        score, why = score_choice(card, effect, board, side, mana)
+        scored.append((score, idx, why))
+    scored.sort(key=lambda x: -x[0])
+    best_score, best_idx, best_why = scored[0]
+    gap = best_score - scored[1][0] if len(scored) > 1 else 99.0
+    return best_idx, best_why, gap
+
+
+# 本局内的临时权重修正（实现在 model 里，这里只做转发）
+set_overrides = model_mod.set_overrides
+clear_overrides = model_mod.clear_overrides
+current_overrides = model_mod.current_overrides

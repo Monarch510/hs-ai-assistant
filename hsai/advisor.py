@@ -18,6 +18,7 @@ from . import mulligan, policy
 from collections import Counter
 
 from . import decks as decks_mod
+from . import weights as weights_mod
 from . import review as review_mod
 
 from .cards import DATA_DIR, Card, CardDB
@@ -103,7 +104,7 @@ def board_from_state(st: GameState) -> Board:
     if opp.weapon:
         them.weapon = Unit(card_id=opp.weapon.get("id", ""), name=opp.weapon.get("name", "武器"),
                            atk=max(0, opp.weapon.get("atk") or 0), hp=1, max_hp=1)
-    board = Board([me, them], turn=max(1, st.turn), active=0 if st.turn_owner == st.our_id else 1,
+    board = Board([me, them], turn=max(1, st.turn), active=0 if st.effective_turn_owner() == st.our_id else 1,
                   cards=st.cards)
     return board
 
@@ -202,6 +203,12 @@ class Advisor:
             self._mulligan_shown = True
 
         self._ensure_deck(st)
+        # 应用「我方职业 × 对手形态」的历史权重修正（样本不足时是空字典）
+        try:
+            model_mod.set_matchup_overrides(
+                weights_mod.resolve(ours.class_en or "", pred.name or ""))
+        except Exception:
+            pass
         snap["deck"] = self._deck_context(st)
         if st.phase in ("playing", "game_over"):
             snap["advice"] = self._advice(st, pred)
@@ -249,7 +256,10 @@ class Advisor:
 
     # ------------------------------------------------------------ 预判
     def _predict(self, st: GameState, opp) -> Prediction:
-        observed = [(cid, st.revealed_turns.get(cid)) for cid in st.revealed_opp_order if cid]
+        # 只看「卡组自带的牌」：衍生物（复活的食尸鬼、骷髅这类）不代表卡组形态
+        observed = [(cid, st.revealed_turns.get(cid))
+                    for cid in st.revealed_opp_order
+                    if cid and not self.cards.is_token(cid)]
         cls = opp.class_en or "UNKNOWN"
         return self.predictor.predict(
             cls,
@@ -269,32 +279,14 @@ class Advisor:
         if not self.cards:
             return {"lethal": False, "lethal_damage": 0, "lines": []}
         board = board_from_state(st)
-        turn_owner_ours = st.turn_owner == st.our_id
+        # 用推断出来的回合归属：turn_owner 在日志里常常是 None，
+        # 直接比较会让引擎永远以为「对手回合」，从而不给任何出牌建议
+        turn_owner_ours = st.effective_turn_owner() == st.our_id
         if not turn_owner_ours:
-            # 对方回合：不猜动作，改为「记录他刚打了什么 + 预判变化 + 下回合威胁」
-            danger = policy.max_face_damage(board, 1, self.cards)
-            seen = [self.cards.display_name(c) for c in st.revealed_opp_order]
-            recent = seen[-2:]
-            lines = [{
-                "rank": 1,
-                "title": f"对手回合 · 已记录 {len(seen)} 张牌",
-                "score": 50,
-                "reason": (
-                    "刚打出：" + "、".join(recent) + "。" if recent else "还没看到他出牌。"
-                ) + f" 预判：{pred.name}" + (f" {pred.confidence:.0%}" if pred.confidence > 0 else ""),
-                "actions": [],
-            }]
-            lines.append({
-                "rank": 2,
-                "title": f"场面最多能打 {danger['damage']} 点",
-                "score": 40,
-                "reason": (
-                    f"你还有 {board.sides[0].hero_hp + board.sides[0].armor} 点血；"
-                    + ("已经进斩杀线，注意留解或架墙" if danger["damage"] >= board.sides[0].hero_hp + board.sides[0].armor else "暂时安全，想好下回合怎么打")
-                ),
-                "actions": [],
-            })
-            return {"lethal": False, "lethal_damage": danger["damage"], "lines": lines}
+            # 对手回合不给出牌建议：他的场面马上会被改掉，这时候的建议没意义。
+            # 「他刚打了什么」放到对手预判那块显示。
+            return {"lethal": False, "lethal_damage": 0, "lines": []}
+
         result = policy.plan_turn(
             board,
             self.cards,
@@ -315,8 +307,13 @@ class Advisor:
             return
         if not self.saved_decks:
             return
-        seen = list(st.our_hand_ids) + list(st.our_played) + list(st.our_deck_ids)
         our_class = st.sides()[0].class_en or ""
+        # 优先用「点开始对战时客户端写下的那套牌」——这是直接读到的，不是猜的
+        queued = decks_mod.load_queued(self.cards)
+        if queued and (not our_class or queued[-1].class_en == our_class):
+            self._auto_deck = queued[-1]
+            return
+        seen = list(st.our_hand_ids) + list(st.our_played) + list(st.our_deck_ids)
         deck, score = decks_mod.best_match(self.saved_decks, seen, our_class)
         if deck is None:
             return

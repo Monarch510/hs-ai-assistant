@@ -235,6 +235,7 @@ class Unit:
     divine: bool = False
     charge: bool = False
     rush: bool = False
+    rush_only: bool = False      # 本回合只能攻击随从（突袭刚入场）
     windfury: bool = False
     lifesteal: bool = False
     poisonous: bool = False
@@ -461,7 +462,8 @@ DEFAULT_WEIGHTS = {
     "hand": 0.7,         # 手牌差
     "health": 0.55,      # 血量差
     "taunt": 0.8,        # 嘲讽墙对进攻的阻滞
-    "aoe_risk": 1.2,     # 铺场被清的风险
+    "aoe_risk": 1.2,
+    "fatigue": 0.6,     # 牌库差 / 疲劳伤害（残局里牌多的一方更能拖）     # 铺场被清的风险
 }
 
 
@@ -481,10 +483,55 @@ def reach_damage(side: SideState) -> int:
     return total
 
 
+# 本局内的临时权重倍数（用户输入判断 -> AI 解析 -> 引擎应用）
+_OVERRIDES: dict[str, float] = {}
+
+
+def set_overrides(weights: dict[str, float]) -> None:
+    _OVERRIDES.clear()
+    for key, val in (weights or {}).items():
+        if key not in DEFAULT_WEIGHTS:
+            continue
+        try:
+            num = float(val)
+        except (TypeError, ValueError):
+            continue
+        if 0.5 <= num <= 2.0:
+            _OVERRIDES[key] = num
+
+
+def set_matchup_overrides(weights: dict[str, float]) -> None:
+    """按对局形态生效的权重（来自历史纠正，跨局保留）。"""
+    _MATCHUP.clear()
+    for k, v in (weights or {}).items():
+        if k in DEFAULT_WEIGHTS:
+            try:
+                num = float(v)
+            except (TypeError, ValueError):
+                continue
+            if 0.5 <= num <= 2.0:
+                _MATCHUP[k] = num
+
+
+_MATCHUP: dict[str, float] = {}
+
+
+def clear_overrides() -> None:
+    _OVERRIDES.clear()
+
+
+def current_overrides() -> dict[str, float]:
+    return dict(_OVERRIDES)
+
+
 def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: float = 0.0,
              perspective: int = 0) -> float:
     """从 perspective 这一方视角给局面打分。数值本身无意义，只用于横向比较。"""
     w = {**DEFAULT_WEIGHTS, **(weights or {})}
+    if _MATCHUP:
+        w = {k: v * _MATCHUP.get(k, 1.0) for k, v in w.items()}
+    if _OVERRIDES:
+        w = {k: v * _OVERRIDES.get(k, 1.0) for k, v in w.items()}
     me, foe = board.sides[perspective], board.sides[1 - perspective]
 
     my_val = sum(u.value for u in me.board if u.alive)
@@ -501,6 +548,11 @@ def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: fl
     score += w["hand"] * (len(me.hand) - len(foe.hand)) * 1.5
     score += w["health"] * ((me.hero_hp + me.armor) - (foe.hero_hp + foe.armor)) * 0.35
     score += w["taunt"] * blocked * -0.4
+
+    # 牌库与疲劳：残局里牌多的一方更能拖；已经开始吃疲劳的一方要被扣分
+    deck_lead = len(me.deck) - len(foe.deck)
+    fatigue_gap = foe.fatigue - me.fatigue
+    score += w["fatigue"] * (deck_lead * 0.25 + fatigue_gap * 0.8)
 
     # 铺场风险：我方随从越多、对方有 AOE 的概率越高，扣分越狠
     if aoe_risk > 0.05 and len(me.board) >= 2:
@@ -533,6 +585,13 @@ def board_to_text(board: Board, idx: int) -> str:
 
 
 # ---------------------------------------------------------------- 从真实日志局面构造
+def is_passive_hero_power(card: "Card | None") -> bool:
+    """被动英雄技能（文本以「被动」开头 / 含「被动」）不需要也不能主动使用。"""
+    if card is None:
+        return False
+    return "被动" in (card.text or "")[:20]
+
+
 def hero_power_effect(card_class: str, card: "Card | None" = None) -> tuple[str, int, Effect]:
     """英雄技能（名称, 费用, 效果）。
 

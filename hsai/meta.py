@@ -157,6 +157,44 @@ class MetaDB:
     def __iter__(self):
         return iter(self.archetypes)
 
+    def dedupe(self, threshold: float = 0.6) -> int:
+        """合并同一职业里「其实是同一套牌」的原型。
+
+        自动学习会按对局聚类，同一套牌可能被学成两个名字
+        （比如「掘骨恶鬼」和「墓地夜战」）。这里按牌集重合度合并。
+        """
+        removed = 0
+        by_class: dict[str, list] = {}
+        for a in self.archetypes:
+            by_class.setdefault(a.card_class, []).append(a)
+        keep: list = []
+        for archs in by_class.values():
+            merged: list = []
+            for a in archs:
+                hit = None
+                for b in merged:
+                    ca, cb = set(a.cards), set(b.cards)
+                    if not (ca and cb):
+                        continue
+                    ratio = len(ca & cb) / min(len(ca), len(cb))
+                    # 自动学出来的原型样本少、噪声大，重合阈值放低；
+                    # 导入的牌组是权威数据，要求高度重合才合并
+                    limit = 0.4 if (a.source == "learned" and b.source == "learned") else 0.75
+                    if ratio >= limit:
+                        hit = b
+                        break
+                if hit is None:
+                    merged.append(a)
+                else:
+                    for cid, n in a.cards.items():
+                        hit.cards[cid] = max(hit.cards.get(cid, 0), n)
+                    hit.prior = max(hit.prior, a.prior)
+                    removed += 1
+            keep.extend(merged)
+        self.archetypes = keep
+        self.normalize_priors()
+        return removed
+
     def normalize_priors(self) -> None:
         """按职业内部归一化，保证「同职业里选哪个卡组」是一个概率分布。"""
         by_class: dict[str, list[Archetype]] = {}

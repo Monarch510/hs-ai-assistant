@@ -241,6 +241,22 @@ class CardDB:
             return (card_id,) if card_id else ()
         return self._by_name_ids.get(c.name, (c.id,))
 
+    def is_token(self, card_id: str | None) -> bool:
+        """是不是「衍生牌」（不在卡组里，由效果生成）。
+
+        判据：不可收集，或 id 形如 token（PVPDR_/GAME_/结尾 t、t1 这类）。
+        这类牌不该参与「对手是什么卡组」的统计。
+        """
+        c = self.get(card_id) if card_id else None
+        if c is None:
+            return False
+        if not getattr(c, "collectible", True):
+            return True
+        cid = (c.id or "").upper()
+        if cid.startswith(("PVPDR_", "GAME_", "UNKNOWN")):
+            return True
+        return bool(__import__("re").search(r"T\d*$", cid))
+
     def from_dbf(self, dbf: int) -> Card | None:
         """卡组代码里用的是 dbfId，不是 cardId。"""
         return self.by_dbf.get(int(dbf))

@@ -145,3 +145,57 @@ def best_match(decks: Iterable[SavedDeck], seen: Iterable[str], our_class: str =
         if score > best[1]:
             best = (deck, score)
     return best
+
+
+def load_queued(cards) -> list[SavedDeck]:
+    """从 Decks.log 里读「点开始对战」时记录的那套牌。
+
+    客户端会写：Finding Game With Deck: / ### 名字 / # Deck ID / 牌组代码
+    这是**唯一直接告诉你「这局用哪套」的地方**，不用靠看牌去猜。
+    """
+    path = find_decks_log()
+    if path is None:
+        return []
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return []
+    cached = _QUEUED_CACHE.get("key")
+    if cached and cached[0] == str(path) and cached[1] == mtime:
+        return cached[2]
+
+    out: list[SavedDeck] = []
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    for i, line in enumerate(lines):
+        if "Finding Game With Deck" not in line:
+            continue
+        name = deck_id = code = None
+        for j in range(i + 1, min(i + 6, len(lines))):
+            text = lines[j]
+            if "### " in text:
+                name = text.split("### ", 1)[1].strip()
+            elif "# Deck ID" in text:
+                deck_id = text.split(":", 1)[-1].strip()
+            elif "Deck ID" not in text and text.strip():
+                tail = text.split("-", 1)[-1].strip() if " - " in text else text.strip()
+                token = tail.split()[-1] if tail.split() else ""
+                if token.startswith("AA"):
+                    code = token
+        if name and code:
+            try:
+                resolved = deckcode.resolve(deckcode.decode(code), cards, name=name)
+            except Exception:
+                continue
+            if resolved is None or resolved.size < 20:
+                continue
+            out.append(SavedDeck(name=name, deck_id=deck_id or "", code=code,
+                                 cards=dict(resolved.counts),
+                                 class_en=resolved.card_class or ""))
+    _QUEUED_CACHE["key"] = (str(path), mtime, out)
+    return out
+
+
+_QUEUED_CACHE: dict[str, object] = {}

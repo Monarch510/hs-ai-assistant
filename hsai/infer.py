@@ -144,6 +144,17 @@ class DeckPredictor:
         self._pool_cache[card_class] = d
         return d
 
+    RARITY_EVIDENCE = {"LEGENDARY": 2.4, "EPIC": 1.8, "RARE": 1.4, "COMMON": 1.0, "FREE": 1.0}
+
+    def _rarity_weight(self, card_id: str | None) -> float:
+        """稀有度越高的牌，作为「他是哪套牌」的证据越强。
+
+        传说卡几乎每套牌都只带一张，看到了就很有指向性；
+        普通的低费牌则大量重叠，区分度低。
+        """
+        card = self.cards.get(card_id) if card_id else None
+        return self.RARITY_EVIDENCE.get(getattr(card, "rarity", ""), 1.0)
+
     def _dist(self, arch: Archetype) -> dict[str, float]:
         if arch.id in self._dist_cache:
             return self._dist_cache[arch.id]
@@ -190,7 +201,8 @@ class DeckPredictor:
                     # 卡组里完全没有这张牌：按该原型的「意外容忍度」给似然。
                     # 拷贝类卡组会把对手的牌也打出来，不能一票否决。
                     p = arch.unexpected
-                log_post += BETA * self._weight(turn) * math.log(max(p, 1e-9))
+                rarity = self._rarity_weight(cid)
+                log_post += BETA * self._weight(turn) * rarity * math.log(max(p, 1e-9))
             scored.append((arch, log_post))
         # log-sum-exp 归一化
         top = max(s for _, s in scored)
