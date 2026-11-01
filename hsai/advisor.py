@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 import re
 
 import json
@@ -19,6 +21,7 @@ from collections import Counter
 
 from . import decks as decks_mod
 from . import weights as weights_mod
+from . import model as model_mod
 from . import review as review_mod
 
 from .cards import DATA_DIR, Card, CardDB
@@ -53,6 +56,8 @@ def _unit_from_view(view: dict[str, Any], cards: CardDB) -> Unit:
         divine=bool(view.get("divine_shield")),
         charge=bool(card and card.has("CHARGE")),
         rush=bool(card and card.has("RUSH")),
+        # 突袭刚入场：这回合能打随从，不能打脸
+        rush_only=bool(card and card.has("RUSH") and view.get("fresh")),
         windfury=bool(card and card.has("WINDFURY")),
         lifesteal=bool(card and card.has("LIFESTEAL")),
         poisonous=bool(card and card.has("POISONOUS")),
@@ -67,6 +72,17 @@ UNKNOWN = Card(id="__unknown__", name="未知牌", cost=99)
 def _unknown_cards(n: int) -> list[Card]:
     """占位牌：只为「张数」和「摸牌不会疲劳」服务，费用 99 保证永远不会被当成可出的牌。"""
     return [UNKNOWN for _ in range(max(0, n))]
+
+
+def _log_err(msg: str) -> None:
+    """把复盘/记录阶段的异常写进 data/hsai.log，别再静默吞掉。"""
+    try:
+        from datetime import datetime as _dt
+        from .cards import DATA_DIR
+        with open(DATA_DIR / "hsai.log", "a", encoding="utf-8") as fh:
+            fh.write(f"[{_dt.now():%H:%M:%S}] {msg}\n")
+    except OSError:
+        pass
 
 
 def board_from_state(st: GameState) -> Board:
@@ -87,9 +103,38 @@ def board_from_state(st: GameState) -> Board:
         hero_class=opp.class_en or "NEUTRAL",
     )
     if st.cards:
-        me.hand = [c for c in (st.cards.get(v.get("id") or "") for v in ours.hand) if c is not None]
+        model_mod.set_card_db(st.cards)
+        me.hand = []
+        for v in ours.hand:
+            card = st.cards.get(v.get("id") or "")
+            if card is None:
+                continue
+            live = v.get("cost")
+            if isinstance(live, int) and live != card.cost:
+                card = dataclasses.replace(card, cost=live)   # 减费后的实付价
+            me.hand.append(card)
         me.board = [_unit_from_view(v, st.cards) for v in ours.board]
         them.board = [_unit_from_view(v, st.cards) for v in opp.board]
+    # 武器攻击：装备了武器、且英雄本回合还没攻击过，才算可用
+    if ours.weapon:
+        w = ours.weapon
+        me.weapon = Unit(card_id=w.get("id") or "", name=w.get("name") or "武器",
+                         atk=max(0, int(w.get("atk") or 0)),
+                         hp=int(w.get("durability") or w.get("health") or 1))
+    if me.weapon is not None:
+        hero = st.hero(st.our_id)
+        can_hit = hero is not None and st.can_attack(hero)
+        windfury_hero = "风怒" in str((ours.weapon or {}).get("keyword") or "")
+        me.weapon_attacks_left = (2 if windfury_hero else 1) if can_hit else 0
+    # 被动英雄技能：记录计数器进度（例如「每使用五张随从牌」）
+    hp_card = st.cards.get((ours.hero_power or {}).get("id") or "") if ours.hero_power else None
+    rule = policy.passive_rule(hp_card)
+    if rule:
+        me.passive_rule = rule
+        played = [st.cards.get(cid) for cid in (st.our_played or [])]
+        me.minions_played = sum(1 for c in played
+                                if c is not None and getattr(c, "type", "") == "MINION")
+
     # 牌库内容我们看不到，但「还剩几张」影响摸牌与疲劳，用占位牌补齐
     me.deck = _unknown_cards(ours.deck_count or max(0, 30 - len(me.hand) - len(me.board)))
     them.deck = _unknown_cards(opp.deck_count or max(0, 30 - opp.hand_count - len(them.board)))
@@ -176,6 +221,7 @@ class Advisor:
             "log": list(st.log)[-6:],
             "feed": list(st.feed)[-10:],
             "choice": self._choice_view(st),
+            "cthun": st.cthun_view(),
             "opp_played": [st._name(c) for c in list(st.revealed_opp_order)[-12:] if c],
         }
 
@@ -188,7 +234,8 @@ class Advisor:
             and len(ours.hand) >= 3
         )
         if (st.phase == "mulligan" or need_fallback) and ours.hand:
-            hand = [c for c in (self.cards.get(v.get("id") or "") for v in ours.hand) if c]
+            hand = [c for c in (self.cards.get(v.get("id") or "") for v in ours.hand)
+                    if c and not self.cards.is_token(c.id) and c.name != "幸运币"]
             snap["mulligan"] = {
                 "advice": mulligan.advise(
                     hand,
@@ -223,8 +270,8 @@ class Advisor:
             self._record_result(st, pred)
             try:
                 self._finish_game(st, won)
-            except Exception:
-                pass
+            except Exception as exc:      # 之前这里静默吞掉，导致复盘不更新却毫无线索
+                _log_err(f"finish_game 失败：{type(exc).__name__}: {exc}")
             self._recorded = True
         if not st.game_over and self._recorded:
             # 新对局开始了：必须把「这一局只记一次」的开关重置，
@@ -255,13 +302,15 @@ class Advisor:
 
 
     # ------------------------------------------------------------ 预判
+    _last_pred_name: str = ""
+
     def _predict(self, st: GameState, opp) -> Prediction:
         # 只看「卡组自带的牌」：衍生物（复活的食尸鬼、骷髅这类）不代表卡组形态
         observed = [(cid, st.revealed_turns.get(cid))
                     for cid in st.revealed_opp_order
                     if cid and not self.cards.is_token(cid)]
         cls = opp.class_en or "UNKNOWN"
-        return self.predictor.predict(
+        pred = self.predictor.predict(
             cls,
             observed,
             turn=st.turn,
@@ -269,6 +318,8 @@ class Advisor:
             deck_count=opp.deck_count if opp.deck_count else max(1, 30 - st.turn),
             opp_mana=opp.max_mana,
         )
+        self._last_pred_name = pred.name or ""
+        return pred
 
     def _prediction_dict(self, pred: Prediction) -> dict[str, Any]:
         d = pred.as_dict()
@@ -363,6 +414,10 @@ class Advisor:
         ch = getattr(st, "choice", None)
         if not ch or not ch.get("options"):
             return None
+        try:
+            st.note_cthun_choice([o.get("name") for o in ch["options"]])
+        except Exception:
+            pass
         opts = []
         for o in ch["options"][:4]:
             card = self.cards.get(o.get("id")) if o.get("id") else None
@@ -452,6 +507,11 @@ class Advisor:
             turns=self._game_turns,
         )
         review_mod.append_game(rec)
+        try:
+            from . import memory as _memory
+            _memory.record_opponent(opp.class_en or "", self._last_pred_name or "")
+        except Exception:
+            pass
         self.last_findings = review_mod.summarize(rec.as_dict())
         try:
             import json as _json
@@ -467,6 +527,7 @@ class Advisor:
                         "turns": rec.turns[-1]["turn"] if rec.turns else 0,
                         "findings": list(getattr(self, "last_findings", [])),
                         "issues": list(self._issues),
+                        "unmodelled": list(getattr(st, "unmodelled", [])),
                     },
                     ensure_ascii=False,
                 ),

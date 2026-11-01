@@ -132,6 +132,11 @@ class Overlay:
         self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
         self._last_review = self._load_last_review()
         self._rule_report: list[str] = []
+        self._ai_lessons: list[str] = []
+        self._effect_done: set[str] = set()      # 已处理过的牌名
+        self._effect_report: list[str] = []      # 本局的规则补充结果
+        self._effect_busy = False
+        self._effect_result: list[str] | None = None
         self._ai_busy = False
         self._ai_turn: tuple[int, bool] | None = None
         self._fail_streak = 0         # 连续渲染失败次数
@@ -180,7 +185,6 @@ class Overlay:
         self.body.pack(fill="both", expand=True)
 
         self._build_hint_row()
-        self.hint_row.pack_forget()
 
         self.root.bind("<Button-3>", self._popup_menu)
         self.container.bind("<Button-3>", self._popup_menu)
@@ -207,12 +211,29 @@ class Overlay:
                                   font=(FONT, self.font_size - 3), anchor="w",
                                   padx=10, wraplength=self.width - 20)
 
+    def _ensure_hint_packed(self) -> None:
+        """补一次 pack：Tk 会吞掉第一次对「建好即 forget」容器的 pack。"""
+        if self.hint_row.winfo_manager():
+            return
+        self.hint_note.pack(side="bottom", fill="x")
+        self.hint_row.pack(side="bottom", fill="x")
+
     def _submit_hint(self) -> None:
         text = (self.hint_var.get() or "").strip()
-        if not text or self._hint_busy:
+        if not text:
             return
+        if self._hint_busy:
+            if self._hint_started and time.time() - self._hint_started < 20:
+                self.hint_note.config(text="上一次还在分析，请稍候…", fg="#d29922")
+                return
+            self._hint_busy = False          # 卡住太久，允许重新提交
         self._hint_busy = True
+        self._hint_started = time.time()
         self.hint_var.set("")
+        self.hint_note.config(text=f"正在分析「{text[:14]}」…", fg="#c9a05a")
+        if not self.hint_note.winfo_manager():
+            self.hint_note.place(relx=0, rely=1.0, y=-32, anchor="sw",
+                                 relwidth=1.0, height=18)
         snap = dict(self._last_snap or {})
         threading.Thread(target=self._hint_worker, args=(text, snap), daemon=True).start()
 
@@ -229,8 +250,9 @@ class Overlay:
         text, got = self._hint_result
         self._hint_result = None
         self._hint_busy = False
+        self._hint_started = 0.0
         if not got:
-            self.hint_note.config(text=f"「{text}」没能转成可执行的调整")
+            self.hint_note.config(text=f"「{text[:14]}」没能转成可执行的调整", fg="#d29922")
             return
         weights = got.get("weights") or {}
         if weights:
@@ -244,9 +266,9 @@ class Overlay:
             except Exception:
                 pass
             shown = " ".join(f"{k}×{v}" for k, v in weights.items())
-            self.hint_note.config(text=f"已按你的判断调整：{shown}（本局有效）")
+            self.hint_note.config(text=f"✓ 已调整：{shown}", fg="#3fb950")
         else:
-            self.hint_note.config(text=f"「{text}」→ 不调整权重")
+            self.hint_note.config(text=f"「{text[:14]}」→ 不调整权重", fg="#d29922")
         self._last_sig = None
 
     def _make_close(self, parent: tk.Widget, side: str = "right") -> tuple[tk.Frame, tk.Label]:
@@ -423,8 +445,25 @@ class Overlay:
                 self._show_render_error()
         self.root.after(320, self._tick)
 
+    def _check_hint_timeout(self) -> None:
+        """输入纠正卡住超过 20 秒就复位，否则用户会一直等下去。"""
+        if not self._hint_busy or not self._hint_started:
+            return
+        waited = time.time() - self._hint_started
+        if waited < 20:
+            return
+        self._hint_busy = False
+        self._hint_started = 0.0
+        self._hint_result = None
+        self.hint_note.config(text="分析超时，请重试（或检查网络）", fg="#d29922")
+        self._log(f"hint timeout after {waited:.0f}s")
+
     def _drain_ai_results(self) -> None:
         """把工作线程算好的结果搬到界面上（只在主线程做）。"""
+        self._check_hint_timeout()
+        if self._effect_result is not None:
+            self._effect_report.extend(self._effect_result)
+            self._effect_result = None
         if self._hint_result is not None:
             self._apply_hint()
         res = self._ai_result
@@ -484,6 +523,9 @@ class Overlay:
         snap["source"] = self.manager.name
         if snap.get("phase") == "mulligan" and (snap.get("turn") or 0) <= 1:
             model_mod.clear_overrides()          # 新对局清掉上一局的临时修正
+            self._effect_done.clear()
+            self._effect_report = []
+            self._rule_report = []
             self._case_buf = []
             self._cases_flushed = False
             self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
@@ -668,6 +710,23 @@ class Overlay:
             tk.Label(inner, text="· " + str(line), bg=PANEL, fg=TEXT_SOFT,
                      font=(FONT, self.font_size - 1), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x", pady=1)
+        lessons = [str(x) for x in (getattr(self, "_ai_lessons", []) or []) if str(x).strip()]
+        if lessons:
+            tk.Label(inner, text="AI 复盘", bg=PANEL, fg=GOLD,
+                     font=(FONT, self.font_size - 2, "bold"), anchor="w").pack(fill="x", pady=(5, 1))
+            for line in lessons[:3]:
+                tk.Label(inner, text="· " + line, bg=PANEL, fg=TEXT_SOFT,
+                         font=(FONT, self.font_size - 2), anchor="w", justify="left",
+                         wraplength=self.width - 46).pack(fill="x")
+
+        unknown = [str(x) for x in (rev.get("unmodelled") or []) if str(x).strip()]
+        if unknown:
+            tk.Label(inner, text="未能解析的牌", bg=PANEL, fg=GOLD,
+                     font=(FONT, self.font_size - 2, "bold"), anchor="w").pack(fill="x", pady=(5, 1))
+            for name in unknown[:8]:
+                tk.Label(inner, text="· " + name, bg=PANEL, fg="#c9a05a",
+                         font=(FONT, self.font_size - 2), anchor="w", justify="left",
+                         wraplength=self.width - 46).pack(fill="x")
         tk.Label(inner, text="开一局后这里会自动切换到对局信息", bg=PANEL, fg="#5b636e",
                  font=(FONT, self.font_size - 3), anchor="w").pack(fill="x", pady=(6, 0))
         self.collapsed = False
@@ -723,19 +782,22 @@ class Overlay:
         if not choice_sig and not self._has_options(snap):
             return
         if choice_sig and st is not None:
-            # 发现/抉择先用引擎打分；差距够大就不问 AI，省一次调用
+            # 发现/抉择完全由引擎打分决定，不调用 AI
             try:
                 board_now = board_from_state(st)
+                auto = getattr(self.advisor, "_auto_deck", None)
+                deck_cards = None
+                if auto is not None and getattr(auto, "cards", None):
+                    deck_cards = [self.cards.get(cid) for cid in auto.cards]
                 idx, why, gap = policy_mod.pick_choice(
                     choice.get("options") or [], board_now, self.cards, 0,
-                    board_now.sides[0].mana)
-                if True:
-                    self._ai_pick = (str((choice.get("options") or [{}])[idx].get("name")), why)
-                    self._pick_source = "引擎"
-                    self._ai_route = None
-                    self._ai_text = ""
-                    self._ai_turn = (int(snap.get("turn") or 0), True, choice_sig, None)
-                    return
+                    board_now.sides[0].mana, deck_cards=deck_cards)
+                self._ai_pick = (str((choice.get("options") or [{}])[idx].get("name")), why)
+                self._pick_source = "引擎"
+                self._ai_route = None
+                self._ai_text = ""
+                self._ai_turn = (int(snap.get("turn") or 0), True, choice_sig, None)
+                return
             except Exception:
                 pass
 
@@ -755,13 +817,6 @@ class Overlay:
         # 用更短的延迟，避免「选项都弹出来了还没有建议」
         delay = 300 if choice_sig else 1500
         self.root.after(delay, lambda: self._ai_fire(key, snap, st))
-
-    def _ai_mulligan_worker(self, snap: dict[str, Any]) -> None:
-        try:
-            rows = ai_mulligan.advise(snap)
-        except Exception:
-            rows = []
-        self._ai_mulligan_rows = rows
 
     def _ai_mulligan_done_cb(self, rows: list[dict]) -> None:
         self._ai_mulligan = rows or None
@@ -832,32 +887,24 @@ class Overlay:
         text = ""
         self._ai_result = (text, pick, None)
 
-    def _critique_engine(self, snap: dict[str, Any]) -> None:
-        """局后让 AI 对引擎的评估权重提一条建议。只写建议文件，不自动生效。"""
+    def _maybe_effects(self, snap: dict[str, Any]) -> None:
+        """发现新的未建模牌就立刻补规则，不等对局结束。"""
+        names = [str(n) for n in (snap.get("unmodelled") or [])
+                 if str(n) and str(n) not in self._effect_done]
+        if not names or self._effect_busy:
+            return
+        self._effect_busy = True
+        self._effect_done.update(names[:4])
+        threading.Thread(target=self._effects_worker,
+                         args=(names[:4],), daemon=True).start()
+
+    def _effects_worker(self, names: list[str]) -> None:
         try:
-            our = snap.get("our") or {}
-            opp = snap.get("opp") or {}
-            review = [str(x) for x in (snap.get("review") or [])]
-            summary = (
-                f"我方 {our.get('class_cn') or '?'} 对 对手 {opp.get('class_cn') or '?'}，"
-                f"共 {snap.get('turn') or 0} 回合。"
-                f"机器复盘：{'；'.join(review[:4]) or '无'}。"
-            )
-            got = ai_mod.critique(summary)
-            if not got:
-                return
-            path = DATA_DIR / "weight_suggestions.json"
-            rows = []
-            if path.exists():
-                try:
-                    rows = json.loads(path.read_text(encoding="utf-8")) or []
-                except ValueError:
-                    rows = []
-            rows.append({"ts": datetime.now().isoformat(timespec="seconds"), **got})
-            path.write_text(json.dumps(rows[-50:], ensure_ascii=False, indent=1),
-                            encoding="utf-8")
-        except Exception:
-            pass
+            self._effect_result = self._auto_effects({"unmodelled": names})
+        except Exception as exc:
+            self._log(f"effects worker failed: {exc}")
+            self._effect_result = []
+        self._effect_busy = False
 
     def _auto_effects(self, snap: dict[str, Any]) -> list[str]:
         """对局结束：把本局未建模的牌交给 AI 补规则，验证通过才入库。"""
@@ -877,7 +924,7 @@ class Overlay:
             targets = [cid for cid, c in self.cards.by_id.items() if c.name == rule.get("name")]
             if not targets:
                 continue
-            ok, why = effects_ai.validate_rule(self.cards, rule, targets[:1])
+            ok, why = effects_ai.validate_rule(self.cards, rule, targets)
             if ok and effects_ai.commit_rule(rule):
                 report.append(f"已自动补规则：{rule['name']}（{why}）")
             else:
@@ -891,15 +938,23 @@ class Overlay:
         try:
             our = (snap.get("our") or {}).get("class_cn") or "?"
             opp = (snap.get("opp") or {}).get("class_cn") or "?"
+            deck = (snap.get("deck") or {}).get("name") or "未知"
+            arch = (snap.get("prediction") or {}).get("name") or "未知"
             findings = "；".join(snap.get("review") or []) or "无机器检测到的失误"
+            issues = "；".join(snap.get("issues") or []) or "无"
+            turns = len(getattr(self.advisor, "_game_turns", []) or [])
             summary = (
-                f"对局：我方 {our} vs 对手 {opp}，共 {snap.get('turn')} 回合。"
-                f"机器复盘：{findings}\。"
-                f"对手卡组预判：{(snap.get('prediction') or {}).get('name') or '未知'}。"
+                f"对局：我方 {our}（卡组 {deck}）vs 对手 {opp}（预判 {arch}），"
+                f"共 {snap.get('turn')} 回合，记录了 {turns} 个我方回合。"
+                f"机器复盘：{findings}。"
+                f"引擎自身问题：{issues}。"
+                "引擎这局按「抢血/解场」两种模式决策：能更快打死对方就打脸，"
+                "否则只做不亏的交换。请只针对「打法选择」给建议，不要编造伤害数字。"
             )
             missed = any("有斩杀没斩" in str(x) for x in (snap.get("review") or []))
             lessons = ai_mod.review(snap, summary, missed_lethal=missed)
-            self._rule_report = self._auto_effects(snap)
+            self._rule_report = list(self._effect_report)
+            self._ai_lessons = list(lessons or [])
             if lessons:
                 memory.add_lessons(lessons, {
                     "our_class": str((snap.get("our") or {}).get("class_en") or ""),
@@ -909,10 +964,6 @@ class Overlay:
                 })
         except Exception:
             pass
-
-    def _ai_pick_done(self, pick: tuple[str, str] | None) -> None:
-        self._ai_pick = pick
-        self._last_sig = None
 
     def _ai_done(self, text: str, pick: tuple[str, str] | None = None,
                  steps: list[dict] | None = None) -> None:
@@ -930,7 +981,68 @@ class Overlay:
             self._ai_pick = pick
         self._last_sig = None
 
+    def _log_advice(self, snap: dict[str, Any]) -> None:
+            """把每一条给出去的建记录到 data/advice_log.jsonl，方便事后对账。
+
+            只在我们回合、且有建议时记，避免刷屏。
+            """
+            try:
+                lines = (snap.get("advice") or {}).get("lines") or []
+                if not lines:
+                    return
+                our = snap.get("our") or {}
+                opp = snap.get("opp") or {}
+                rec = {
+                    "ts": datetime.now().strftime("%H:%M:%S"),
+                    "turn": snap.get("turn"),
+                    "mana": our.get("mana"),
+                    "hand": [f"{c.get('name')}({c.get('cost')})" for c in (our.get("hand") or [])],
+                    "board": [f"{m.get('name')} {m.get('atk')}/{m.get('health')}" for m in (our.get("board") or [])],
+                    "foe_board": [f"{m.get('name')} {m.get('atk')}/{m.get('health')}" for m in (opp.get("board") or [])],
+                    "advice": [l.get("title") for l in lines],
+                    "reason": [l.get("reason") for l in lines],
+                }
+                path = DATA_DIR / "advice_log.jsonl"
+                with open(path, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                # 超过 400 行就只留最近 400
+                rows = path.read_text(encoding="utf-8").splitlines()
+                if len(rows) > 400:
+                    path.write_text("\n".join(rows[-400:]) + "\n", encoding="utf-8")
+            except Exception as exc:
+                self._log(f"advice log failed: {exc}")
+
     def _render(self, snap: dict[str, Any]) -> None:
+
+        # 对局中显示输入框，其它时候收起。
+        # 用 place 而不是 pack：Tk 会吞掉「建好即 pack_forget」容器的第一次 pack。
+        show_hint = snap.get("phase") == "playing"
+        if show_hint and not self.hint_row.winfo_manager():
+            self.hint_row.place(relx=0, rely=1.0, anchor="sw", relwidth=1.0, height=32)
+            self.hint_note.place(relx=0, rely=1.0, y=-32, anchor="sw", relwidth=1.0, height=18)
+            self.body.pack_configure(pady=(8, 54))
+        elif not show_hint and self.hint_row.winfo_manager():
+            self.hint_row.place_forget()
+            self.hint_note.place_forget()
+            self.body.pack_configure(pady=(8, 8))
+
+        # 建议必须对应「当前」手牌和场面：局面一变，上一帧的推荐就作废
+        sig = (
+            snap.get("turn"),
+            ((snap.get("our") or {}).get("mana")),
+            tuple(str(c.get("id") or c.get("name")) for c in ((snap.get("our") or {}).get("hand") or [])),
+            tuple(str(m.get("id") or m.get("name")) for m in ((snap.get("our") or {}).get("board") or [])),
+            tuple(str(o.get("name")) for o in ((snap.get("choice") or {}).get("options") or [])),
+        )
+        if sig != getattr(self, "_advice_sig", None):
+            self._advice_sig = sig
+            self._log_advice(snap)
+            self._ai_pick = None
+            self._ai_route = None
+            self._ai_text = ""
+
+        self._maybe_effects(snap)
+        self._drain_ai_results()
         self._maybe_ai(snap, getattr(self, "_last_state", None))
         for child in self.body.winfo_children():
             child.destroy()
@@ -981,6 +1093,13 @@ class Overlay:
                          font=(FONT, self.font_size - 2), anchor="w", justify="left",
                          wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
 
+        cthun = snap.get("cthun") or {}
+        if cthun.get("count"):
+            mark = "（强化已解锁 ×3）" if cthun.get("tripled") else ""
+            tk.Label(self.body, text=f"克苏恩技能 {cthun.get('count')}/{cthun.get('total')}{mark}",
+                     bg=BG, fg=GOLD if cthun.get("tripled") else MUTED,
+                     font=(FONT, self.font_size - 3), anchor="w").pack(fill="x")
+
         self._render_prediction(snap.get("prediction") or {})
         if snap.get("phase") != "mulligan":
             self._ai_mulligan = None      # 留牌阶段结束，这块不再显示
@@ -1022,7 +1141,10 @@ class Overlay:
                     tk.Label(row, text=tip, bg=PANEL, fg="#c9a05a",
                              font=(FONT, self.font_size - 3)).pack(side="right")
         elif self._ai_pick:
-            inner_pick = self._section("AI 决策", "模型选择" if self._pick_source == "AI" else "引擎打分")
+            from_engine = self._pick_source != "AI"
+            inner_pick = self._section(
+                "引擎推荐" if from_engine else "AI 决策",
+                "发现/抉择" if from_engine else "模型选择")
             tk.Label(inner_pick, text=self._ai_pick[0], bg=PANEL, fg=GOLD,
                      font=(FONT, self.font_size + 1, "bold"), anchor="w",
                      justify="left", wraplength=self.width - 46).pack(fill="x")
@@ -1253,7 +1375,8 @@ class Overlay:
         inner = self._section("本回合建议",
                               "参考" if ref_mode else ("斩杀" if lethal_on else "决策"))
         if ref_mode and self._ai_pick and (lines[0].get("title") if lines else "") != self._ai_pick[0]:
-            tk.Label(inner, text="与 AI 决策不一致，供对照", bg=PANEL, fg="#c9a05a",
+            tk.Label(inner, text="与 AI 决策不一致，供对照" if self._pick_source == "AI"
+                     else "引擎独立评估，仅供参考", bg=PANEL, fg="#c9a05a",
                      font=(FONT, self.font_size - 3), anchor="w").pack(fill="x", pady=(0, 2))
         if advice.get("lethal"):
             self._strip(f"可直接斩杀（{advice.get('lethal_damage', 0)} 点伤害）", fg="#ffb3ad", bg="#3d1418")

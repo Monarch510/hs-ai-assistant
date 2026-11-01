@@ -253,7 +253,10 @@ class CardDB:
         if not getattr(c, "collectible", True):
             return True
         cid = (c.id or "").upper()
-        if cid.startswith(("PVPDR_", "GAME_", "UNKNOWN")):
+        if "COIN" in cid or cid.startswith(("PVPDR_", "GAME_", "UNKNOWN")):
+            return True
+        if (c.name or "") in ("幸运币", "The Coin"):
+            return True
             return True
         return bool(__import__("re").search(r"T\d*$", cid))
 

@@ -12,7 +12,9 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
@@ -36,6 +38,7 @@ EPS = 0.35          # 提升小于这个值就不算改进
 # 用「分类加分」实现：它不会推翻明显更好的选择，但同档收益时按这个顺序偏向。
 PRIORITY_BONUS = {
     "lethal": 1000.0,
+    "free_trade": 6.0,
     "board": 3.0,
     "draw": 1.6,
     "discover": 1.0,
@@ -51,7 +54,10 @@ def categorize(action: Action, before: Board, after: Board, side: int) -> str:
     killed = sum(1 for u in before.sides[1 - side].board
                  if u.alive and not any(x is u or x.card_id == u.card_id for x in after.sides[1 - side].board))
     if killed:
-        return "board"
+        # 「白吃」：换掉对面随从，自己一个都没少 —— 保场面的最优交换，优先级要高
+        lost = sum(1 for u in before.sides[side].board
+                   if u.alive and not any(x is u or x.card_id == u.card_id for x in after.sides[side].board))
+        return "free_trade" if lost == 0 else "board"
     if action.kind == "play":
         card = before.sides[side].hand[action.card_idx] if action.card_idx < len(before.sides[side].hand) else None
         if card is not None:
@@ -82,6 +88,7 @@ class Action:
     cost: int = 0
     desc: str = ""
     card_id: str = ""
+    pos: int = -1                  # 打出的随从放在第几位（0=最左）
 
     def key(self) -> tuple:
         return (self.kind, self.card_idx, self.unit_idx, self.target)
@@ -89,6 +96,18 @@ class Action:
 
 def _enemy_units(board: Board, side: int) -> list[Unit]:
     return [u for u in board.sides[1 - side].board if u.alive]
+
+
+def _has_adjacency(board: Board, side: int, cards) -> bool:
+    """场上有没有「相邻」类效果 —— 有才值得挑摆位。"""
+    for u in board.sides[side].board:
+        if not u.alive:
+            continue
+        card = cards.get(u.card_id) if cards is not None else None
+        text = (card.text or "") if card is not None else ""
+        if "相邻" in text:
+            return True
+    return False
 
 
 def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
@@ -103,15 +122,41 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
             for j, t in enumerate(foe.board):
                 if t.alive and t.taunt:
                     acts.append(Action("attack", unit_idx=i, target=f"enemy:{j}",
-                                       desc=f"{u.name} {u.atk}/{u.hp} 攻击嘲讽 {t.name} {t.atk}/{t.hp}"))
+                                       desc=f"第{i+1}位 {u.name} {u.atk}/{u.hp} 攻击第{j+1}位 {t.name} {t.atk}/{t.hp}"))
         else:
             if not u.rush_only:
                 acts.append(Action("attack", unit_idx=i, target="enemy_hero",
-                                   desc=f"{u.name} {u.atk}/{u.hp} 攻击英雄"))
+                                   desc=f"第{i+1}位 {u.name} {u.atk}/{u.hp} 攻击英雄"))
             for j, t in enumerate(foe.board):
                 if t.alive:
                     acts.append(Action("attack", unit_idx=i, target=f"enemy:{j}",
-                                       desc=f"{u.name} {u.atk}/{u.hp} 攻击 {t.name} {t.atk}/{t.hp}"))
+                                       desc=f"第{i+1}位 {u.name} {u.atk}/{u.hp} 攻击第{j+1}位 {t.name} {t.atk}/{t.hp}"))
+
+    # 英雄拿武器也能攻击：打脸或打随从，同样受嘲讽限制
+    weapon_atk = me.weapon.atk if (me.weapon is not None) else 0
+    if weapon_atk > 0 and me.weapon_attacks_left > 0:
+        if taunts:
+            for j, t in enumerate(foe.board):
+                if t.alive and t.taunt:
+                    acts.append(Action("hero_attack", target=f"enemy:{j}",
+                                       desc=f"英雄（武器 {weapon_atk}攻）攻击第{j+1}位 {t.name}"))
+        else:
+            acts.append(Action("hero_attack", target="enemy_hero",
+                               desc=f"英雄（武器 {weapon_atk}攻）攻击英雄"))
+            for j, t in enumerate(foe.board):
+                if t.alive:
+                    acts.append(Action("hero_attack", target=f"enemy:{j}",
+                                       desc=f"英雄（武器 {weapon_atk}攻）攻击第{j+1}位 {t.name}"))
+
+    # 预备：把带「预备」的牌拖到牌库上，花掉剩余法力换减费
+    if me.mana > 0:
+        for i, card in enumerate(me.hand):
+            if card is None or "预备" not in (card.text or ""):
+                continue
+            cut = me.mana + 1
+            acts.append(Action("prepare", card_idx=i, cost=me.mana,
+                               desc=f"预备 {card.name}（花 {me.mana} 费，费用 -{cut}）",
+                               card_id=card.id))
 
     full_board = len([u for u in me.board if u.alive]) >= 7
     for i, card in enumerate(me.hand):
@@ -126,24 +171,46 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
             for j, t in enumerate(foe.board):
                 if t.alive:
                     acts.append(Action("play", card_idx=i, target=f"enemy:{j}",
-                                       cost=card.cost, desc=f"用 {card.name} 打 {t.name}", card_id=card.id))
+                                       cost=card.cost, desc=f"用 {card.name}（{card.cost}费）打第{j+1}位 {t.name}", card_id=card.id))
             acts.append(Action("play", card_idx=i, target="enemy_hero",
-                               cost=card.cost, desc=f"用 {card.name} 打脸", card_id=card.id))
+                               cost=card.cost, desc=f"用 {card.name}（{card.cost}费）打脸", card_id=card.id))
             continue
         if card.is_spell and eff.destroy and eff.scope == "target":
             for j, t in enumerate(foe.board):
                 if t.alive:
                     acts.append(Action("play", card_idx=i, target=f"enemy:{j}",
-                                       cost=card.cost, desc=f"用 {card.name} 解 {t.name}", card_id=card.id))
+                                       cost=card.cost, desc=f"用 {card.name}（{card.cost}费）解第{j+1}位 {t.name}", card_id=card.id))
             continue
         if card.is_spell and (eff.buff_atk or eff.buff_hp or eff.heal):
             if any(u.alive for u in me.board):
                 for j, t in enumerate(me.board):
                     if t.alive:
                         acts.append(Action("play", card_idx=i, target=f"friendly:{j}",
-                                           cost=card.cost, desc=f"用 {card.name} 强化 {t.name}", card_id=card.id))
+                                           cost=card.cost, desc=f"用 {card.name}（{card.cost}费）强化第{j+1}位 {t.name}", card_id=card.id))
                 continue
-        acts.append(Action("play", card_idx=i, cost=card.cost, desc=f"打出 {card.name}", card_id=card.id))
+        # 打出手牌不指定站位：给出名称、费用、身材就够照做了
+        if card.is_minion or card.is_weapon:
+            label = f"{card.cost}费 {max(0, card.atk)}/{max(1, card.health)}"
+        else:
+            label = f"{card.cost}费"
+        note = ""
+        if card.is_minion:
+            # 这一只正好踩到被动技能的计数点，战吼会结算两次
+            if battlecry_times(me.minions_played + 1, me.passive_rule) > 1:
+                note = "（战吼触发两次）"
+        acts.append(Action("play", card_idx=i, cost=card.cost,
+                           desc=f"打出 {card.name}（{label}）{note}", card_id=card.id))
+
+    # 手里有两张一模一样的牌时，只出一条建议（描述相同 = 同一件事）
+    seen_play: set[str] = set()
+    deduped: list[Action] = []
+    for act in acts:
+        if act.kind == "play":
+            if act.desc in seen_play:
+                continue
+            seen_play.add(act.desc)
+        deduped.append(act)
+    acts = deduped
 
     name, hp_cost, hp_eff = hero_power_effect(me.hero_class, me.hero_power)
     passive_hp = is_passive_hero_power(me.hero_power)
@@ -175,6 +242,30 @@ def _find_unit(board: Board, side: int, target: str) -> Unit | None:
     except (IndexError, ValueError):
         return None
     return u if u.alive else None
+
+
+_GIGANTIC_CACHE: dict[str, list] = {}
+
+
+def _gigantic_appendages(card, cards) -> list:
+    """巨型+N 的附属物。按名字前缀在卡库里找（「奥拉基尔的灌能之手」这类）。"""
+    text = (card.text or "")
+    m = re.search(r"巨型\+(\d)", text)
+    if not m or cards is None:
+        return []
+    n = int(m.group(1))
+    cached = _GIGANTIC_CACHE.get(card.id)
+    if cached is None:
+        base = card.name.split("，")[0].split(",")[0].strip()
+        found = []
+        for other in cards.by_id.values():
+            if other is card or not other.is_minion or not other.name:
+                continue
+            if other.name.startswith(base) and other.name != card.name:
+                found.append(other)
+        _GIGANTIC_CACHE[card.id] = found
+        cached = found
+    return cached[:n]
 
 
 def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Board:
@@ -225,6 +316,50 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         u.attacks_left -= 1
         return nb
 
+    if action.kind == "hero_attack":
+        atk = me.weapon.atk if (me.weapon is not None) else 0
+        if atk <= 0 or me.weapon_attacks_left <= 0:
+            return nb
+        if action.target == "enemy_hero":
+            nb.damage_hero(foe, atk)
+            nb.note(f"英雄用武器攻击英雄（{atk} 点）")
+        else:
+            t = _find_unit(nb, side, action.target)
+            if t is None:
+                return nb
+            nb.damage_unit(foe, t, atk)
+            nb.damage_hero(me, t.atk)        # 打随从要挨反伤
+            nb.note(f"英雄用武器攻击 {t.name}")
+        me.weapon_attacks_left -= 1
+        # 「在你的英雄攻击后」这类武器效果：攻击后再结算
+        if me.weapon is not None and me.weapon.card_id and cards is not None:
+            wcard = cards.get(me.weapon.card_id)
+            weff = parse_effect(wcard) if wcard is not None else None
+            if weff is not None and (weff.summon_atk or weff.summon_hp):
+                for _ in range(max(1, weff.summon_count)):
+                    me.board.append(Unit(card_id="", name="召唤物",
+                                         atk=max(0, weff.summon_atk),
+                                         hp=max(1, weff.summon_hp),
+                                         attacks_left=1 if "突袭" in (wcard.text or "") else 0))
+                nb.note(f"{wcard.name} 触发召唤")
+        # 武器每次攻击掉 1 点耐久，掉光就碎
+        if me.weapon is not None:
+            me.weapon.hp -= 1
+            if me.weapon.hp <= 0:
+                nb.note(f"武器 {me.weapon.name} 碎裂")
+                me.weapon = None
+        return nb
+
+    if action.kind == "prepare":
+        if not (0 <= action.card_idx < len(me.hand)):
+            return nb
+        card = me.hand[action.card_idx]
+        cut = me.mana + 1
+        me.hand[action.card_idx] = dataclasses.replace(card, cost=max(0, card.cost - cut))
+        me.mana = 0
+        nb.note(f"预备 {card.name}：法力 -{cut}")
+        return nb
+
     # play
     if action.card_idx < 0 or action.card_idx >= len(me.hand):
         return nb
@@ -253,11 +388,29 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
             # 突袭：入场当回合就能动，但只能吃随从，不能打脸
             u.attacks_left = 1 if u.rush else 0
             u.rush_only = u.rush
-        me.board.append(u)
+        if 0 <= action.pos <= len(me.board):
+            me.board.insert(action.pos, u)      # 按建议的位置放置
+        else:
+            me.board.append(u)
+        # 巨型+N：打出时同时召唤 N 个附属物（每个占一个随从位）
+        for add in _gigantic_appendages(card, cards):
+            me.board.append(Unit(
+                card_id=add.id, name=add.name,
+                atk=max(0, add.atk), hp=max(1, add.health),
+                max_hp=max(1, add.health),
+                taunt=add.has("TAUNT"), divine=add.has("DIVINE_SHIELD"),
+                rush=add.has("RUSH"), windfury=add.has("WINDFURY"),
+                attacks_left=0,
+            ))
         eff = parse_effect(card)
+        me.minions_played += 1
+        times = battlecry_times(me.minions_played, me.passive_rule)
         if eff.damage or eff.buff_atk or eff.heal or eff.draw:
             tgt = _find_unit(nb, side, action.target)
-            nb.apply_effect(eff, me, tgt)
+            for _ in range(times):
+                nb.apply_effect(eff, me, tgt)
+            if times > 1:
+                nb.note(f"被动技能触发：{card.name} 的战吼结算了 {times} 次")
         nb.note(f"打出 {card.name}")
     elif card.is_spell:
         me.spells_cast += 1
@@ -283,7 +436,6 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
 
 def _spell_damage(card: Card) -> int:
     if card.has("SPELL_DAMAGE") and card.text:
-        import re
 
         m = re.search(r"法术伤害\+(\d+)", card.text)
         if m:
@@ -467,11 +619,14 @@ def plan_turn(
     side: int = 0,
     steps: int = MAX_STEPS,
     with_alternatives: bool = True,
+    opp_coeff: float = 1.5,
 ) -> dict[str, Any]:
     """贪心规划一整回合，返回路线 + 备选。"""
     working = board.clone()
     working.active = side
     baseline = evaluate(working, weights, aoe_risk, side)
+    race = race_plan(board, side, cards, opp_coeff)
+    mode = race["mode"]
 
     # 能斩杀就别做别的：先按伤害贪心拼出完整顺序
     lethal_seq = _lethal_sequence(board, side, cards)
@@ -498,6 +653,8 @@ def plan_turn(
         for act in acts:
             if act.kind == "end":
                 continue
+            if not _mode_allows(act, working, side, mode):
+                continue
             nb = apply_action(working, side, act, cards)
             score = evaluate(nb, weights, aoe_risk, side)
             # 斩杀直接置顶
@@ -520,6 +677,20 @@ def plan_turn(
         working = nb
         if working.sides[1 - side].hero_hp <= 0:
             break
+
+    # 剩下法力又没别的事可做时，把「预备」当作收尾动作推荐出来
+    leftover = working.sides[side].mana
+    if leftover > 0:
+        prep = [a for a in legal_actions(working, side, cards) if a.kind == "prepare"]
+        if prep and (not plan or leftover >= 3):
+            act = prep[0]
+            nb = apply_action(working, side, act, cards)
+            plan.append({
+                "desc": act.desc,
+                "reason": f"剩下的 {leftover} 点法力留着浪费，预备后这张牌费用直降 {leftover + 1}",
+                "gain": 0.0,
+            })
+            working = nb
 
     lethal = max_face_damage(board, side, cards)
     if lethal["lethal"] and not plan:
@@ -550,6 +721,8 @@ def plan_turn(
     alts.sort(key=lambda a: -a["gain"])
 
     return {
+        "mode": mode,
+        "race": race,
         "plan": plan,
         "gain": round(total_gain, 2),
         "alternatives": alts[:3],
@@ -573,9 +746,9 @@ def advice_lines(plan_result: dict[str, Any]) -> list[dict[str, Any]]:
     if not out and not (plan_result.get("alternatives") or []):
         return [{
             "rank": 1,
-            "title": "本回合没有值得做的动作",
+            "title": "结束回合",
             "score": 50,
-            "reason": "现在能出的牌都是负收益（例如为了一点法力把幸运币交了）。留着费用和手牌，直接结束回合更划算。",
+            "reason": "没有值得做的事",
             "actions": ["结束回合"],
         }]
 
@@ -625,36 +798,72 @@ def validate_sequence(board: Board, descs: list[str], cards: CardDB,
     return out
 
 
-def score_choice(card, effect, board: Board, side: int, mana: int) -> tuple[float, str]:
-    """给「发现/抉择」的某个选项打分。返回 (分数, 一句话理由)。
+def _deck_theme(deck_cards, cards) -> str:
+    """从卡组构成判断这套牌靠什么赢：法伤 / 低费 / 随从。"""
+    if not deck_cards:
+        return ""
+    total = len(deck_cards)
+    spells = sum(1 for c in deck_cards if c is not None and getattr(c, "type", "") == "SPELL")
+    cheap = sum(1 for c in deck_cards if c is not None and (c.cost or 0) <= 2)
+    minions = sum(1 for c in deck_cards if c is not None and getattr(c, "type", "") == "MINION")
+    if spells / total >= 0.45:
+        return "spell"
+    if cheap / total >= 0.5:
+        return "aggro"
+    if minions / total >= 0.6:
+        return "minion"
+    return ""
 
-    评分维度有限是刻意的：只评判能确定的事（能不能解掉随从、能不能立刻打、
-    身材值多少），不确定的效果一律不加分，让它在面板上显得"没把握"。
+
+def _spell_damage_on_board(board: Board, side: int, cards) -> int:
+    """场上「法术伤害 +N」的总量。"""
+    total = 0
+    for u in board.sides[side].board:
+        if not u.alive or cards is None:
+            continue
+        card = cards.get(u.card_id)
+        text = (card.text or "") if card is not None else ""
+        if "法术伤害" in text:
+            m = re.search(r"法术伤害\+(\d)", text)
+            total += int(m.group(1)) if m else 1
+    return total
+
+
+def score_choice(card, effect, board: Board, side: int, mana: int,
+                 *, deck_theme: str = "", spell_damage: int = 0,
+                 hand_spells: int = 0, opp_fast: bool = False) -> tuple[float, str]:
+    """给一个发现/抉择选项打分，返回 (分数, 理由)。
+
+    分六层，从上到下依次叠加：当回合可打 → 立即收益 → 卡组主题
+    → 场上加成 → 手牌组合 → 对手形态。
     """
     score = 0.0
     reasons: list[str] = []
     foe = board.sides[1 - side]
-    me = board.sides[side]
     cost = getattr(card, "cost", 0) or 0
+    is_spell = getattr(card, "type", "") == "SPELL"
+    is_minion = getattr(card, "type", "") == "MINION"
 
-    # 能立刻打出去才有价值；打不起的选项只是"存着"
-    if cost > mana:
-        score -= 1.5
+    # ① 当回合能不能打出去
+    if cost <= mana:
+        score += 2.0
+        reasons.append("当回合可打")
+    else:
+        score -= 2.0
+
+    # ② 立即收益
     if effect.known:
         if effect.damage and effect.scope in ("any", "minion", "enemy", "target", "enemy_minion"):
-            killable = [u for u in foe.board if u.alive and u.hp <= effect.damage]
+            killable = [u for u in foe.board if u.alive and u.hp <= effect.damage + spell_damage]
             if killable:
                 score += 3.0 + max(u.atk for u in killable) * 0.3
                 reasons.append(f"能解掉{len(killable)}个随从")
-            elif effect.scope == "enemy_hero" or effect.scope == "any":
-                score += 1.0
-                reasons.append("能打脸")
-        if effect.draw:
-            score += 1.8 * effect.draw
-            reasons.append(f"过{effect.draw}张")
         if effect.destroy:
             score += 3.0
             reasons.append("硬解")
+        if effect.draw:
+            score += 1.8 * effect.draw
+            reasons.append(f"过{effect.draw}张")
         if effect.heal:
             score += 0.8
             reasons.append("回血")
@@ -664,27 +873,53 @@ def score_choice(card, effect, board: Board, side: int, mana: int) -> tuple[floa
         if effect.mana:
             score += 1.2
             reasons.append("加费")
-        if effect.discover:
-            score += 1.0
-            reasons.append("再发现")
-    if getattr(card, "type", "") == "MINION":
+    if is_minion:
         atk = getattr(card, "atk", 0) or 0
         hp = getattr(card, "health", 0) or 0
         value = (atk + hp) / max(1, cost)
         score += min(2.5, value * 0.8)
-        reasons.append(f"{atk}/{hp} 每费{value:.1f}")
-        kw = str(getattr(card, "keyword", "") or "")
-        for token, bonus in (("嘲讽", 0.6), ("圣盾", 0.8), ("突袭", 0.6),
-                             ("吸血", 0.6), ("风怒", 0.5)):
-            if token in kw:
-                score += bonus
-    return score, "，".join(reasons[:3]) or "没看出明确收益"
+
+    # ③ 卡组主题
+    if deck_theme == "spell" and is_spell:
+        score += 0.8
+    elif deck_theme == "aggro" and cost <= 2:
+        score += 0.6
+    elif deck_theme == "minion" and is_minion:
+        score += 0.5
+
+    # ④ 场上法伤加成
+    if spell_damage > 0 and is_spell and effect.damage:
+        score += 0.5 * spell_damage
+
+    # ⑤ 手牌组合：手里法术多、场上又有法伤，法伤随从更值
+    if hand_spells >= 3 and spell_damage > 0 and is_minion and "法术伤害" in (card.text or ""):
+        score += 0.8
+        reasons.append("和手牌法术配合")
+
+    # ⑥ 对手形态：快攻优先解场/回血，控制优先大身材/过牌
+    if opp_fast:
+        if effect.damage or effect.destroy or effect.taunt if hasattr(effect, "taunt") else False:
+            score += 0.8
+        if effect.heal or effect.armor:
+            score += 0.8
+    else:
+        if is_minion and (getattr(card, "atk", 0) or 0) >= 5:
+            score += 0.6
+        if effect.draw:
+            score += 0.6
+
+    return score, "，".join(reasons[:3])
 
 
-def pick_choice(options: list, board: Board, cards, side: int, mana: int) -> tuple[int, str, float]:
+def pick_choice(options: list, board: Board, cards, side: int, mana: int,
+                *, deck_cards=None, opp_fast: bool = False) -> tuple[int, str, float]:
     """从发现/抉择选项里挑一个。返回 (下标, 理由, 与第二名的分差)。"""
     if not options:
         return 0, "", 0.0
+    theme = _deck_theme(deck_cards or [], cards)
+    spell_damage = _spell_damage_on_board(board, side, cards)
+    hand_spells = sum(1 for c in board.sides[side].hand
+                      if c is not None and getattr(c, "type", "") == "SPELL")
     scored: list[tuple[float, int, str]] = []
     for idx, opt in enumerate(options):
         card = cards.by_name_or_id(str(opt.get("name") or ""))
@@ -692,7 +927,9 @@ def pick_choice(options: list, board: Board, cards, side: int, mana: int) -> tup
         if card is None:
             scored.append((-9.0, idx, "认不出这张牌"))
             continue
-        score, why = score_choice(card, effect, board, side, mana)
+        score, why = score_choice(card, effect, board, side, mana,
+                                  deck_theme=theme, spell_damage=spell_damage,
+                                  hand_spells=hand_spells, opp_fast=opp_fast)
         scored.append((score, idx, why))
     scored.sort(key=lambda x: -x[0])
     best_score, best_idx, best_why = scored[0]
@@ -704,3 +941,173 @@ def pick_choice(options: list, board: Board, cards, side: int, mana: int) -> tup
 set_overrides = model_mod.set_overrides
 clear_overrides = model_mod.clear_overrides
 current_overrides = model_mod.current_overrides
+
+
+# ---------------------------------------------------------------- 抢血 / 解场
+def aggression_coefficient(deck_cards, db) -> tuple[float, str]:
+    """从卡组组成判断对手有多快，返回 (每张手牌折合的伤害, 形态名)。
+
+    用「低费牌占比 + 平均费用」，而不是手填表 —— 换卡组、遇到新卡组都能自动覆盖。
+    """
+    costs = [c.cost for c in deck_cards if c is not None and c.cost is not None]
+    if not costs:
+        return 1.5, "未知"
+    low = sum(1 for c in costs if c <= 3) / len(costs)
+    avg = sum(costs) / len(costs)
+    if low >= 0.6 or avg <= 2.6:
+        return 3.0, "快攻"
+    if avg <= 3.6:
+        return 1.5, "中速"
+    return 0.8, "控制"
+
+
+def _hand_burst(board: Board, side: int, cards) -> float:
+    """手里能直接打脸的伤害（斩杀时能一次性砸出去的量）。"""
+    me = board.sides[side]
+    total = 0.0
+    for card in me.hand:
+        if card is None or getattr(card, "type", "") != "SPELL":
+            continue
+        try:
+            eff = parse_effect(card)
+        except Exception:
+            continue
+        if not eff.known or not eff.damage:
+            continue
+        if eff.scope in ("target", "any", "enemy_hero", "enemy") and not eff.aoe:
+            total += eff.damage
+    return total
+
+
+def race_plan(board: Board, side: int, cards, opp_coeff: float = 1.5) -> dict[str, Any]:
+    """判断这回合该抢血还是解场。
+
+    比的是「谁先死」：
+        我赢的回合 = (他血量 - 我手上的爆发) / 我每回合的持续伤害
+        他赢的回合 = 我血量 / 他每回合的伤害
+    """
+    me, foe = board.sides[side], board.sides[1 - side]
+    my_damage = float(me.board_attack)
+    if me.weapon is not None:
+        my_damage += me.weapon.atk
+    if me.hero_power is not None and not is_passive_hero_power(me.hero_power):
+        eff = hero_power_effect(me.hero_power)
+        if eff.damage and eff.scope in ("enemy_hero", "any"):
+            my_damage += eff.damage
+
+    burst = _hand_burst(board, side, cards)
+    his_damage = float(foe.board_attack) + len(foe.hand) * opp_coeff
+
+    foe_hp = max(1.0, foe.hero_hp + foe.armor - burst)
+    my_hp = max(1.0, me.hero_hp + me.armor)
+    my_turns = foe_hp / my_damage if my_damage > 0 else 99.0
+    his_turns = my_hp / his_damage if his_damage > 0 else 99.0
+    mode = "race" if my_turns < his_turns else "trade"
+    return {
+        "mode": mode,
+        "my_turns": round(my_turns, 1),
+        "his_turns": round(his_turns, 1),
+        "my_damage": round(my_damage, 1),
+        "his_damage": round(his_damage, 1),
+        "burst": round(burst, 1),
+        "reason": (
+            f"我 {my_turns:.1f} 回合赢，他 {his_turns:.1f} 回合赢"
+            if my_damage > 0 and his_damage > 0
+            else "伤害信息不足"
+        ),
+    }
+
+
+def _turns_after(board: Board, side: int, lose_attack: float, kill_attack: float) -> tuple[float, float]:
+    """假设打掉对方一只随从（kill_attack）、同时损失我方一些攻击力，重算双方回合数。"""
+    me, foe = board.sides[side], board.sides[1 - side]
+    my_damage = max(1.0, float(me.board_attack) - lose_attack)
+    his_damage = max(0.0, float(foe.board_attack) - kill_attack)
+    my_turns = max(1.0, foe.hero_hp + foe.armor) / my_damage
+    his_turns = (me.hero_hp + me.armor) / his_damage if his_damage > 0 else 99.0
+    return my_turns, his_turns
+
+
+def _mode_allows(action: Action, before: Board, side: int, mode: str) -> bool:
+    """按「抢血 / 解场」过滤动作。
+
+    抢血：只有白吃不拖慢节奏、或者放着它下回合会打死我，才允许交换。
+    解场：有划算的交换时不去打脸。
+    """
+    if action.kind != "attack":
+        return True
+    me, foe = before.sides[side], before.sides[1 - side]
+    unit = me.board[action.unit_idx] if action.unit_idx < len(me.board) else None
+    if unit is None:
+        return True
+
+    if action.target == "enemy_hero":
+        if mode == "race":
+            return True
+        # 解场模式：只要还有划算的交换，就先换
+        return not _has_profitable_trade(before, side)
+
+    if not (action.target or "").startswith("enemy:"):
+        return True
+    try:
+        j = int(action.target.split(":")[1])
+    except (IndexError, ValueError):
+        return True
+    target = foe.board[j] if j < len(foe.board) else None
+    if target is None:
+        return True
+
+    free = unit.atk >= target.hp and target.atk < unit.hp
+    if mode == "race":
+        if not free:
+            # 抢血模式不主动亏血换怪；除非放着它我会被打死
+            return target.atk >= me.hero_hp
+        # 白吃之后如果自己一点输出都不剩了，「更快」就是假的，不能吃
+        if me.board_attack - unit.atk <= 0:
+            return False
+        # 和「现在的」对手回合数比，而不是和白吃之后的比 ——
+        # 白吃会把他伤害打成 0，那样任何交换都显得划算
+        _, his_now = _turns_after(before, side, 0.0, 0.0)
+        my_after, _ = _turns_after(before, side, unit.atk, target.atk)
+        return my_after <= his_now            # 白吃之后仍然更快，就吃
+    # 解场模式：不亏就换（对方更值钱也算划算）
+    return free or target.value >= unit.value
+
+
+def _has_profitable_trade(board: Board, side: int) -> bool:
+    me, foe = board.sides[side], board.sides[1 - side]
+    for u in me.board:
+        if not u.alive or u.attacks_left <= 0:
+            continue
+        for t in foe.board:
+            if not t.alive:
+                continue
+            if u.atk >= t.hp and (t.atk < u.hp or t.value >= u.value):
+                return True
+    return False
+
+
+
+def passive_rule(hero_power) -> dict:
+    """从被动英雄技能的文本里读出「计数器规则」。
+
+    返回 {"count": 统计什么, "every": 阈值, "effect": 触发什么}，
+    识别不了就返回 {}（宁可什么都不做，也不乱触发）。
+    """
+    text = (hero_power.text or "") if hero_power is not None else ""
+    if not text:
+        return {}
+    # 兹伊的力量这类：每使用五张随从牌，第五个随从的战吼触发两次
+    if "每使用五张随从牌" in text and "战吼" in text and "两次" in text:
+        return {"count": "minion", "every": 5, "effect": "battlecry_double"}
+    if "每使用三张" in text and "战吼" in text:
+        return {"count": "minion", "every": 3, "effect": "battlecry_double"}
+    return {}
+
+
+def battlecry_times(played_minions: int, rule: dict) -> int:
+    """这一张随从的战吼要结算几次。"""
+    every = int(rule.get("every") or 0)
+    if every <= 0 or rule.get("effect") != "battlecry_double":
+        return 1
+    return 2 if played_minions > 0 and played_minions % every == 0 else 1

@@ -19,6 +19,8 @@ from .cards import DATA_DIR
 LESSONS_PATH = DATA_DIR / "lessons.jsonl"
 CASES_PATH = DATA_DIR / "cases.jsonl"
 MAX_LESSONS = 200
+OPP_HISTORY_PATH = DATA_DIR / "opp_history.jsonl"
+MAX_OPP_HISTORY = 200
 MAX_CASES = 400
 
 
@@ -59,6 +61,28 @@ def _append_jsonl(path: Path, rows: list[dict[str, Any]], cap: int) -> None:
             )
     except OSError:
         pass
+
+
+def record_opponent(opp_class: str, archetype: str) -> None:
+    """记一局遇到的对手卡组形态（用于下次同职业时的先验）。"""
+    if not opp_class or not archetype:
+        return
+    _append_jsonl(OPP_HISTORY_PATH,
+                  [{"opp_class": opp_class, "archetype": archetype}],
+                  MAX_OPP_HISTORY)
+
+
+def class_counts(opp_class: str, limit: int = 60) -> dict[str, int]:
+    """最近 limit 局里，这个职业各形态各出现了多少次。"""
+    rows = _read_jsonl(OPP_HISTORY_PATH)[-limit:]
+    out: dict[str, int] = {}
+    for row in rows:
+        if row.get("opp_class") != opp_class:
+            continue
+        name = str(row.get("archetype") or "")
+        if name:
+            out[name] = out.get(name, 0) + 1
+    return out
 
 
 # ---------------------------------------------------------------- 教训

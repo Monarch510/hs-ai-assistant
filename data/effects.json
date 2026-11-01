@@ -121,6 +121,16 @@
   },
   "patterns": [
     {
+      "name": "墓地之力",
+      "regex": "使你的所有随从获得\\+(\\d+)攻击力。消耗5份残骸，改为获得\\+(\\d+)攻击力",
+      "effect": {
+        "buff_atk": "$1",
+        "scope": "friendly_minions",
+        "aoe": true
+      },
+      "note": "残骸强化版+$2攻击力需引擎另行处理，基础效果为友方全体+$1攻击力"
+    },
+    {
       "name": "brawl_like",
       "regex": "消灭除了该随从外的所有其他随从",
       "effect": {

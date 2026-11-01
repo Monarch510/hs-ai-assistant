@@ -25,3 +25,5 @@ venv/
 *.swp
 data/lessons.jsonl*
 data/last_review.json
+data/advice_log.jsonl
+data/*.bak

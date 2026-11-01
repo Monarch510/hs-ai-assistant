@@ -54,7 +54,7 @@ class LegalActionRulesTest(unittest.TestCase):
                    SideState(hero_hp=5)], 5, 0, cards=db)
         b.sides[0].hand = [db.by_name_or_id("火球术")]
         descs = [a.desc for a in policy.legal_actions(b, 0, db) if a.kind == "play"]
-        self.assertIn("用 火球术 打脸", descs)
+        self.assertTrue(any("火球术" in d and "打脸" in d for d in descs))
 
     def test_taunt_blocks_face_damage(self) -> None:
         """撞嘲讽的攻击不会溢出到脸：8/8 撞 5 血嘲讽，对面 3 血打不死。"""

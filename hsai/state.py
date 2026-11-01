@@ -33,6 +33,7 @@ T_TURN = "TURN"
 T_CURRENT_PLAYER = "CURRENT_PLAYER"
 T_RESOURCES = "RESOURCES"
 T_RESOURCES_USED = "RESOURCES_USED"
+T_TEMP_RESOURCES = "TEMP_RESOURCES"
 T_ARMOR = "ARMOR"
 T_TAUNT = "TAUNT"
 T_DIVINE_SHIELD = "DIVINE_SHIELD"
@@ -188,6 +189,10 @@ class GameState:
         self.unmodelled: list[str] = []
         # 任务牌进度：实体 id -> {"progress": n, "total": m}
         self.quest_progress: dict[int, dict[str, int]] = {}
+        # 实体 -> 它进入战场的回合数（判断突袭刚入场用）
+        self.played_turn: dict[int, int] = {}
+        # 克苏恩的四个技能：整局里分别触发过没有（集齐四个后它的技能效果 ×3）
+        self.cthun_used: set[str] = set()
         # 当前待做的选择（发现/抉择/弃牌等）：选项列表 + 来源牌
         self.choice: dict[str, Any] | None = None
         # 先手是谁：手里有幸运币的一定是后手（客户端固定规则）
@@ -325,6 +330,13 @@ class GameState:
             e.tags[T_ZONE] = e.zone
         if ref.get("zone_pos") is not None:
             e.zone_pos = int(ref["zone_pos"])
+        # 完整实体块里带着 ZONE_POSITION 标签，这才是场面从左到右的顺序
+        tags = d.get("tags") or {}
+        if tags.get("ZONE_POSITION") is not None:
+            try:
+                e.zone_pos = int(tags["ZONE_POSITION"])
+            except (TypeError, ValueError):
+                pass
         if ref.get("controller") is not None:
             e.controller = int(ref["controller"])
             e.tags[T_CONTROLLER] = e.controller
@@ -485,6 +497,12 @@ class GameState:
             if isinstance(val, int):
                 slot = self.quest_progress.setdefault(eid, {})
                 slot["progress" if tag == "QUEST_PROGRESS" else "total"] = val
+        elif tag == "ZONE_POSITION" and eid:
+            # 场面/手牌的从左到右顺序，客户端用这个标签维护
+            if isinstance(val, int):
+                e2 = self.entities.get(eid)
+                if e2 is not None:
+                    e2.zone_pos = val
         elif tag == "MULLIGAN_STATE":
             # INPUT/DEALING/WAITING/DONE —— DONE 才是「留牌结束」的真信号
             text = str(val).upper()
@@ -659,7 +677,10 @@ class GameState:
                 self._fed.pop(("our" if e.controller == self.our_id else "opp", e.id), None)
         if new == ZONE_PLAY and self._is_not_a_card_play(e.card_id):
             return          # 英雄/技能/附魔不是「打出的牌」
+        if new != ZONE_PLAY:
+            e.zone_pos = None      # 离场就清掉位置，避免下次入场时带着旧位置
         if new == ZONE_PLAY and e.zone != prev:
+            self.played_turn[e.id] = self.turn
             if e.controller == self.opp_id:
                 self._bind_by_action(e.controller)
                 name = self._name(e.card_id)
@@ -845,8 +866,10 @@ class GameState:
             res = _int(pe.tags.get(T_RESOURCES))
             used = _int(pe.tags.get(T_RESOURCES_USED)) or 0
             if res is not None:
-                s.mana, s.max_mana = max(0, res - used), res
-            s.fatigue = _int(pe.tags.get("FATIGUE")) or 0
+                # 幸运币这类会给「临时法力」，不算进上限但可用来出牌
+                temp = _int(pe.tags.get(T_TEMP_RESOURCES)) or 0
+                s.mana, s.max_mana = max(0, res - used + temp), res
+                s.fatigue = _int(pe.tags.get("FATIGUE")) or 0
         if s.max_mana == 0:
             s.max_mana, s.mana = self._mana_from_turn(pid)
 
@@ -933,14 +956,30 @@ class GameState:
                 return c.is_minion
         return e.atk is not None and e.health is not None
 
+    CTHUN_SKILLS = ("克苏恩的愤怒", "克苏恩的领域", "克苏恩的凝视", "克苏恩的仆从")
+
+    def note_cthun_choice(self, names) -> None:
+        """从「选择并触发克苏恩技能」的选项里记录已经用过哪几个。"""
+        for name in names or ():
+            text = str(name or "")
+            for skill in self.CTHUN_SKILLS:
+                if skill in text:
+                    self.cthun_used.add(skill)
+
+    def cthun_view(self) -> dict[str, Any]:
+        used = [s for s in self.CTHUN_SKILLS if s in self.cthun_used]
+        return {"used": used, "count": len(used), "total": 4,
+                "tripled": len(used) >= 4}
+
     def _card_view(self, e: Entity) -> dict[str, Any]:
         card = self.cards.get(e.card_id) if (self.cards and e.card_id) else None
         base_hp = card.health if card else 0
-        hp = e.health
-        if hp is None:
-            hp = base_hp or 0
-        if card and card.health and e.tags.get(T_HEALTH) is None and e.damage:
-            hp = card.health - e.damage
+        # 当前血量 = 上限（HEALTH 标签或卡面）- 累计伤害（DAMAGE）
+        # 之前只看 HEALTH，受伤的随从会显示成满血
+        limit = _int(e.tags.get(T_HEALTH))
+        if limit is None:
+            limit = base_hp or 0
+        hp = max(0, limit - (e.damage or 0))
         atk = e.atk
         if atk is None:
             atk = card.atk if card else 0
@@ -948,10 +987,12 @@ class GameState:
             "id": e.card_id or "",
             "entity_id": e.id,
             "name": card.name if card else (e.card_id or "?"),
-            "cost": card.cost if card else 0,
+            "cost": (int(e.tags["COST"]) if isinstance(e.tags.get("COST"), (int, str))
+                     and str(e.tags.get("COST")).isdigit() else (card.cost if card else 0)),
             "type_cn": card.type_cn if card else "",
             "atk": atk,
             "health": max(0, hp),
+            "durability": e.tags.get("DURABILITY"),
             "keyword": card.keyword_cn if card else "",
             "damage": e.damage,
             "taunt": bool(card.has("TAUNT") if card else e.tags.get(T_TAUNT)),
@@ -960,6 +1001,7 @@ class GameState:
             "exhausted": e.tags.get("EXHAUSTED") in (1, "1", True),
             "text": _clean_text(card.text if card else ""),
             "effect": _cached_effect(self, e.card_id),
+            "fresh": self.played_turn.get(e.id) == self.turn,
             "zone": e.zone,
         }
         return view

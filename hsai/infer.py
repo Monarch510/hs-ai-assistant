@@ -188,10 +188,19 @@ class DeckPredictor:
         pool = self.meta.for_class(opp_class)
         if not pool:
             return []
+        try:
+            from .memory import class_counts
+            counts = class_counts(opp_class)
+        except Exception:
+            counts = {}
         scored: list[tuple[Archetype, float]] = []
         for arch in pool:
             dist = self._dist(arch)
-            log_post = math.log(max(arch.prior, 1e-9))
+            # 同职业最近遇到最多的形态，先验更高
+            # 记录的是「掘骨恶鬼」，原型名是「死亡骑士·掘骨恶鬼」，两边都试
+            short = arch.name.split("·")[-1]
+            seen = max(counts.get(arch.name, 0), counts.get(short, 0))
+            log_post = math.log(max(arch.prior, 1e-9)) + 1.0 * math.log(1 + seen)
             for cid, turn in observed:
                 # 按牌名认亲：卡组里可能有同一张牌的另一个版本 id
                 p = max((dist.get(s, 0.0) for s in self.cards.siblings(cid)), default=0.0)

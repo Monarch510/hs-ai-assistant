@@ -303,6 +303,9 @@ class SideState:
     hero_power_used: bool = False
     hero_power: "Card | None" = None
     spells_cast: int = 0
+    weapon_attacks_left: int = 0     # 英雄本回合还能用武器攻击几次
+    minions_played: int = 0          # 本局已打出的随从数（被动技能计数器用）
+    passive_rule: dict = field(default_factory=dict)   # 被动技能的计数规则
 
     def clone(self) -> "SideState":
         return SideState(
@@ -319,6 +322,9 @@ class SideState:
             hero_power_used=self.hero_power_used,
             hero_power=self.hero_power,
             spells_cast=self.spells_cast,
+            weapon_attacks_left=self.weapon_attacks_left,
+            minions_played=self.minions_played,
+            passive_rule=dict(self.passive_rule),
         )
 
     @property
@@ -524,6 +530,79 @@ def current_overrides() -> dict[str, float]:
     return dict(_OVERRIDES)
 
 
+
+
+_DB = None
+
+
+def set_card_db(db) -> None:
+    """让评估函数能查到场上随从的卡面文本（场上资源用）。"""
+    global _DB
+    _DB = db
+
+
+def resource_score(side_state, cards=None) -> float:
+    """估算一方还有多少「资源」。
+
+    = 手牌张数
+      + 手牌里能抽牌/发现/加费的量（还能再生出多少张牌）
+      + 英雄技能能否造资源
+      + 场上带「抽牌/发现」的随从（光环、亡语，按半张算）
+
+    为什么不用「手牌总费用」：费用高不代表能再生出牌，一张 8 费可能只是
+    一张大随从；而「抽两张」才是真的多两条命。
+    """
+    # 牌库剩余也算资源：每 4 张折 1 点（离摸到还早，不能和手牌等价）
+    score = 0.25 * len(side_state.deck) + float(len(side_state.hand))
+    for card in side_state.hand:
+        if card is None:
+            continue
+        eff = parse_effect(card)
+        score += eff.draw
+        if eff.discover:
+            score += 1.0
+        if eff.mana:
+            score += 1.0
+
+    hp = getattr(side_state, "hero_power", None)
+    if hp is not None and not is_passive_hero_power(hp):
+        eff = hero_power_effect(hp)
+        if eff.draw or eff.discover:
+            score += 1.0
+
+    cards = cards or _DB
+    if cards is not None:
+        for unit in side_state.board:
+            if getattr(unit, "card_id", ""):
+                card = cards.get(unit.card_id)
+                text = (card.text or "") if card is not None else ""
+                if "抽" in text or "发现" in text:
+                    score += 0.5          # 站在场上的资源，按半张算
+    return score
+
+
+def _adjacency_value(side_state) -> float:
+    """相邻光环带来的额外价值：只在两个随从真的挨着时才算。"""
+    import re as _re
+
+    total = 0.0
+    board = [u for u in side_state.board if u.alive]
+    for i, u in enumerate(board):
+        card = _DB.get(u.card_id) if _DB is not None and u.card_id else None
+        text = (card.text or "") if card is not None else ""
+        if "相邻" not in text:
+            continue
+        m = _re.search(r"\+(\d+)/\+(\d+)", text)
+        buff = (int(m.group(1)) + int(m.group(2))) if m else 2
+        neighbors = 0
+        if i > 0:
+            neighbors += 1
+        if i + 1 < len(board):
+            neighbors += 1
+        total += buff * neighbors * 0.5
+    return total
+
+
 def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: float = 0.0,
              perspective: int = 0) -> float:
     """从 perspective 这一方视角给局面打分。数值本身无意义，只用于横向比较。"""
@@ -534,8 +613,13 @@ def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: fl
         w = {k: v * _OVERRIDES.get(k, 1.0) for k, v in w.items()}
     me, foe = board.sides[perspective], board.sides[1 - perspective]
 
+    # 武器也是「能持续输出的资源」：按攻击力计价，耐久略加权
     my_val = sum(u.value for u in me.board if u.alive)
     foe_val = sum(u.value for u in foe.board if u.alive)
+    if me.weapon is not None:
+        my_val += me.weapon.atk * 1.2 + max(0, me.weapon.hp) * 0.25
+    if foe.weapon is not None:
+        foe_val += foe.weapon.atk * 1.2 + max(0, foe.weapon.hp) * 0.25
 
     # 嘲讽墙：对方有墙时，我们的攻击力打折
     taunt_val = sum(u.hp + (0 if u.divine else 0) for u in foe.board if u.alive and u.taunt)
@@ -544,15 +628,16 @@ def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: fl
 
     score = 0.0
     score += w["tempo"] * (my_val - foe_val)
+    # 摆位会影响相邻光环的价值，这样「第几位」才有意义
+    score += w["tempo"] * (_adjacency_value(me) - _adjacency_value(foe))
     score += w["face"] * ((30 - foe.hero_hp - foe.armor) - (30 - me.hero_hp - me.armor)) * 0.5
-    score += w["hand"] * (len(me.hand) - len(foe.hand)) * 1.5
+    score += w["hand"] * (resource_score(me) - resource_score(foe)) * 1.2
     score += w["health"] * ((me.hero_hp + me.armor) - (foe.hero_hp + foe.armor)) * 0.35
     score += w["taunt"] * blocked * -0.4
 
-    # 牌库与疲劳：残局里牌多的一方更能拖；已经开始吃疲劳的一方要被扣分
-    deck_lead = len(me.deck) - len(foe.deck)
+    # 疲劳伤害：牌库差已经算进「资源」，这里只管还在吃的疲劳
     fatigue_gap = foe.fatigue - me.fatigue
-    score += w["fatigue"] * (deck_lead * 0.25 + fatigue_gap * 0.8)
+    score += w["fatigue"] * fatigue_gap * 0.8
 
     # 铺场风险：我方随从越多、对方有 AOE 的概率越高，扣分越狠
     if aoe_risk > 0.05 and len(me.board) >= 2:
@@ -589,7 +674,10 @@ def is_passive_hero_power(card: "Card | None") -> bool:
     """被动英雄技能（文本以「被动」开头 / 含「被动」）不需要也不能主动使用。"""
     if card is None:
         return False
-    return "被动" in (card.text or "")[:20]
+    import re as _re
+
+    text = _re.sub(r"<[^>]+>", "", card.text or "")
+    return "被动" in text[:40]
 
 
 def hero_power_effect(card_class: str, card: "Card | None" = None) -> tuple[str, int, Effect]:
