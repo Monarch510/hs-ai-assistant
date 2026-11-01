@@ -653,7 +653,7 @@ def plan_turn(
         for act in acts:
             if act.kind == "end":
                 continue
-            if not _mode_allows(act, working, side, mode):
+            if not _mode_allows(act, working, side, mode, cards):
                 continue
             nb = apply_action(working, side, act, cards)
             score = evaluate(nb, weights, aoe_risk, side)
@@ -664,6 +664,11 @@ def plan_turn(
             if raw <= 0.01 and nb.sides[1 - side].hero_hp > 0:
                 continue          # 什么也没改变的动作（例如没有效果的英雄技能）不参与排序
             gain = raw + PRIORITY_BONUS.get(categorize(act, working, nb, side), 0.0)
+            if act.kind == "attack" and (act.target or "").startswith("enemy:"):
+                # 并列时用更不值钱的那只去换，保住高价值随从
+                attacker = working.sides[side].board[act.unit_idx] \
+                    if act.unit_idx < len(working.sides[side].board) else None
+                gain -= unit_threat(attacker, cards, working, side) * 1e-3
             if gain <= EPS:
                 continue
             if best is None or gain > best[0]:
@@ -1028,7 +1033,7 @@ def _turns_after(board: Board, side: int, lose_attack: float, kill_attack: float
     return my_turns, his_turns
 
 
-def _mode_allows(action: Action, before: Board, side: int, mode: str) -> bool:
+def _mode_allows(action: Action, before: Board, side: int, mode: str, cards) -> bool:
     """按「抢血 / 解场」过滤动作。
 
     抢血：只有白吃不拖慢节奏、或者放着它下回合会打死我，才允许交换。
@@ -1045,7 +1050,7 @@ def _mode_allows(action: Action, before: Board, side: int, mode: str) -> bool:
         if mode == "race":
             return True
         # 解场模式：只要还有划算的交换，就先换
-        return not _has_profitable_trade(before, side)
+        return not _has_profitable_trade(before, side, cards)
 
     if not (action.target or "").startswith("enemy:"):
         return True
@@ -1070,11 +1075,18 @@ def _mode_allows(action: Action, before: Board, side: int, mode: str) -> bool:
         _, his_now = _turns_after(before, side, 0.0, 0.0)
         my_after, _ = _turns_after(before, side, unit.atk, target.atk)
         return my_after <= his_now            # 白吃之后仍然更快，就吃
-    # 解场模式：不亏就换（对方更值钱也算划算）
-    return free or target.value >= unit.value
+    # 解场模式：换完之后的「双方差值」更大才换（只看随从 + 武器）
+    # 注意是差值：交换会降低我方价值，只看我方会永远判成亏
+    try:
+        after = apply_action(before, side, action, cards)
+    except Exception:
+        return True
+    gain = ((board_threat(after, side, cards) - board_threat(after, 1 - side, cards))
+            - (board_threat(before, side, cards) - board_threat(before, 1 - side, cards)))
+    return gain > 0
 
 
-def _has_profitable_trade(board: Board, side: int) -> bool:
+def _has_profitable_trade(board: Board, side: int, cards=None) -> bool:
     me, foe = board.sides[side], board.sides[1 - side]
     for u in me.board:
         if not u.alive or u.attacks_left <= 0:
@@ -1083,7 +1095,10 @@ def _has_profitable_trade(board: Board, side: int) -> bool:
             if not t.alive:
                 continue
             if u.atk >= t.hp and (t.atk < u.hp or t.value >= u.value):
-                return True
+                # 用净值复核：真的划算才算「有划算的交换」
+                after_gain = ((unit_threat(u, cards) - unit_threat(t, cards)))
+                if after_gain > 0:
+                    return True
     return False
 
 
@@ -1111,3 +1126,59 @@ def battlecry_times(played_minions: int, rule: dict) -> int:
     if every <= 0 or rule.get("effect") != "battlecry_double":
         return 1
     return 2 if played_minions > 0 and played_minions % every == 0 else 1
+
+def unit_threat(unit, cards, board: Board | None = None, side: int = 0) -> float:
+    """随从的威胁值。
+
+    身体：攻 ×1.25 + 血（攻击力决定能杀什么，比血更值钱）
+    圣盾：接近翻倍（多一条命）
+    嘲讽：加一点（只是逼你先打它）
+    光环：按「加成 × 受影响随从数」算实际收益
+    其余（突袭/吸血/风怒/亡语/剧毒）：固定小值
+    """
+    if unit is None:
+        return 0.0
+    body = unit.atk * 1.25 + max(0, unit.hp)
+    value = body
+
+    if unit.taunt:
+        value += 1.5
+    if unit.divine:
+        # 圣盾相当于多出一个「同攻击、1 血」的随从
+        value += unit.atk * 1.25 + 1.0
+    if unit.rush:
+        value += 1.0
+    if unit.lifesteal:
+        value += 1.0
+    if unit.windfury:
+        value += unit.atk * 0.6
+    if unit.poisonous:
+        value += 1.5
+
+    card = cards.get(unit.card_id) if (cards is not None and unit.card_id) else None
+    text = (card.text or "") if card is not None else ""
+    keyword = str(getattr(card, "keyword", "") or "") if card is not None else ""
+
+    if "光环" in keyword or "光环" in text:
+        m = re.search(r"\+(\d+)/\+(\d+)", text)
+        if m:
+            bonus = int(m.group(1)) * 1.25 + int(m.group(2))
+            if board is not None:
+                others = len([u for u in board.sides[side].board if u.alive]) - 1
+            else:
+                others = 1
+            value += bonus * max(1, others)
+        else:
+            value += 2.0
+    if "亡语" in keyword or "亡语" in text:
+        value += 1.5
+    return value
+
+
+def board_threat(board: Board, side: int, cards) -> float:
+    """一方的场面价值：随从威胁 + 武器。"""
+    me = board.sides[side]
+    total = sum(unit_threat(u, cards, board, side) for u in me.board if u.alive)
+    if me.weapon is not None:
+        total += me.weapon.atk * 1.2 + max(0, me.weapon.hp) * 0.25
+    return total
