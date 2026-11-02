@@ -162,6 +162,7 @@ class GameState:
 
     # ------------------------------------------------------------ 生命周期
     def reset(self) -> None:
+        # 局与局之间必须隔离：抽牌数、墓地、休眠/入场回合、克苏恩进度
         self.entities: dict[int, Entity] = {}
         self.player_ids: dict[int, int] = {}  # player_id -> entity id
         self.player_entities: dict[int, Entity] = {}
@@ -177,15 +178,6 @@ class GameState:
         self.game_over = False
         self.winner: int | None = None
         self.mulligan_done = False
-        # 局与局之间必须隔离：抽牌数、墓地、休眠/入场回合、克苏恩进度
-        self.our_drawn = 0
-        self._draw_tag_last = 0
-        self._draw_tag_turn = 0
-        self.grave_meta = {}
-        self._grave_seq = 0
-        self.woke_turn = {}
-        self.played_turn = {}
-        self.cthun_used = set()
         self.revealed_opp: Counter[str] = Counter()
         self.revealed_opp_order: list[str] = []
         self.revealed_turns: dict[str, int] = {}
@@ -300,24 +292,6 @@ class GameState:
             e = Entity(id=eid)
             self.entities[eid] = e
         return e
-
-    def _on_entity(self, ev: pl.Event) -> None:
-        d = ev.data
-        eid = d.get("entity")
-        if eid is None:
-            return
-        e = self._entity(eid)
-        if d.get("role") == "player" and d.get("player_id"):
-            pid = int(d["player_id"])
-            self.player_ids[pid] = eid
-            e.controller = pid
-            e.tags[T_PLAYER_ID] = pid
-            # 不按 GameAccountId 判断「谁是我方」：练习模式下两边都有真账号，会判反。
-            # 交给 _track_visibility 用「只有自己的手牌有 card_id」来定。
-
-    
-        self._track_visibility(e)
-
 
     def _on_entity(self, ev: pl.Event) -> None:
         d = ev.data
