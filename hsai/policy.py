@@ -15,16 +15,13 @@ from __future__ import annotations
 import dataclasses
 import math
 import re
-from dataclasses import dataclass, field
-from typing import Any, Iterable
+from dataclasses import dataclass
+from typing import Any
 
 from .cards import Card, CardDB
-from .infer import Prediction
-from . import model as model_mod
 from .model import (
     Board,
     Effect,
-    SideState,
     Unit,
     evaluate,
     hero_power_effect,
@@ -92,22 +89,6 @@ class Action:
 
     def key(self) -> tuple:
         return (self.kind, self.card_idx, self.unit_idx, self.target)
-
-
-def _enemy_units(board: Board, side: int) -> list[Unit]:
-    return [u for u in board.sides[1 - side].board if u.alive]
-
-
-def _has_adjacency(board: Board, side: int, cards) -> bool:
-    """场上有没有「相邻」类效果 —— 有才值得挑摆位。"""
-    for u in board.sides[side].board:
-        if not u.alive:
-            continue
-        card = cards.get(u.card_id) if cards is not None else None
-        text = (card.text or "") if card is not None else ""
-        if "相邻" in text:
-            return True
-    return False
 
 
 CHOOSE_ONE_RE = re.compile(r"抉择[：:]\s*(.+)$", re.S)
@@ -1106,9 +1087,6 @@ def pick_choice(options: list, board: Board, cards, side: int, mana: int,
 
 
 # 本局内的临时权重修正（实现在 model 里，这里只做转发）
-set_overrides = model_mod.set_overrides
-clear_overrides = model_mod.clear_overrides
-current_overrides = model_mod.current_overrides
 
 
 # ---------------------------------------------------------------- 抢血 / 解场

@@ -124,11 +124,14 @@ class SnapshotTest(unittest.TestCase):
     def test_snapshot_contract(self) -> None:
         st = replay_log_text(FIXTURE.read_text(encoding="utf-8"), self.db)
         snap = self.advisor.snapshot(st)
-        for key in ("type", "phase", "turn", "is_our_turn", "our", "opp", "prediction", "advice", "log"):
+        for key in ("type", "phase", "turn", "is_our_turn", "our", "opp",
+                    "prediction", "advice", "result"):
             self.assertIn(key, snap)
         self.assertEqual(snap["type"], "snapshot")
         self.assertIn("candidates", snap["prediction"])
         self.assertIn("lines", snap["advice"])
+        # 胜负字段：对局没结束时是空串，结束时是 win/loss
+        self.assertIn(snap["result"], ("", "win", "loss"))
 
     def test_mulligan_section_during_mulligan(self) -> None:
         text = "\n".join((FIXTURE.read_text(encoding="utf-8").splitlines())[:40])

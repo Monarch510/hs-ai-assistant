@@ -22,10 +22,10 @@ import urllib.request
 from typing import Any
 
 from . import memory
-from .cards import DATA_DIR
+from .paths import AI_CONFIG_JSON, EFFECTS_JSON, LESSONS_JSONL
 
-CONFIG_PATH = DATA_DIR / "ai.json"
-LESSONS_PATH = DATA_DIR / "lessons.jsonl"
+CONFIG_PATH = AI_CONFIG_JSON
+LESSONS_PATH = LESSONS_JSONL
 TIMEOUT = 12.0
 
 DEFAULT_CONFIG: dict[str, Any] = {
@@ -33,14 +33,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "base_url": "https://api.deepseek.com/v1",
     "model": "deepseek-chat",
 }
-
-SYSTEM_PROMPT = (
-    "你是炉石传说的对局解说。用户会给你当前局面的结构化数据，"
-    "你只需要用 2-3 句中文解释「为什么这样打最好」或「风险在哪里」。"
-    "不要给出与给定建议相反的操作，不要编造你没看到的牌。"
-    "如果信息不足，就直说信息不足。"
-)
-
 
 def load_config() -> dict[str, Any]:
     cfg = dict(DEFAULT_CONFIG)
@@ -159,15 +151,6 @@ def build_prompt(snap: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-DECISION_PROMPT = (
-    "你在给炉石传说对局做决策。用户会给出局面、合法动作清单（编号），"
-    "以及你过去几局总结的教训。请只从清单里选一个编号。"
-    "只输出 JSON，形如 {\"pick\": 编号, \"reason\": \"不超过40字的中文理由\"}。"
-    "如果清单里的动作都不理想，可以选代表「结束回合」的那一项。"
-    "不要编造清单里没有的动作。"
-)
-
-
 def recent_lessons(limit: int = 3) -> list[str]:
     """最近几条教训，用于注入 prompt。"""
     if not LESSONS_PATH.exists():
@@ -268,7 +251,7 @@ def parse_decision(text: str, count: int) -> dict[str, Any] | None:
     return {"pick": pick, "reason": str(data.get("reason") or "")[:80]}
 
 
-def _chat(messages: list[dict[str, str]], cfg: dict[str, Any], max_tokens: int = 220) -> str:
+def chat(messages: list[dict[str, str]], cfg: dict[str, Any], max_tokens: int = 220) -> str:
     body = json.dumps({"model": cfg.get("model"), "messages": messages,
                        "temperature": 0.3, "max_tokens": max_tokens}).encode("utf-8")
     url = str(cfg.get("base_url") or "").rstrip("/") + "/chat/completions"
@@ -282,19 +265,6 @@ def _chat(messages: list[dict[str, str]], cfg: dict[str, Any], max_tokens: int =
         return (data["choices"][0]["message"]["content"] or "").strip()
     except (urllib.error.URLError, OSError, KeyError, IndexError, ValueError):
         return ""
-
-
-def decide(snap: dict[str, Any], actions: list[str],
-           cfg: dict[str, Any] | None = None) -> dict[str, Any] | None:
-    """让 AI 从合法动作里选一个。返回 {pick, reason}；不可用时 None。"""
-    cfg = cfg or load_config()
-    if not (cfg.get("enabled") and cfg.get("api_key")) or not actions:
-        return None
-    text = _chat([
-        {"role": "system", "content": DECISION_PROMPT},
-        {"role": "user", "content": build_decision_prompt(snap, actions)},
-    ], cfg, max_tokens=120)
-    return parse_decision(text, len(actions))
 
 
 REVIEW_SYSTEM = (
@@ -323,7 +293,7 @@ def review(snap: dict[str, Any], summary: str,
     cfg = cfg or load_config()
     if not (cfg.get("enabled") and cfg.get("api_key")):
         return []
-    text = _chat([
+    text = chat([
         {"role": "system", "content": REVIEW_SYSTEM},
         {"role": "user", "content": summary},
     ], cfg, max_tokens=200)
@@ -416,7 +386,7 @@ def decide_and_explain(
             {"role": "system", "content": SESSION_SYSTEM},
             {"role": "user", "content": prompt},
         ]
-    text = _chat(messages, cfg, max_tokens=260)
+    text = chat(messages, cfg, max_tokens=260)
     got = parse_combined(text, len(actions))
     if got is not None and conv is not None:
         conv.remember(prompt, text)
@@ -501,7 +471,7 @@ def plan_route(
             {"role": "system", "content": ROUTE_SYSTEM},
             {"role": "user", "content": prompt},
         ]
-    text = _chat(messages, cfg, max_tokens=320)
+    text = chat(messages, cfg, max_tokens=320)
     got = parse_route(text, actions)
     if got is not None and conv is not None:
         conv.remember(prompt, text)
@@ -577,7 +547,7 @@ def effects_rules(unmodelled: list[dict[str, Any]],
         lines.append("现有规则格式示例：")
         for pat in existing[:3]:
             lines.append(f"  {json.dumps(pat, ensure_ascii=False)}")
-    text = _chat([
+    text = chat([
         {"role": "system", "content": RULES_SYSTEM},
         {"role": "user", "content": "\n".join(lines)},
     ], cfg, max_tokens=700)
@@ -586,95 +556,9 @@ def effects_rules(unmodelled: list[dict[str, Any]],
 
 def _load_existing_patterns() -> list[dict[str, Any]]:
     try:
-        data = json.loads((DATA_DIR / "effects.json").read_text(encoding="utf-8"))
+        data = json.loads(EFFECTS_JSON.read_text(encoding="utf-8"))
         return list(data.get("patterns") or [])
     except (OSError, ValueError):
         return []
 
-CRITIQUE_SYSTEM = (
-    "你在帮一个炉石 AI 改进它的评估函数。用户会给出一局的摘要："
-    "双方职业、对局结果、机器复盘（例如有没有漏斩）、它当时的出牌倾向。"
-    "请指出这套评估函数最可能的一个偏差，并给出小幅的权重调整建议。"
-    "可用权重：tempo（场面价值）、face（打脸进度）、hand（手牌差）、"
-    "health（血量差）、taunt（被墙挡住）、aoe_risk（对面清场风险）。"
-    '只输出 JSON：{"weights": {"名称": 数值}, "reason": "不超过60字"}。'
-    "数值范围 0.5-2.0，最多调一项，不要大改。信息不足就输出 {}。"
-)
 
-from .model import DEFAULT_WEIGHTS as _DW
-
-WEIGHT_KEYS = tuple(_DW.keys())
-
-
-def parse_critique(text: str) -> dict[str, Any] | None:
-    """解析 AI 对评估函数的调整建议；越界或未知权重一律丢弃。"""
-    body = (text or "").strip().strip("`")
-    start, end = body.find("{"), body.rfind("}")
-    if start < 0 or end <= start:
-        return None
-    try:
-        data = json.loads(body[start:end + 1])
-    except ValueError:
-        return None
-    weights = data.get("weights") if isinstance(data.get("weights"), dict) else {}
-    clean: dict[str, float] = {}
-    for key, val in weights.items():
-        if key not in WEIGHT_KEYS:
-            continue
-        try:
-            num = float(val)
-        except (TypeError, ValueError):
-            continue
-        if 0.5 <= num <= 2.0:
-            clean[key] = round(num, 2)
-    if not clean:
-        return None
-    note = data.get("reason") or data.get("note") or ""
-    return {"weights": clean, "reason": str(note)[:120]}
-
-
-def critique(summary: str, cfg: dict[str, Any] | None = None) -> dict[str, Any] | None:
-    """让 AI 对引擎的评估函数提一条建议（只建议，不自动生效）。"""
-    cfg = cfg or load_config()
-    if not (cfg.get("enabled") and cfg.get("api_key")):
-        return None
-    text = _chat(
-        [
-            {"role": "system", "content": CRITIQUE_SYSTEM},
-            {"role": "user", "content": summary},
-        ],
-        cfg,
-        max_tokens=200,
-    )
-    return parse_critique(text)
-
-
-HINT_SYSTEM = (
-    "用户在打炉石时给出自己的判断，你要把它翻译成对评估函数权重的调整。"
-    "可用权重：tempo（场面价值）、face（打脸进度）、hand（手牌差）、"
-    "health（血量差）、taunt（被墙挡住）、aoe_risk（对面清场风险）。"
-    "只调需要调的项，倍数范围 0.5-2.0；不做调整就输出空 weights。"
-    '只输出 JSON：{"weights": {"名称": 倍数}, "note": "不超过40字，说明你怎么改的"}。'
-)
-
-
-def analyze_hint(text: str, snap: dict[str, Any] | None = None,
-                 cfg: dict[str, Any] | None = None) -> dict[str, Any] | None:
-    """把用户的一句话判断，转成引擎权重的调整建议。"""
-    cfg = cfg or load_config()
-    text = (text or "").strip()
-    if not text or not (cfg.get("enabled") and cfg.get("api_key")):
-        return None
-    context = build_prompt(snap or {})[:600]
-    got = _chat(
-        [
-            {"role": "system", "content": HINT_SYSTEM},
-            {"role": "user", "content": f"当前局面：\n{context}\n\n我的判断：{text}"},
-        ],
-        cfg,
-        max_tokens=160,
-    )
-    parsed = parse_critique(got)
-    if parsed is None:
-        return {"weights": {}, "note": "没能转成可执行的调整"}
-    return parsed

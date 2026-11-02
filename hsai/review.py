@@ -12,14 +12,13 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
-from datetime import datetime
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .cards import DATA_DIR
+from .paths import GAMES_JSONL
 
-GAMES_PATH = DATA_DIR / "games.jsonl"
+GAMES_PATH = GAMES_JSONL
 
 
 

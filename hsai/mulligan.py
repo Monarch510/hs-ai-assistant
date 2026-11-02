@@ -11,11 +11,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Iterable
 
 from .cards import CLASS_CN, Card, CardDB
-from .infer import Prediction, _is_aoe, _is_single_removal
+from .classify import is_aoe, is_heal, is_single_removal, is_taunt
+from .infer import Prediction
 
 # 可学习权重：名字 -> 默认值
 DEFAULT_WEIGHTS: dict[str, float] = {
@@ -86,15 +87,6 @@ def _cost_score(cost: int, w: dict[str, float]) -> float:
     return w.get(f"cost_{min(cost, 7)}", w["cost_7"])
 
 
-def _is_taunt(card: Card) -> bool:
-    return card.has("TAUNT")
-
-
-def _is_heal(card: Card) -> bool:
-    t = card.text or ""
-    return ("恢复" in t and "生命值" in t) or "护甲" in t
-
-
 def _opp_style(pred: Prediction | None) -> set[str]:
     if pred is None:
         return set()
@@ -146,19 +138,19 @@ def advise(
             elif card.cost >= 5:
                 score += w["vs_aggro_expensive"]
                 reasons.append("对快攻，高费牌起手太拖")
-            if _is_aoe(card):
+            if is_aoe(card):
                 if card.cost <= 5:
                     score += w["keep_aoe_vs_aggro"]
                     reasons.append("清场是打快攻的关键牌")
                 else:
                     reasons.append("清场虽好，但这个费用起手会卡死")
-            elif _is_single_removal(card):
+            elif is_single_removal(card):
                 score += w["keep_removal_vs_aggro"]
                 reasons.append("单解能处理对方前期核心")
-            if _is_taunt(card):
+            if is_taunt(card):
                 score += w["keep_taunt_vs_aggro"]
                 reasons.append("嘲讽能挡住打脸")
-            if _is_heal(card):
+            if is_heal(card):
                 score += w["keep_heal_vs_aggro"]
                 reasons.append("回复能撑过爆发")
         elif vs_control:
@@ -168,7 +160,7 @@ def advise(
             elif card.cost <= 2:
                 score += w["vs_control_cheap"]
                 reasons.append("对控制，纯前期的低费牌没那么急")
-            if card.cost >= 4 and not _is_aoe(card) and not _is_single_removal(card):
+            if card.cost >= 4 and not is_aoe(card) and not is_single_removal(card):
                 score += w["keep_value_vs_control"]
                 reasons.append("往后拖需要价值")
 

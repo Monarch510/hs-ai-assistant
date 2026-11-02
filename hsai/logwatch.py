@@ -17,20 +17,16 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Callable, Iterable, Iterator
+from typing import Iterable
 
 from . import powerlog
-from .cards import DATA_DIR, CardDB
+from .cards import CardDB
+from .paths import INSTALL_CACHE_TXT
 from .state import GameState
 
 # 默认位置（Battle.net 版）
-DEFAULT_LOG_DIRS = [
-    Path(os.environ.get("LOCALAPPDATA", "")) / "Blizzard" / "Hearthstone" / "Logs",
-    Path(os.environ.get("APPDATA", "")) / "Blizzard" / "Hearthstone" / "Logs",
-]
-
 READ_LIMIT = 4 * 1024 * 1024  # 首次最多回溯 4MB
-INSTALL_CACHE = DATA_DIR / "install_dir.txt"
+INSTALL_CACHE = INSTALL_CACHE_TXT
 
 LOG_CONFIG_BODY = """[Arena]
 LogLevel=1
@@ -349,8 +345,3 @@ class PowerLogWatcher:
             self.version += 1
         return changed
 
-    def run_forever(self, on_update: Callable[[GameState], None], interval: float = 0.4) -> None:
-        while True:
-            if self.poll():
-                on_update(self.state)
-            time.sleep(interval)

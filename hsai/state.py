@@ -16,10 +16,10 @@ import re
 
 from collections import Counter, deque
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterable
 
 from . import powerlog as pl
-from .model import Effect, parse_effect
+from .model import parse_effect
 from .cards import CardDB
 
 T_ZONE = "ZONE"
@@ -73,11 +73,6 @@ class Entity:
     def cost(self) -> int | None:
         return _int(self.tags.get(T_COST))
 
-    @property
-    def is_hero(self) -> bool:
-        return (self.card_id or "").upper().startswith("HERO")
-
-
 _EFFECT_CACHE: dict[str, tuple[str, bool]] = {}
 
 
@@ -114,13 +109,8 @@ def _int(v: Any) -> int | None:
         try:
             return int(v)
         except ValueError:
-            try:
-                from datetime import datetime as _dt
-                from .cards import DATA_DIR
-                with open(DATA_DIR / "hsai.log", "a", encoding="utf-8") as fh:
-                    fh.write(f"[{_dt.now():%H:%M:%S}] 标签不是整数：{v!r}\n")
-            except OSError:
-                pass
+            from .logutil import log as _log
+            _log(f"标签不是整数：{v!r}")
     return None
 
 
@@ -743,10 +733,6 @@ class GameState:
             self.unmodelled.append(name)
         return True
 
-    def _is_enchant(self, card_id: str | None) -> bool:
-        card = self.cards.get(card_id) if (self.cards and card_id) else None
-        return card is not None and card.type == "ENCHANTMENT"
-
     def _is_not_a_card_play(self, card_id: str | None) -> bool:
         """英雄、英雄技能、附魔都不是用户「打出的牌」，不能进流水/出牌记录。"""
         card = self.cards.get(card_id) if (self.cards and card_id) else None
@@ -939,10 +925,6 @@ class GameState:
                 self._hero_entities[pid] = e.id
                 return e
         return None
-
-    def hero_entity_id(self, pid: int) -> int | None:
-        h = self.hero(pid)
-        return h.id if h else None
 
     def _name(self, card_id: str | None) -> str | None:
         if not card_id:
@@ -1194,25 +1176,3 @@ def replay_log_text(text: str, cards: CardDB | None = None) -> GameState:
     return st
 
 
-def query_grave(
-    entries: list[dict[str, Any]],
-    *,
-    deathrattle: bool | None = None,
-    min_cost: int | None = None,
-    max_cost: int | None = None,
-    keyword: str = "",
-) -> list[dict[str, Any]]:
-    """查墓地：按亡语、费用区间、名字/文本关键字过滤。"""
-    out = []
-    for g in entries or []:
-        if deathrattle is not None and bool(g.get("deathrattle")) != deathrattle:
-            continue
-        cost = g.get("cost") or 0
-        if min_cost is not None and cost < min_cost:
-            continue
-        if max_cost is not None and cost > max_cost:
-            continue
-        if keyword and keyword not in str(g.get("name") or "") and keyword not in str(g.get("text") or ""):
-            continue
-        out.append(g)
-    return out

@@ -10,7 +10,6 @@
 
 from __future__ import annotations
 
-import math
 import random
 from dataclasses import dataclass, field
 from typing import Any, Callable, Sequence
@@ -18,7 +17,7 @@ from typing import Any, Callable, Sequence
 from .. import mulligan, policy
 from ..cards import Card, CardDB
 from ..meta import Archetype
-from ..model import Board, SideState, Unit, evaluate
+from ..model import Board, SideState
 
 Agent = Callable[[Board, int], "policy.Action | None"]
 
@@ -75,18 +74,6 @@ def greedy_agent(weights: dict[str, float] | None = None, aoe_risk: float = 0.0)
             return None
         best = policy.best_action(board, side, board.cards, weights=weights, aoe_risk=aoe_risk)
         return best[0] if best else None
-
-    return _act
-
-
-def random_agent(rng: random.Random) -> Agent:
-    def _act(board: Board, side: int) -> "policy.Action | None":
-        if board.cards is None:
-            return None
-        acts = [a for a in policy.legal_actions(board, side, board.cards) if a.kind != "end"]
-        if not acts:
-            return None
-        return rng.choice(acts)
 
     return _act
 

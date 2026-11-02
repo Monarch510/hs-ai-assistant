@@ -20,20 +20,27 @@ from . import mulligan, policy
 from collections import Counter
 
 from . import decks as decks_mod
-from . import weights as weights_mod
 from . import model as model_mod
+from . import logutil
 from . import review as review_mod
 
 from .cards import DATA_DIR, Card, CardDB
 from .infer import DeckPredictor, Prediction
 from .meta import META_PATH, MetaDB
 from .model import Board, SideState, Unit
+from .paths import (
+    LAST_REVIEW_JSON,
+    MULLIGAN_WEIGHTS_JSON,
+    OBSERVATIONS_JSONL,
+    OUR_DECK_JSON,
+    POLICY_WEIGHTS_JSON,
+)
 from .state import GameState
 
-OBSERVATIONS_PATH = DATA_DIR / "observations.jsonl"
-WEIGHTS_PATH = DATA_DIR / "policy_weights.json"
-MULLIGAN_WEIGHTS_PATH = DATA_DIR / "mulligan_weights.json"
-OUR_DECK_PATH = DATA_DIR / "our_deck.json"
+OBSERVATIONS_PATH = OBSERVATIONS_JSONL
+WEIGHTS_PATH = POLICY_WEIGHTS_JSON
+MULLIGAN_WEIGHTS_PATH = MULLIGAN_WEIGHTS_JSON
+OUR_DECK_PATH = OUR_DECK_JSON
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -108,13 +115,7 @@ def _unknown_cards(n: int) -> list[Card]:
 
 def _log_err(msg: str) -> None:
     """把复盘/记录阶段的异常写进 data/hsai.log，别再静默吞掉。"""
-    try:
-        from datetime import datetime as _dt
-        from .cards import DATA_DIR
-        with open(DATA_DIR / "hsai.log", "a", encoding="utf-8") as fh:
-            fh.write(f"[{_dt.now():%H:%M:%S}] {msg}\n")
-    except OSError:
-        pass
+    logutil.log(msg)
 
 
 _PASSIVE_RULE: dict = {}
@@ -271,6 +272,11 @@ class Advisor:
         pred = self._predict(st, opp)
         collected.prediction = pred
 
+        # 牌库张数：日志里没有「剩余牌库」字段，只能 卡组张数 - 已抽到。
+        # 卡组张数优先用登记过的（40 张卡组也能算对）。
+        # 只在这里算一次，不放进快照 —— 界面和 AI 都只关心算好的 deck_count。
+        deck_total = len(self.our_deck) or 30
+
         snap: dict[str, Any] = {
             "type": "snapshot",
             "ts": datetime.now().strftime("%H:%M:%S"),
@@ -278,14 +284,9 @@ class Advisor:
             "turn": st.turn,
             "is_our_turn": st.effective_turn_owner() == st.our_id,
             "turn_known": st.effective_turn_owner() in (1, 2),
-            "format": "标准",
             "our": ours.as_dict(),
-            # 牌库张数：日志里没有「剩余牌库」字段，只能 卡组张数 - 已抽到。
-            # 卡组张数优先用登记过的（40 张卡组也能算对）。
-            "deck_total": len(self.our_deck) or 30,
             "opp": opp.as_dict(),
             "prediction": self._prediction_dict(pred),
-            "log": list(st.log)[-6:],
             "feed": list(st.feed)[-10:],
             "choice": self._choice_view(st),
             "cthun": st.cthun_view(),
@@ -294,9 +295,8 @@ class Advisor:
         }
 
         if snap.get("our"):
-            total = int(snap.get("deck_total") or 30)
             drawn = int(getattr(st, "our_drawn", 0) or 0)
-            snap["our"]["deck_count"] = max(0, total - drawn)
+            snap["our"]["deck_count"] = max(0, deck_total - drawn)
 
         # 有些客户端在留牌阶段不给我方手牌的 cardId，等它揭示出来时已经进入对局了。
         # 所以兜底：第一回合开始、还没出牌、手牌 >=3 张时，补一次留牌建议。
@@ -323,12 +323,6 @@ class Advisor:
             self._mulligan_shown = True
 
         self._ensure_deck(st)
-        # 应用「我方职业 × 对手形态」的历史权重修正（样本不足时是空字典）
-        try:
-            model_mod.set_matchup_overrides(
-                weights_mod.resolve(ours.class_en or "", pred.name or ""))
-        except Exception:
-            pass
         snap["deck"] = self._deck_context(st)
         if st.phase in ("playing", "game_over"):
             snap["advice"] = self._advice(st, pred)
@@ -338,6 +332,9 @@ class Advisor:
         snap["advice"]["defense"] = self._defense(st, pred, snap)
         snap["warning"] = self._warning(st, pred, snap["advice"])
         self._track_turn(st, snap['advice'])
+        # 胜负单独给一个字段：AI 复盘写教训、案例入库都要用它。
+        # 以前 ui 里靠 `"win" if (... and False)` 占位，导致这两处的 result 永远是空串。
+        snap["result"] = ("win" if st.winner == st.our_id else "loss") if st.game_over else ""
         if st.game_over and not self._recorded:
             won = st.winner == st.our_id
             self._record_result(st, pred)
@@ -611,7 +608,7 @@ class Advisor:
         try:
             import json as _json
 
-            path = review_mod.GAMES_PATH.parent / "last_review.json"
+            path = LAST_REVIEW_JSON
             path.write_text(
                 _json.dumps(
                     {

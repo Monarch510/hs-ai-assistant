@@ -12,7 +12,8 @@ import time
 from pathlib import Path
 
 from . import powerlog
-from .cards import ROOT, CardDB
+from .cards import CardDB
+from .paths import ROOT
 from .logwatch import PowerLogWatcher, find_power_log
 from .state import GameState
 

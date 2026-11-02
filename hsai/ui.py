@@ -24,20 +24,19 @@ from tkinter import messagebox
 from pathlib import Path
 from typing import Any
 
-from . import __version__
 from .advisor import Advisor, board_from_state
 from . import ai as ai_mod
-from . import ai_mulligan
 from . import effects_ai
+from . import logutil
 from . import memory
-from . import model as model_mod
 from . import policy as policy_mod
 from . import cards as cards_mod
-from .cards import DATA_DIR, CardDB
+from .cards import CardDB
 from .live import SourceManager
+from .paths import ADVICE_LOG_JSONL, DATA_DIR, LAST_REVIEW_JSON, WINDOW_JSON
 from .state import GameState
 
-STATE_PATH = DATA_DIR / "window.json"
+STATE_PATH = WINDOW_JSON
 
 # 窗口默认宽度（窄一点，贴边时不挡牌桌）
 DEFAULT_WIDTH = 260
@@ -49,7 +48,6 @@ LAYOUT_VERSION = 7
 # 所以它只能用在「缝隙」上（root / container / body），卡片必须用 PANEL。
 BG = "#0f131a"
 PANEL = "#171d26"
-PANEL_2 = "#1d2531"
 BORDER = "#30363d"
 TEXT = "#e6edf3"
 TEXT_SOFT = "#c9d1d9"
@@ -124,13 +122,12 @@ class Overlay:
         # 工作线程只写这个字段，主线程在 _tick 里取走 —— Tk 不是线程安全的，
         # 从子线程直接调 root.after 有可能静默失败，导致建议永远不出现
         self._ai_result: tuple | None = None
+        self._last_snap: dict[str, Any] | None = None   # 最近一帧快照，记案例时要取回合/法力
         self._case_buf: list[dict] = []          # 本局的决策案例，结束时一次性入库
         self._cases_flushed = False
         self._ai_reviewed = False
-        self._ai_mulligan: list[dict] | None = None
         # 折叠状态的区块标题（存在 window.json 的 collapsed 里）
         self._collapsed: set[str] = set(_load_state().get("collapsed") or [])
-        self._ai_mulligan_done = False
         self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
         self._last_review = self._load_last_review()
         self._rule_report: list[str] = []
@@ -252,11 +249,6 @@ class Overlay:
     # ------------------------------------------------------------ 拖动
     # 只绑顶栏是不够的：用户会直接按住面板正文拖，那样没反应。
     # 所以用 bind_all 接管整个窗口的左键拖动，命中「关闭按钮」时放行。
-    def _bind_drag(self, widget: tk.Widget) -> None:
-        widget.bind("<ButtonPress-1>", self._drag_start)
-        widget.bind("<B1-Motion>", self._drag_move)
-        widget.bind("<ButtonRelease-1>", self._drag_end)
-
     def _bind_drag_everywhere(self) -> None:
         self.root.bind_all("<ButtonPress-1>", self._drag_start, add="+")
         self.root.bind_all("<B1-Motion>", self._drag_move, add="+")
@@ -381,11 +373,6 @@ class Overlay:
             self._ai_result = None
             text, pick, steps = res
             self._ai_done(text, pick, steps)
-        rows = getattr(self, "_ai_mulligan_rows", None)
-        if rows is not None:
-            self._ai_mulligan_rows = None
-            self._ai_mulligan_done_cb(rows)
-
     def _show_render_error(self) -> None:
         """画面卡死时把细条变成错误提示，并按 F8 可恢复。"""
         try:
@@ -431,8 +418,8 @@ class Overlay:
         snap = self.advisor.snapshot(st)
         snap["demo"] = self.manager.is_demo
         snap["source"] = self.manager.name
+        self._last_snap = snap
         if snap.get("phase") == "mulligan" and (snap.get("turn") or 0) <= 1:
-            model_mod.clear_overrides()          # 新对局清掉上一局的临时修正
             self._ai_lessons = []                # 上一局的 AI 教训不能带到这局
             self._effect_done.clear()
             self._effect_report = []
@@ -444,6 +431,7 @@ class Overlay:
         phase = snap.get("phase")
         if phase == "game_over":
             self._game_over_since = self._game_over_since or time.time()
+            self._flush_cases(snap)     # 案例入库不依赖 AI，AI 关着也要记
         else:
             self._game_over_since = None
 
@@ -604,7 +592,7 @@ class Overlay:
 
     def _load_last_review(self) -> dict | None:
         try:
-            path = DATA_DIR / "last_review.json"
+            path = LAST_REVIEW_JSON
             return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
         except (OSError, ValueError):
             return None
@@ -746,10 +734,6 @@ class Overlay:
         delay = 300 if choice_sig else 1500
         self.root.after(delay, lambda: self._ai_fire(key, snap, st))
 
-    def _ai_mulligan_done_cb(self, rows: list[dict]) -> None:
-        self._ai_mulligan = rows or None
-        self._last_sig = None
-
     def _ai_fire(self, key: tuple, snap: dict[str, Any],
                  st: GameState | None = None) -> None:
         if self._ai_turn != key:
@@ -795,8 +779,9 @@ class Overlay:
                                 if not chk["ok"]:
                                     step["matched"] = False
                                     step["why"] = chk["why"]
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            # 校验失败不影响展示，但要留下痕迹，否则「AI 建议突然变空」查不出来
+                            self._log(f"路线校验失败: {exc}")
                     pick = (steps[0]["text"], route["reason"]) if steps else None
                     self._ai_result = (text, pick, steps)
                     return
@@ -891,7 +876,7 @@ class Overlay:
                     "our_class": str((snap.get("our") or {}).get("class_en") or ""),
                     "opp_class": str((snap.get("opp") or {}).get("class_en") or ""),
                     "archetype": str((snap.get("prediction") or {}).get("name") or ""),
-                    "result": "win" if (snap.get("review") and False) else "",
+                    "result": str(snap.get("result") or ""),
                 })
         except Exception:
             pass
@@ -902,15 +887,36 @@ class Overlay:
         self._ai_text = text
         self._ai_route = steps
         if steps:
+            snap_now = self._last_snap or {}
             self._case_buf.append({
-                "turn": self._last_snap.get("turn") if getattr(self, "_last_snap", None) else 0,
-                "mana": ((self._last_snap or {}).get("our") or {}).get("mana"),
-                "our_board_n": len(((self._last_snap or {}).get("our") or {}).get("board") or []),
+                "turn": snap_now.get("turn") or 0,
+                "mana": ((snap_now.get("our") or {}).get("mana")),
+                "our_board_n": len(((snap_now.get("our") or {}).get("board") or [])),
                 "action": steps[0].get("text") or "",
             })
         if pick is not None:
             self._ai_pick = pick
         self._last_sig = None
+
+    def _flush_cases(self, snap: dict[str, Any]) -> None:
+        """对局结束：把本局记下的决策案例一次性入库，供下次相似局面检索。
+
+        这条链路以前是断的 —— `_case_buf` 只进不出、`memory.add_cases` 没有调用方，
+        于是 `cases.jsonl` 从未生成，而 `ai.py` 那边一直在读它，永远读到空。
+        """
+        if self._cases_flushed or not self._case_buf:
+            return
+        self._cases_flushed = True
+        try:
+            memory.add_cases(self._case_buf, {
+                "our_class": str((snap.get("our") or {}).get("class_en") or ""),
+                "opp_class": str((snap.get("opp") or {}).get("class_en") or ""),
+                "archetype": str((snap.get("prediction") or {}).get("name") or ""),
+                "result": str(snap.get("result") or ""),
+            })
+            self._case_buf = []
+        except Exception as exc:
+            self._log(f"案例入库失败: {exc}")
 
     def _log_advice(self, snap: dict[str, Any]) -> None:
             """把每一条给出去的建记录到 data/advice_log.jsonl，方便事后对账。
@@ -933,7 +939,7 @@ class Overlay:
                     "advice": [l.get("title") for l in lines],
                     "reason": [l.get("reason") for l in lines],
                 }
-                path = DATA_DIR / "advice_log.jsonl"
+                path = ADVICE_LOG_JSONL
                 with open(path, "a", encoding="utf-8") as fh:
                     fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 # 超过 400 行就只留最近 400
@@ -1040,25 +1046,7 @@ class Overlay:
                      fg=TEXT if label == "对手" else TEXT_SOFT,
                      font=(FONT, self.font_size - 1), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x", pady=1)
-        if snap.get("phase") != "mulligan":
-            self._ai_mulligan = None      # 留牌阶段结束，这块不再显示
-
-        if self._ai_mulligan:
-            inner_m = self._section("AI 留牌", "模型建议")
-            for row in self._ai_mulligan[:6]:
-                color = "#3fb950" if row["keep"] else "#d29922"
-                text = "留" if row["keep"] else "换"
-                line = tk.Frame(inner_m, bg=PANEL)
-                line.pack(fill="x", pady=1)
-                tk.Label(line, text=text, bg=PANEL, fg=color,
-                         font=(FONT, self.font_size - 2, "bold"), width=2).pack(side="left")
-                tk.Label(line, text=str(row["name"]), bg=PANEL, fg=TEXT,
-                         font=(FONT, self.font_size - 1), anchor="w").pack(side="left")
-                tk.Label(line, text=row["reason"], bg=PANEL, fg=MUTED,
-                         font=(FONT, self.font_size - 3), anchor="w",
-                         wraplength=self.width - 110, justify="left").pack(side="left", padx=(4, 0))
-        else:
-            self._render_mulligan(snap.get("mulligan") or {})
+        self._render_mulligan(snap.get("mulligan") or {})
         if self._ai_route:
             inner_r = self._section("AI 路线", "这回合怎么打")
             pos_cn = {"left": "最左", "right": "最右"}
@@ -1154,59 +1142,6 @@ class Overlay:
         bar.pack(fill="x", pady=(6, 0))
         tk.Label(bar, text=text, bg=bg, fg=fg, font=(FONT, self.font_size - 1),
                  anchor="w", justify="left", wraplength=self.width - 40, padx=8, pady=5).pack(fill="x")
-
-    def _render_deck(self, deck: dict[str, Any]) -> None:
-        """我方卡组一行：剩几张、哪些关键牌还没抽到。"""
-        if not deck or not deck.get("left"):
-            return
-        name = deck.get("name") or "我的卡组"
-        key = "、".join(f"{c['name']}×{c['count']}" for c in (deck.get("key_cards") or [])[:2])
-        tag = "（自动识别）" if deck.get("source") == "auto" else ""
-        text = f"我方 {name}{tag} · 剩 {deck.get('left')} 张" + (f" · 关键牌 {key}" if key else "")
-        tk.Label(self.body, text=text, bg=PANEL_2, fg=TEXT_SOFT,
-                 font=(FONT, self.font_size - 2), anchor="w", justify="left",
-                 wraplength=self.width - 30, padx=8, pady=4).pack(fill="x", pady=(4, 0))
-
-    def _render_mine(self, our: dict[str, Any]) -> None:
-        """我方手牌 + 场面：让用户能核对「工具看到的」和他「实际看到的」是否一致。"""
-        hand = our.get("hand") or []
-        if hand:
-            inner = self._section("我的手牌", f"{len(hand)} 张")
-            for c in hand:
-                row = tk.Frame(inner, bg=PANEL)
-                row.pack(fill="x", pady=1)
-                tk.Label(row, text=str(c.get("cost") if c.get("cost") is not None else "?"),
-                         bg="#21262d", fg=BLUE, font=(FONT, self.font_size - 3),
-                         width=2).pack(side="left", padx=(0, 5))
-                tk.Label(row, text=c.get("name") or "?", bg=PANEL, fg=TEXT,
-                         font=(FONT, self.font_size - 1), anchor="w",
-                         width=9 if self.width < 280 else 12).pack(side="left")
-                text = (c.get("text") or "")
-                if text and c.get("type_cn") != "随从":
-                    tk.Label(row, text=text[:14], bg=PANEL, fg="#5b636e",
-                             font=(FONT, self.font_size - 3), anchor="w").pack(side="left")
-
-        board = [m for m in (our.get("board") or []) if m.get("atk") is not None]
-        if board:
-            inner = self._section("我的场面", f"{len(board)} 个")
-            for m in board:
-                row = tk.Frame(inner, bg=PANEL)
-                row.pack(fill="x", pady=1)
-                stat = f"{m.get('atk')}/{m.get('health')}"
-                tk.Label(row, text=stat, bg=PANEL,
-                         fg=GOLD if (m.get("atk") or 0) > (m.get("health") or 0) else TEXT_SOFT,
-                         font=(FONT, self.font_size - 1, "bold"), width=5, anchor="w").pack(side="left")
-                tk.Label(row, text=m.get("name") or "?", bg=PANEL, fg=TEXT,
-                         font=(FONT, self.font_size - 1), anchor="w",
-                         width=9 if self.width < 280 else 12).pack(side="left")
-                if m.get("can_attack"):
-                    tag, color = "可攻", GREEN
-                elif m.get("exhausted"):
-                    tag, color = "睡", "#5b636e"
-                else:
-                    tag, color = "—", "#5b636e"
-                tk.Label(row, text=tag, bg=PANEL, fg=color,
-                         font=(FONT, self.font_size - 3)).pack(side="right")
 
     # --- 预判
     def _render_prediction(self, pred: dict[str, Any]) -> None:
@@ -1352,13 +1287,7 @@ class Overlay:
 
     # ------------------------------------------------------------ 收尾
     def _log(self, text: str) -> None:
-        try:
-            from .cli import LOG_PATH
-
-            with LOG_PATH.open("a", encoding="utf-8") as fh:
-                fh.write(f"[{time.strftime('%H:%M:%S')}] {text}\n")
-        except Exception:
-            pass
+        logutil.log(text)
 
     def quit(self) -> None:
         if getattr(self, "_quitting", False):

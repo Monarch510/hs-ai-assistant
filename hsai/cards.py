@@ -8,12 +8,11 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data"
+from .paths import DATA_DIR, cards_cache
 
 HSJSON = "https://api.hearthstonejson.com/v1/latest/{locale}/{kind}.json"
 
@@ -38,20 +37,6 @@ CLASS_CN = {
 TYPE_CN = {"MINION": "随从", "SPELL": "法术", "WEAPON": "武器", "HERO": "英雄", "LOCATION": "地标"}
 
 # 基础英雄技能，按类别。日志里若出现英雄技能实体，以其真实 cardId 为准。
-HERO_POWER = {
-    "DEATHKNIGHT": ("英雄技能", 2),
-    "DEMONHUNTER": ("恶魔之咬", 1),
-    "DRUID": ("变形", 2),
-    "HUNTER": ("稳固射击", 2),
-    "MAGE": ("火焰冲击", 2),
-    "PALADIN": ("援军", 2),
-    "PRIEST": ("次级治疗术", 2),
-    "ROGUE": ("匕首精通", 2),
-    "SHAMAN": ("图腾召唤", 2),
-    "WARLOCK": ("生命分流", 2),
-    "WARRIOR": ("全副武装", 2),
-}
-
 # 关键字机制 -> 中文
 MECHANIC_CN = {
     "TAUNT": "嘲讽",
@@ -264,12 +249,6 @@ class CardDB:
         """卡组代码里用的是 dbfId，不是 cardId。"""
         return self.by_dbf.get(int(dbf))
 
-    def of_class(self, card_class: str, *, collectible: bool = True) -> list[Card]:
-        out = [c for c in self.by_id.values() if c.card_class == card_class]
-        if collectible:
-            out = [c for c in out if c.collectible]
-        return sorted(out, key=lambda c: (c.cost, c.name))
-
     def standard_pool(self, card_class: str) -> list[Card]:
         """该职业可用牌池（职业牌 + 中立，仅可收集）。"""
         return [
@@ -284,7 +263,7 @@ class CardDB:
 
 
 def cache_path(locale: str = "zhCN") -> Path:
-    return DATA_DIR / f"cards_{locale}.json"
+    return cards_cache(locale)
 
 
 def download(locale: str = "zhCN", *, kind: str = "cards", timeout: int = 120) -> list[dict[str, Any]]:

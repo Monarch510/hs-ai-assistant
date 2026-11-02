@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 # ---------------------------------------------------------------- 常量表
 
@@ -84,12 +84,6 @@ POWER_SOURCES = frozenset(
 )
 
 # 一行里可能出现的所有实体引用
-REF_ALL = re.compile(
-    r"\[\s*(?:entityName=(?P<name>.*?)\s+)?id=(?P<id>\d+)"
-    r"(?:\s+zone=(?P<zone>[A-Z_]+))?(?:\s+zonePos=(?P<zpos>-?\d+))?"
-    r"(?:\s+cardId=(?P<card>\w*))?(?:\s+player=(?P<player>\d+))?\s*\]"
-)
-
 LINE_RE = re.compile(
     r"^[A-Za-z]?\s*(?P<time>\d{2}:\d{2}:\d{2}\.\d+)?\s*"
     r"(?P<source>[\w.]+)\(\)\s*-\s?(?P<body>.*)$"
@@ -410,13 +404,3 @@ def parse_text(text: str) -> list[Event]:
     return events
 
 
-def iter_events(lines: Iterable[str]) -> Iterable[Event]:
-    """流式版本：适合边读边解析。"""
-    pending: int | None = None
-    for line in lines:
-        ev = parse_line(line, pending)
-        if ev is None:
-            continue
-        if ev.kind in ("full_entity", "entity", "block_start") and ev.data.get("entity"):
-            pending = ev.data["entity"]
-        yield ev

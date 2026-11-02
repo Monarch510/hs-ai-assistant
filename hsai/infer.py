@@ -24,7 +24,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from .cards import CLASS_CN, Card, CardDB
+from .cards import CLASS_CN, CardDB
+from .classify import is_aoe, is_single_removal
 from .meta import Archetype, MetaDB
 
 # 观测权重：越早打出越能说明形态；太晚的牌可能只是补位
@@ -38,43 +39,6 @@ LATE_TURN = 8
 BETA = 0.32
 # 置信度上限：再像也不说「百分之百」，因为卡组会被改牌
 CONF_CAP = 0.95
-
-
-def _is_aoe(card: Card) -> bool:
-    if card.type != "SPELL" or not card.text:
-        return False
-    t = card.text
-    # 清场不一定造成伤害：「消灭所有随从」（如绝命乱斗）同样是清场
-    return ("所有" in t and ("伤害" in t or "消灭" in t)) or "全场" in t
-
-
-def _is_single_removal(card: Card) -> bool:
-    if card.type != "SPELL" or not card.text:
-        return False
-    t = card.text
-    # 「消灭所有随从」是清场，不是单解 —— 否则同一张牌会同时被算进
-    # aoe_risk 和 removal_risk，界面上两行互相矛盾
-    if "所有" in t:
-        return False
-    return "消灭" in t or ("造成" in t and "点伤害" in t)
-
-
-def _is_buff(card: Card) -> bool:
-    return card.type == "SPELL" and card.text and ("+" in card.text and ("攻击力" in card.text or "生命值" in card.text))
-
-
-def _hypergeom_at_least_one(copies: int, population: int, draws: int) -> float:
-    """population 里放了 copies 张，抽 draws 张，至少抽到一张的概率。"""
-    if copies <= 0 or draws <= 0:
-        return 0.0
-    population = max(population, copies, draws)
-    if copies >= population:
-        return 1.0
-    try:
-        miss = math.comb(population - copies, draws) / math.comb(population, draws)
-    except (ValueError, ZeroDivisionError):
-        return 0.0
-    return max(0.0, min(1.0, 1.0 - miss))
 
 
 @dataclass
@@ -275,8 +239,8 @@ class DeckPredictor:
                 f"已出现 {self.cards.display_name(cid)}" for cid, _ in obs[:4]
             ]
             mix, has_lib = self.class_mix(opp_class)
-            pred.aoe_risk = self._risk(mix, deck_count, hand_count, _is_aoe, opp_mana)
-            pred.removal_risk = self._risk(mix, deck_count, hand_count, _is_single_removal, opp_mana)
+            pred.aoe_risk = self._risk(mix, deck_count, hand_count, is_aoe, opp_mana)
+            pred.removal_risk = self._risk(mix, deck_count, hand_count, is_single_removal, opp_mana)
             pred.likely_hand = (
                 self._likely_hand(mix, hand_count, deck_count, opp_mana) if has_lib else []
             )
@@ -302,8 +266,8 @@ class DeckPredictor:
         pred.remaining = mixture
         pred.next_threats = self._threats(mixture, opp_mana)
         pred.likely_hand = self._likely_hand(mixture, hand_count, deck_count, opp_mana)
-        pred.aoe_risk = self._risk(mixture, deck_count, hand_count, _is_aoe, opp_mana)
-        pred.removal_risk = self._risk(mixture, deck_count, hand_count, _is_single_removal, opp_mana)
+        pred.aoe_risk = self._risk(mixture, deck_count, hand_count, is_aoe, opp_mana)
+        pred.removal_risk = self._risk(mixture, deck_count, hand_count, is_single_removal, opp_mana)
         if pred.prior_only:
             pred.note = "还没有足够证据，这里只是该职业的常见形态先验"
         return pred
@@ -377,9 +341,9 @@ class DeckPredictor:
                 tag = ""
                 if card.type == "MINION":
                     tag = f" ({card.atk}/{card.health})"
-                elif _is_aoe(card):
+                elif is_aoe(card):
                     tag = " [清场]"
-                elif _is_single_removal(card):
+                elif is_single_removal(card):
                     tag = " [单解]"
                 rows.append((card.cost, f"{card.cost} 费：{card.name}{tag}"))
         rows.sort()
@@ -410,7 +374,7 @@ class DeckPredictor:
                 continue
             if card.cost is not None and card.cost > mana:
                 continue          # 这回合根本打不出来，不列
-            impact = 1.6 if _is_aoe(card) else 1.3 if _is_single_removal(card) else 1.0
+            impact = 1.6 if is_aoe(card) else 1.3 if is_single_removal(card) else 1.0
             out.append(
                 {
                     "name": card.name,
@@ -461,5 +425,5 @@ class DeckPredictor:
                     mix[cid] = mix.get(cid, 0.0) + a.prior * n
             return mix, True
         mix = {c.id: 0.5 for c in self.cards.standard_pool(opp_class)
-               if _is_aoe(c) or _is_single_removal(c)}
+               if is_aoe(c) or is_single_removal(c)}
         return mix, False

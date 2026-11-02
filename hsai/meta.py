@@ -12,20 +12,17 @@
 from __future__ import annotations
 
 import json
-import math
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from .cards import CLASS_CN, DATA_DIR, CardDB
+from .cards import CLASS_CN, CardDB
+from .paths import META_JSON
 
-META_PATH = DATA_DIR / "meta.json"
+META_PATH = META_JSON
 
 # 卡牌 id 形如 CORE_CS2_029 / NEW1_025，用来区分「这是 id 还是中文名」
-_ID_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
-
-
 @dataclass
 class Archetype:
     id: str
@@ -156,44 +153,6 @@ class MetaDB:
 
     def __iter__(self):
         return iter(self.archetypes)
-
-    def dedupe(self, threshold: float = 0.6) -> int:
-        """合并同一职业里「其实是同一套牌」的原型。
-
-        自动学习会按对局聚类，同一套牌可能被学成两个名字
-        （比如「掘骨恶鬼」和「墓地夜战」）。这里按牌集重合度合并。
-        """
-        removed = 0
-        by_class: dict[str, list] = {}
-        for a in self.archetypes:
-            by_class.setdefault(a.card_class, []).append(a)
-        keep: list = []
-        for archs in by_class.values():
-            merged: list = []
-            for a in archs:
-                hit = None
-                for b in merged:
-                    ca, cb = set(a.cards), set(b.cards)
-                    if not (ca and cb):
-                        continue
-                    ratio = len(ca & cb) / min(len(ca), len(cb))
-                    # 自动学出来的原型样本少、噪声大，重合阈值放低；
-                    # 导入的牌组是权威数据，要求高度重合才合并
-                    limit = 0.4 if (a.source == "learned" and b.source == "learned") else 0.75
-                    if ratio >= limit:
-                        hit = b
-                        break
-                if hit is None:
-                    merged.append(a)
-                else:
-                    for cid, n in a.cards.items():
-                        hit.cards[cid] = max(hit.cards.get(cid, 0), n)
-                    hit.prior = max(hit.prior, a.prior)
-                    removed += 1
-            keep.extend(merged)
-        self.archetypes = keep
-        self.normalize_priors()
-        return removed
 
     def normalize_priors(self) -> None:
         """按职业内部归一化，保证「同职业里选哪个卡组」是一个概率分布。"""
@@ -383,11 +342,3 @@ def import_archetypes(payload: dict[str, Any], cards: CardDB, db: MetaDB | None 
     return db
 
 
-def entropy(weights: Iterable[float]) -> float:
-    """归一化熵，用来描述「预测有多不自信」。"""
-    ws = [w for w in weights if w > 0]
-    if len(ws) <= 1:
-        return 0.0
-    s = sum(ws)
-    h = -sum((w / s) * math.log(w / s) for w in ws)
-    return h / math.log(len(ws))

@@ -16,12 +16,11 @@ from __future__ import annotations
 import copy
 import dataclasses
 import json
-import math
 import re
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
-from .cards import Card, CardDB
+from .cards import Card
 
 # 中文数字（只到十，抽牌/召唤够用了）
 _CN_NUM = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
@@ -36,18 +35,14 @@ def effect_table() -> dict[str, Any]:
     global _EFFECT_TABLE
     if _EFFECT_TABLE is not None:
         return _EFFECT_TABLE
-    from .cards import DATA_DIR
+    from .paths import EFFECTS_JSON
 
-    path = DATA_DIR / "effects.json"
+    path = EFFECTS_JSON
     try:
         _EFFECT_TABLE = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         _EFFECT_TABLE = {"keywords": {}, "patterns": []}
     return _EFFECT_TABLE
-
-
-def keyword_info(mechanic: str) -> dict[str, Any]:
-    return (effect_table().get("keywords") or {}).get(mechanic, {})
 
 
 def _pattern_effect(text: str) -> "Effect | None":
@@ -78,7 +73,6 @@ def _pattern_effect(text: str) -> "Effect | None":
     return hit
 
 
-_DMG_RE = re.compile(r"造成\s*\d+\s*点伤害|造成\s*(\d+)\s*点伤害")
 _DMG_AMOUNT_RE = re.compile(r"造成(\d+)点伤害")
 _HEAL_RE = re.compile(r"恢复(\d+)点生命值")
 _BUFF_RE = re.compile(r"获得\+(\d+)/\+(\d+)")
@@ -106,7 +100,8 @@ class Effect:
     destroy: bool = False
     steal: bool = False       # 夺取控制权
     buff_hand: bool = False   # 顺带 buff 手牌里的随从
-    summon_both: bool = False # 双方都召唤（「为每个玩家召唤」）
+    summon_self: bool = True  # 召唤给施法方
+    summon_opp: bool = False  # 召唤给对方（「为每个玩家召唤」）
     opp_hand_delta: int = 0   # 对手手牌张数变化（偷牌为负）
     set_hp: int = 0           # 把随从血量设为固定值（生而平等）
     min_atk: int = 0          # 群体消灭的攻击力门槛（0 表示不限）
@@ -185,7 +180,7 @@ def parse_effect(card: Card) -> Effect:
         eff.buff_hand = True
         eff.buff_hp = max(eff.buff_hp, int(m.group(1)))
     if "为每个玩家召唤" in text:
-        eff.summon_both = True
+        eff.summon_self, eff.summon_opp = True, True
         eff.summon_count = 2
         eff.summon_atk, eff.summon_hp = 2, 3
         if "变形" in text:
@@ -419,10 +414,6 @@ class SideState:
     def board_attack(self) -> int:
         return sum(u.atk * (2 if u.windfury else 1) for u in self.board if u.alive and u.atk > 0)
 
-    def total_hp(self) -> int:
-        return self.hero_hp + self.armor
-
-
 class Board:
     """两方 + 回合信息。side 0 = 我方，side 1 = 对方。"""
 
@@ -500,7 +491,7 @@ class Board:
             else:
                 self.damage_hero(other, eff.damage)
                 self.note(f"{unit.name} 的亡语对敌方英雄造成 {eff.damage} 点")
-        if (eff.summon_atk or eff.summon_hp) and not eff.summon_both:
+        if (eff.summon_atk or eff.summon_hp) and eff.summon_self and not eff.summon_opp:
             for _ in range(max(1, eff.summon_count)):
                 side.board.append(Unit(
                     card_id="", name="亡语召唤物",
@@ -515,13 +506,6 @@ class Board:
         rest = amount - absorbed
         side.hero_hp = max(0, side.hero_hp - rest)
         return amount
-
-    def all_dead(self) -> int | None:
-        if self.sides[0].hero_hp <= 0:
-            return 1
-        if self.sides[1].hero_hp <= 0:
-            return 0
-        return None
 
     # ------------------------------------------------------------ 效果执行
     def apply_effect(self, eff: Effect, caster: SideState, target: Unit | None) -> None:
@@ -547,12 +531,14 @@ class Board:
                         u.hp = eff.set_hp
             self.note(f"所有随从生命值变为 {eff.set_hp}")
 
-        if eff.summon_both:
-            # 防止同一次结算里被召唤两次（调用方可能重复应用效果）
-            if getattr(self, "_both_done", False):
-                return
-            self._both_done = True
-            for target_side in (my_side, foe_side):
+        # 召唤：summon_self / summon_opp 决定给谁（「为每个玩家召唤」两个都开）
+        summon_sides = []
+        if eff.summon_self:
+            summon_sides.append(my_side)
+        if eff.summon_opp:
+            summon_sides.append(foe_side)
+        if summon_sides and (eff.summon_atk or eff.summon_hp or eff.summon_count > 1):
+            for target_side in summon_sides:
                 for _ in range(max(1, eff.summon_count)):
                     if len([u for u in target_side.board if u.alive]) >= 7:
                         break
@@ -560,14 +546,13 @@ class Board:
                         card_id="", name="召唤物",
                         atk=max(0, eff.summon_atk), hp=max(1, eff.summon_hp),
                         attacks_left=0))
-
-        if eff.summon_both and (eff.buff_atk or eff.buff_hp):
-            # 「将你的随从变形」：按卡面顺序，含刚召唤的两只
-            for u in my_side.board:
-                if u.alive:
-                    u.atk += eff.buff_atk
-                    u.hp += eff.buff_hp
-            self.note(f"{len([u for u in my_side.board if u.alive])} 个随从变形 +{eff.buff_atk}/+{eff.buff_hp}")
+            if eff.buff_atk or eff.buff_hp:
+                # 「将你的随从变形」：按卡面顺序，含刚召唤的
+                for u in my_side.board:
+                    if u.alive:
+                        u.atk += eff.buff_atk
+                        u.hp += eff.buff_hp
+                self.note(f"{len([u for u in my_side.board if u.alive])} 个随从变形 +{eff.buff_atk}/+{eff.buff_hp}")
 
         if eff.opp_hand_delta:
             keep = max(0, len(foe_side.hand) + eff.opp_hand_delta)
@@ -640,11 +625,6 @@ class Board:
             target.frozen = True
             target.can_attack_now = False
 
-        if eff.summon_atk or eff.summon_hp:
-            count = max(1, min(int(eff.summon_count or 1), 7))
-            for _ in range(count):
-                my_side.board.append(Unit(card_id="", name="召唤物", atk=eff.summon_atk,
-                                          hp=max(1, eff.summon_hp), max_hp=max(1, eff.summon_hp)))
 
         for _ in range(eff.draw):
             self.draw(caster)
@@ -674,61 +654,6 @@ DEFAULT_WEIGHTS = {
 }
 
 
-def reach_damage(side: SideState) -> int:
-    """本回合能直接打到脸上的伤害（随从攻击 + 武器 + 手里的直伤法术）。"""
-    total = sum(u.atk * (2 if u.windfury else 1) for u in side.board if u.alive and u.atk > 0 and not u.frozen)
-    if side.weapon:
-        total += side.weapon.atk
-    mana = side.mana
-    for card in sorted(side.hand, key=lambda c: c.cost):
-        if card.type != "SPELL" or card.cost > mana:
-            continue
-        eff = parse_effect(card)
-        if eff.damage and eff.scope in ("target", "enemy_hero", "random_enemy") and not eff.aoe:
-            mana -= card.cost
-            total += eff.damage
-    return total
-
-
-# 本局内的临时权重倍数（用户输入判断 -> AI 解析 -> 引擎应用）
-_OVERRIDES: dict[str, float] = {}
-
-
-def set_overrides(weights: dict[str, float]) -> None:
-    _OVERRIDES.clear()
-    for key, val in (weights or {}).items():
-        if key not in DEFAULT_WEIGHTS:
-            continue
-        try:
-            num = float(val)
-        except (TypeError, ValueError):
-            continue
-        if 0.5 <= num <= 2.0:
-            _OVERRIDES[key] = num
-
-
-def set_matchup_overrides(weights: dict[str, float]) -> None:
-    """按对局形态生效的权重（来自历史纠正，跨局保留）。"""
-    _MATCHUP.clear()
-    for k, v in (weights or {}).items():
-        if k in DEFAULT_WEIGHTS:
-            try:
-                num = float(v)
-            except (TypeError, ValueError):
-                continue
-            if 0.5 <= num <= 2.0:
-                _MATCHUP[k] = num
-
-
-_MATCHUP: dict[str, float] = {}
-
-
-def clear_overrides() -> None:
-    _OVERRIDES.clear()
-
-
-def current_overrides() -> dict[str, float]:
-    return dict(_OVERRIDES)
 
 
 
@@ -811,10 +736,6 @@ def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: fl
              perspective: int = 0) -> float:
     """从 perspective 这一方视角给局面打分。数值本身无意义，只用于横向比较。"""
     w = {**DEFAULT_WEIGHTS, **(weights or {})}
-    if _MATCHUP:
-        w = {k: v * _MATCHUP.get(k, 1.0) for k, v in w.items()}
-    if _OVERRIDES:
-        w = {k: v * _OVERRIDES.get(k, 1.0) for k, v in w.items()}
     me, foe = board.sides[perspective], board.sides[1 - perspective]
 
     # 武器也是「能持续输出的资源」：按攻击力计价，耐久略加权
@@ -865,12 +786,6 @@ def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: fl
         if foe_reach >= me.hero_hp + me.armor:
             score -= 420 * w.get("lethal_bonus", 1.0)
     return score
-
-
-def board_to_text(board: Board, idx: int) -> str:
-    s = board.sides[idx]
-    units = "、".join(f"{u.name} {u.atk}/{u.hp}" for u in s.board if u.alive) or "空场"
-    return f"{s.hero_hp}+{s.armor} 血，{units}"
 
 
 # ---------------------------------------------------------------- 从真实日志局面构造

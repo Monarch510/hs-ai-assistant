@@ -8,15 +8,16 @@ import sys
 from pathlib import Path
 
 from . import cards as cards_mod
-from . import learn, mulligan, policy, sim
-from .advisor import OUR_DECK_PATH, Advisor, load_observations
+from . import learn, mulligan, sim
+from .advisor import OUR_DECK_PATH, Advisor
 from .cards import DATA_DIR, CardDB
+from .paths import LOG_FILE
 
-LOG_PATH = DATA_DIR / "hsai.log"
+LOG_PATH = LOG_FILE
 from .infer import DeckPredictor
 from .logwatch import PowerLogWatcher, find_power_log
 from .meta import META_PATH, Archetype, MetaDB, import_archetypes
-from .state import GameState, replay_log_text
+from .state import replay_log_text
 
 
 def _ensure_console() -> None:

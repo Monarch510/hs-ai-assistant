@@ -28,7 +28,7 @@ from . import mulligan as mulligan_mod
 from . import meta as meta_mod
 from . import sim
 from .advisor import MULLIGAN_WEIGHTS_PATH, OBSERVATIONS_PATH, WEIGHTS_PATH, load_observations
-from .cards import DATA_DIR, CardDB
+from .cards import CardDB
 from .meta import MetaDB, build_from_observations
 from .model import DEFAULT_WEIGHTS
 

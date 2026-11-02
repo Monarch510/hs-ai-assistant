@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hsai"
+description = "炉石传说 AI 助手：读日志、判卡组、给建议、局后复盘（本地 / 只读日志 / 原生悬浮窗）"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["hearthstone", "overlay", "power.log", "assistant"]
+# 零第三方依赖：全部标准库（含 tkinter）
+dependencies = []
+dynamic = ["version"]
+
+[project.scripts]
+# 装完可以直接敲 hsai，等价于 python -m hsai
+hsai = "hsai.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "hsai.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["hsai*"]
+
+# ------------------------------------------------------------------
+# 测试：用的是标准库 unittest，pytest 也能直接跑（pytest 会收集 unittest 类）
+# 慢的是 test_sim（自对弈真在打，约 50s）；日常只想跑快的：
+#   python -m unittest discover tests -p "test_[!s]*.py"
+# ------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+exclude = ["data", "docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501"]  # 中文注释按显示宽度断行，行长交给人工判断

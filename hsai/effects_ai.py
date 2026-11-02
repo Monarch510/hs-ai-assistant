@@ -19,10 +19,10 @@ import re
 from pathlib import Path
 from typing import Any
 
-from .cards import DATA_DIR
 from .model import parse_effect
+from .paths import EFFECTS_BACKUP, EFFECTS_JSON
 
-EFFECTS_PATH = DATA_DIR / "effects.json"
+EFFECTS_PATH = EFFECTS_JSON
 MAX_NEW_COVER = 3          # 一条规则最多新覆盖几张牌
 MAX_HITS = 12
 # 这些字段必须是整数（或 "" 这种分组引用），否则会让解析结果变成字符串
@@ -44,18 +44,6 @@ def _sig_diff(before: tuple, after: tuple) -> str:
         if old != new:
             parts.append(f"{name}: {old}→{new}")
     return "；".join(parts) or "（无差异）"
-
-
-def _sig_text(sig: tuple) -> str:
-    """把解析结果压成一句人话，用于拒绝对比的说明。"""
-    names = ["伤害", "目标", "抽牌", "治疗", "加攻", "加血", "消灭",
-             "冻结", "召唤攻", "召唤血", "法力", "护甲", "发现", "已知"]
-    parts = []
-    for label, value in zip(names, sig):
-        if value in (0, False, "", "target"):
-            continue
-        parts.append(f"{label}={value}")
-    return "、".join(parts) or "无"
 
 
 def _effect_signature(card) -> tuple:
@@ -146,7 +134,6 @@ def validate_rule(cards, rule: dict[str, Any], target_ids: list[str]) -> tuple[b
             return False, f"规则太宽泛：一次新覆盖 {len(newly)} 张牌（上限 {MAX_NEW_COVER}）"
 
     # 闸门②：模拟应用后，已有的解析结果不能变
-    import copy
 
     model = __import__("hsai.model", fromlist=["x"])
     saved = model._EFFECT_TABLE
@@ -182,7 +169,7 @@ def commit_rule(rule: dict[str, Any]) -> bool:
         return False
     patterns.insert(0, rule)
     try:
-        EFFECTS_PATH.with_suffix(".json.bak").write_text(
+        EFFECTS_BACKUP.write_text(
             EFFECTS_PATH.read_text(encoding="utf-8"), encoding="utf-8")
     except OSError:
         pass

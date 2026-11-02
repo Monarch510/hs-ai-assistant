@@ -14,12 +14,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .cards import DATA_DIR
+from .paths import CASES_JSONL, LESSONS_JSONL, OPP_HISTORY_JSONL
 
-LESSONS_PATH = DATA_DIR / "lessons.jsonl"
-CASES_PATH = DATA_DIR / "cases.jsonl"
+LESSONS_PATH = LESSONS_JSONL
+CASES_PATH = CASES_JSONL
 MAX_LESSONS = 200
-OPP_HISTORY_PATH = DATA_DIR / "opp_history.jsonl"
+OPP_HISTORY_PATH = OPP_HISTORY_JSONL
 MAX_OPP_HISTORY = 200
 MAX_CASES = 400
 

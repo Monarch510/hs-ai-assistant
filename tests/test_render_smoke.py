@@ -13,11 +13,21 @@ import unittest
 from pathlib import Path
 
 from hsai import cards, state
-from hsai.ui import Overlay
+
+try:
+    from hsai.ui import Overlay
+
+    HAS_TK = True
+except ModuleNotFoundError as exc:  # 精简版 Python 可能没带 tkinter
+    if exc.name != "tkinter":
+        raise
+    Overlay = None  # type: ignore[assignment]
+    HAS_TK = False
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+@unittest.skipUnless(HAS_TK, "当前 Python 没有 tkinter，跳过界面冒烟")
 class RenderSmokeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

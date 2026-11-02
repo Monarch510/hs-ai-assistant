@@ -1,30 +1,59 @@
-# 运行时产物（可重建）
+# ============================================================
+# 运行产物：全部可由程序重建，不进仓库
+# 对照 hsai/paths.py —— 那边定义了路径，这里负责挡住它们
+# （唯一例外是 data/effects.json：它是可复现的行为定义，要入库）
+# ============================================================
+
+# 卡牌库缓存
 data/cards_*.json
-data/observations.jsonl
-data/games.jsonl
-data/policy_weights.json
-data/mulligan_weights.json
-data/our_deck.json
+
+# 卡组与环境
 data/meta.json
 data/meta.backup.json
-data/hsai.log
+data/our_deck.json
+
+# 对局记录
+data/observations.jsonl
+data/games.jsonl
+data/last_review.json
+data/advice_log.jsonl
+
+# 长期记忆
+data/lessons.jsonl*
+data/cases.jsonl
+data/opp_history.jsonl
+
+# 权重
+data/policy_weights.json
+data/mulligan_weights.json
+
+# 运行状态与诊断
 data/window.json
 data/install_dir.txt
-data/ai.json
-# AI 解释层配置（可能含 key，绝不入库）
+data/hsai.log
+data/*.bak
 
+# ============================================================
+# 可能含密钥，绝不入库
+# ============================================================
+data/ai.json
+
+# ============================================================
 # Python
+# ============================================================
 __pycache__/
 *.py[cod]
 .venv/
 venv/
 
+# ============================================================
 # 编辑器
+# ============================================================
 .vscode/
 .idea/
 *.swp
-data/lessons.jsonl*
-data/last_review.json
-data/advice_log.jsonl
-data/*.bak
-data/opp_history.jsonl
+
+# ============================================================
+# 本地 AI 代理的工作记录（个人笔记，不属于项目代码）
+# ============================================================
+.workbuddy-ai/
