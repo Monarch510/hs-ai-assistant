@@ -4,6 +4,9 @@
 （引用了不存在的变量、空列表时变量未定义），被 _tick 的 try/except 吞掉，
 表现成「对局结束了但面板不更新」。这些错误在真实游戏里才触发，
 所以这里直接构造各种快照，把渲染路径全跑一遍。
+
+没有 tkinter 的环境（精简版 Python、CI 容器）用 tests/_ui_support 里的替身跑，
+验的是渲染路径不抛异常，不是像素。
 """
 
 from __future__ import annotations
@@ -14,20 +17,15 @@ from pathlib import Path
 
 from hsai import cards, state
 
-try:
-    from hsai.ui import Overlay
+from tests._ui_support import prepare
 
-    HAS_TK = True
-except ModuleNotFoundError as exc:  # 精简版 Python 可能没带 tkinter
-    if exc.name != "tkinter":
-        raise
-    Overlay = None  # type: ignore[assignment]
-    HAS_TK = False
+prepare()                       # 没有 tkinter 就装替身，别整组跳过
+
+from hsai.ui import Overlay     # noqa: E402  必须在 prepare() 之后
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-@unittest.skipUnless(HAS_TK, "当前 Python 没有 tkinter，跳过界面冒烟")
 class RenderSmokeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

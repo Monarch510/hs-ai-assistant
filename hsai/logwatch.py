@@ -21,7 +21,7 @@ from typing import Iterable
 
 from . import powerlog
 from .cards import CardDB
-from .paths import INSTALL_CACHE_TXT
+from .paths import DATA_DIR, INSTALL_CACHE_TXT
 from .state import GameState
 
 # 默认位置（Battle.net 版）

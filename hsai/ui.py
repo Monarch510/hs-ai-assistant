@@ -126,8 +126,10 @@ class Overlay:
         self._case_buf: list[dict] = []          # 本局的决策案例，结束时一次性入库
         self._cases_flushed = False
         self._ai_reviewed = False
-        # 折叠状态的区块标题（存在 window.json 的 collapsed 里）
-        self._collapsed: set[str] = set(_load_state().get("collapsed") or [])
+        # 折叠状态的区块标题（存在 window.json 的 collapsed_sections 里）。
+        # 不能和窗口自身的 collapsed 共用一个键：那个是布尔，这里读成列表，
+        # 上次退出时窗口是收起的就会 set(True) 崩在启动阶段。
+        self._collapsed: set[str] = set(_load_state().get("collapsed_sections") or [])
         self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
         self._last_review = self._load_last_review()
         self._rule_report: list[str] = []
@@ -308,11 +310,14 @@ class Overlay:
         self._persist()
 
     def _persist(self) -> None:
-        _save_state({
+        # 合并写：_toggle_section 存的 collapsed_sections 不能被这里覆盖掉
+        data = _load_state()
+        data.update({
             "x": self.pos[0], "y": self.pos[1], "w": self.width, "layout": LAYOUT_VERSION,
             "alpha": self.alpha, "font_size": self.font_size, "collapsed": self.collapsed,
             "bg_mode": self.bg_mode,
         })
+        _save_state(data)
 
     def _popup_menu(self, event: tk.Event) -> None:
         try:
@@ -1104,7 +1109,7 @@ class Overlay:
         else:
             self._collapsed.add(title)
         data = _load_state()
-        data["collapsed"] = sorted(self._collapsed)
+        data["collapsed_sections"] = sorted(self._collapsed)
         _save_state(data)
         self._last_sig = None      # 强制重画
         if getattr(self, "_last_state", None) is not None:

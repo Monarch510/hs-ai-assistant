@@ -113,5 +113,31 @@ class SetupLogConfigTest(unittest.TestCase):
         self.assertIn(no_exe, logwatch.log_config_targets([no_exe], include_ambient=False))
 
 
+class RememberInstallDirTest(unittest.TestCase):
+    """ambient 分支会缓存「从运行中的进程找到的安装目录」。
+
+    这条路径以前从没被覆盖过：其他用例一律 include_ambient=False，而
+    remember_install_dir 只在 ambient 分支里调用 —— 于是它里面漏掉 DATA_DIR
+    导入、直接 NameError，一直没人发现。实际后果是「开着炉石启动悬浮窗就崩」。
+    """
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="hsai_inst_"))
+        self._old_cache = logwatch.INSTALL_CACHE
+        self._old_proc = logwatch._proc_cache
+        logwatch.INSTALL_CACHE = self.tmp / "install_dir.txt"
+        # 塞进进程缓存，省掉一次 PowerShell 探测
+        logwatch._proc_cache = (time.time(), self.tmp)
+
+    def tearDown(self) -> None:
+        logwatch.INSTALL_CACHE = self._old_cache
+        logwatch._proc_cache = self._old_proc
+
+    def test_ambient_roots_cache_install_dir(self) -> None:
+        roots = logwatch.candidate_roots(include_ambient=True)
+        self.assertIn(self.tmp, roots)
+        self.assertEqual(logwatch.INSTALL_CACHE.read_text(encoding="utf-8"), str(self.tmp))
+
+
 if __name__ == "__main__":
     unittest.main()

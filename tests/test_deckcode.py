@@ -11,6 +11,8 @@ import unittest
 from hsai import cards as cards_mod
 from hsai import deckcode
 
+from tests._ui_support import prepare
+
 
 class DeckCodeTest(unittest.TestCase):
     @classmethod
@@ -61,14 +63,15 @@ class DeckCodeTest(unittest.TestCase):
 
 
 class OverlayStructureTest(unittest.TestCase):
-    """不开窗口跑（Tk 需要桌面），只构造并检查控件树。"""
+    """不开窗口跑（Tk 需要桌面），只构造并检查控件树。
+
+    没有 tkinter 时用 tests/_ui_support 的替身 —— 检查的是控件树和文字，
+    跟真窗口画成什么样无关。
+    """
 
     @classmethod
     def setUpClass(cls) -> None:
-        try:
-            import tkinter  # noqa: F401
-        except Exception:  # pragma: no cover
-            raise unittest.SkipTest("没有 tkinter")
+        prepare()
         cls.db = cards_mod.load()
 
     def _overlay(self):
@@ -111,6 +114,33 @@ class OverlayStructureTest(unittest.TestCase):
             self.assertFalse(ov.panel.winfo_ismapped() is False)
         finally:
             ov.quit()
+
+    def test_starts_with_bool_collapsed_in_state_file(self) -> None:
+        """上次退出时窗口是收起的，window.json 里 collapsed 是布尔。
+
+        启动时把它当「收起的区块列表」读，就会 set(True) 抛 TypeError ——
+        而且是**第二次启动**才炸，第一次永远是干净的。
+        """
+        from hsai import ui
+
+        ui._save_state({"collapsed": True, "layout": ui.LAYOUT_VERSION, "x": 10, "y": 20})
+        ov = self._overlay()
+        try:
+            self.assertEqual(ov._collapsed, set())
+        finally:
+            ov.quit()
+
+    def test_section_collapse_survives_restart(self) -> None:
+        """区块折叠状态要能跨重启记住：_persist 是整体覆盖写，不能把它冲掉。"""
+        ov = self._overlay()
+        ov._toggle_section("对手预判")
+        ov.quit()
+
+        again = self._overlay()
+        try:
+            self.assertIn("对手预判", again._collapsed)
+        finally:
+            again.quit()
 
 
 if __name__ == "__main__":

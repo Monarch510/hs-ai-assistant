@@ -15,7 +15,7 @@
 ```powershell
 python -m hsai ui              # 悬浮窗（双击 启动AI助手.bat 等价）
 python -m hsai ui --demo       # 示例对局，不接游戏
-python -m unittest discover -s tests   # 92 个用例
+python -m unittest discover -s tests   # 97 个用例
 python -m hsai replay <日志>    # 离线解析，输出快照 JSON
 ```
 
@@ -135,6 +135,12 @@ hsai/logutil.py    诊断日志写入（data/hsai.log，超 1 MB 自动截断）
 - **同一个类里别留两份同名方法**。Python 不报错，后者静默覆盖前者，前一份成了死代码
   （`_on_entity` 就这样重复过，两份行为还不一样）。改完数一遍方法名，出现两次就是它；
   `reset()` 里同一个属性赋两遍值也是同类问题——后者赢，前一行白写。
+- **`data/window.json` 的键别复用**。`collapsed` 是布尔（窗口收成细条），区块折叠
+  是 `collapsed_sections`（列表）。混用一个键的后果：上次退出时窗口是收起的，
+  下次启动 `set(True)` 直接 TypeError，而且**第一次启动永远是好的**，很难复现。
+- **测试里 `include_ambient=False` 会整条绕开环境探测分支**。`remember_install_dir`
+  只在 ambient 分支里调用，于是它漏了 `DATA_DIR` 导入也没人发现 —— 开着炉石启动
+  就 NameError。给「只在一个分支里调用」的函数补用例，别只测默认路径。
 - **判定「谁是我方」用可见手牌**（对手手牌没有 `card_id`），不要用 GameAccountId，
   练习模式下两边都有真账号，会判反。
 - **日志里没有「剩余牌库」字段**（`DECK_SIZE`/`CARD_COUNT` 都是 0 次）。
