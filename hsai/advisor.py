@@ -205,6 +205,15 @@ def board_from_state(st: GameState) -> Board:
     them.deck = _unknown_cards(opp.deck_count or max(0, 30 - opp.hand_count - len(them.board)))
     them.hand = _unknown_cards(opp.hand_count)
     hp_view = ours.hero_power or {}
+    _hero = st.hero(st.our_id) if hasattr(st, "hero") else None
+    if _hero is not None:
+        # 英雄自己也可能有攻击力（没武器但被加过攻），日志里 ATK 标签就是它
+        try:
+            me.hero_atk = int(_hero.tags.get("ATK") or 0)
+        except (TypeError, ValueError):
+            me.hero_atk = 0
+        me.hero_attacks_left = 1 if str(_hero.tags.get("EXHAUSTED", 0)) in ("0", "None") else 0
+
     if hp_view.get("id") and st.cards:
         me.hero_power = st.cards.get(hp_view["id"])
         me.hero_power_used = bool(hp_view.get("used"))
@@ -290,6 +299,12 @@ class Advisor:
             "feed": list(st.feed)[-10:],
             "choice": self._choice_view(st),
             "cthun": st.cthun_view(),
+            # 被动英雄技能的计数器（如「每使用五张随从牌」）
+            "passive": {"name": (ours.hero_power or {}).get("name") or "",
+                        "played": int(getattr(st, "our_minions_played", 0) or 0),
+                        "every": int((policy.passive_rule(
+                            self.cards.get((ours.hero_power or {}).get("id") or "")) or {}).get("every") or 0)},
+
             "unmodelled": list(getattr(st, "unmodelled", [])),
             "opp_played": [st._name(c) for c in list(st.revealed_opp_order)[-12:] if c],
         }

@@ -1023,6 +1023,7 @@ class Overlay:
                          font=(FONT, self.font_size - 2), anchor="w", justify="left",
                          wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
 
+
         cthun = snap.get("cthun") or {}
         if cthun.get("count"):
             mark = "（强化已解锁 ×3）" if cthun.get("tripled") else ""
@@ -1083,6 +1084,15 @@ class Overlay:
             tk.Label(inner_pick, text=self._ai_pick[1], bg=PANEL, fg=MUTED,
                      font=(FONT, self.font_size - 2), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x")
+        passive = snap.get("passive") or {}
+        every = int(passive.get("every") or 0)
+        played = int(passive.get("played") or 0)
+        if every > 0:
+            left = every - (played % every)
+            tip = "下一只就触发" if left == 1 else f"还差 {left} 只触发"
+            tk.Label(self.body, text=f"{passive.get('name') or '被动'} · 已 {played} 只 · {tip}",
+                     bg=BG, fg=MUTED, font=(FONT, self.font_size - 3), anchor="w").pack(fill="x")
+
         self._render_advice(snap.get("advice") or {})
 
         defense = (snap.get("advice") or {}).get("defense") or []

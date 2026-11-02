@@ -141,6 +141,9 @@ hsai/logutil.py    诊断日志写入（data/hsai.log，超 1 MB 自动截断）
 - **测试里 `include_ambient=False` 会整条绕开环境探测分支**。`remember_install_dir`
   只在 ambient 分支里调用，于是它漏了 `DATA_DIR` 导入也没人发现 —— 开着炉石启动
   就 NameError。给「只在一个分支里调用」的函数补用例，别只测默认路径。
+- **同一个数别留两套算法**。our_minions_played（只算手牌打出的）和
+  sum(our_played)（含召唤物）并存过：state 里换了新计数器，快照里却还用旧算法，
+  面板就一直显示错的值。改口径时先 grep 字段名，把读的地方一起换掉。
 - **判定「谁是我方」用可见手牌**（对手手牌没有 `card_id`），不要用 GameAccountId，
   练习模式下两边都有真账号，会判反。
 - **日志里没有「剩余牌库」字段**（`DECK_SIZE`/`CARD_COUNT` 都是 0 次）。

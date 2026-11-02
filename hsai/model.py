@@ -383,6 +383,8 @@ class SideState:
     hero_power: "Card | None" = None
     spells_cast: int = 0
     weapon_attacks_left: int = 0     # 英雄本回合还能用武器攻击几次
+    hero_atk: int = 0                # 英雄自身攻击力（没有武器也可能是 3，如被加攻）
+    hero_attacks_left: int = 0       # 英雄本回合还能攻击几次
     minions_played: int = 0          # 本局已打出的随从数（被动技能计数器用）
     passive_rule: dict = field(default_factory=dict)   # 被动技能的计数规则
     cthun_uses_left: int = 0         # 这回合帝国之眼还能用几次技能

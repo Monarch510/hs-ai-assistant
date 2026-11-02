@@ -163,6 +163,8 @@ class GameState:
     # ------------------------------------------------------------ 生命周期
     def reset(self) -> None:
         # 局与局之间必须隔离：抽牌数、墓地、休眠/入场回合、克苏恩进度
+        self.cthun_by_source = {}
+        self._choice_source = {}
         self.entities: dict[int, Entity] = {}
         self.player_ids: dict[int, int] = {}  # player_id -> entity id
         self.player_entities: dict[int, Entity] = {}
@@ -204,9 +206,16 @@ class GameState:
         self.woke_turn: dict[int, int] = {}
         # 我方抽到的牌数（牌库→手牌），用来算牌库剩余：30 - 抽到
         self.our_drawn: int = 0
+        # 我方「从手牌打出」的随从数（被动技能按这个计数；召唤物不算）
+        self.our_minions_played: int = 0
+        self._counted_minions: set[int] = set()
         # 日志里每回合有「本回合抽了几张」的计数器，按增量累计更准
         self._draw_tag_last: int = 0
         # 实体 -> (死亡回合, 死亡顺序)；顺序按发生先后递增
+        self.attacked_this_turn: set[int] = set()
+        # 每只克苏恩各自用过哪些技能（key = 触发源实体 id）
+        self.cthun_by_source: dict[int, set[str]] = {}
+        self._choice_source: dict = {}
         self.grave_meta: dict[int, tuple[int, int]] = {}
         self._grave_seq: int = 0
         self._draw_tag_turn: int = 0
@@ -253,6 +262,9 @@ class GameState:
             # 有些日志片段没有 CREATE_GAME 头，也尽量解析
             self.game_started = True
             self.phase = "mulligan"
+        if kind == "choice_sent":
+            self._on_choice_sent(ev)
+            return
         if kind == "entity":
             self._on_entity(ev)
         elif kind == "full_entity":
@@ -425,6 +437,12 @@ class GameState:
             if val == ZONE_GRAVE and e.id not in self.grave_meta:
                 self._grave_seq += 1
                 self.grave_meta[e.id] = (self.turn, self._grave_seq)
+            if (val == ZONE_PLAY and prev_zone in (ZONE_HAND, ZONE_DECK)
+                    and e.controller == self.our_id and e.id not in self._counted_minions):
+                _c = self.cards.get(e.card_id) if (self.cards and e.card_id) else None
+                if _c is not None and _c.is_minion:
+                    self.our_minions_played += 1
+                    self._counted_minions.add(e.id)
             if e.controller == self.our_id:
                 # 进出牌库都要记：抽牌(-1)、换牌回库(+1)、塞进牌库(+1)、
                 # 从牌库被拉出/爆牌(-1)。这样 30 张 + 净变化 才是真实剩余。
@@ -454,6 +472,8 @@ class GameState:
                     won = val == 4
                 self._note("对局结束：" + ("胜利" if won else "失败" if val in (3, 4) else "平局"))
         elif tag == T_TURN and isinstance(val, int):
+            # 新回合：所有随从的攻击机会恢复
+            self.attacked_this_turn = set()
             # TURN 只在 GameEntity(1) 上是「总回合数」；玩家实体上也有这个 tag，
             # 含义不同（那个玩家的第几个回合），读错会把回合数搞乱。
             if eid == 1 and val != self.turn:
@@ -515,6 +535,11 @@ class GameState:
                     self._draw_tag_last = val_i
                 else:
                     self._draw_tag_last = val_i
+        elif tag == "EXHAUSTED" and eid:
+            if e.zone == ZONE_PLAY and _int(val) == 1:
+                self.attacked_this_turn.add(eid)
+            elif _int(val) == 0:
+                self.attacked_this_turn.discard(eid)
         elif tag == "DORMANT" and eid:
             if isinstance(val, int) and val == 0:
                 self.woke_turn[eid] = self.turn
@@ -745,6 +770,22 @@ class GameState:
             if e.controller == self.opp_id:
                 self._track_visibility(e)
 
+    def _on_choice_sent(self, ev: pl.Event) -> None:
+        """玩家提交的选择。克苏恩四技能只在这里能知道「到底选了哪个」。"""
+        src = self._choice_source or {}
+        src_card = str(src.get("card_id") or "")
+        src_id = src.get("id")
+        # 本体是「克苏恩，帝国之眼」(BE_013)，不是叫「克苏恩」的那张 8 费旧卡
+        if not src_id or src_card != "BE_013":
+            # 子嗣/法术触发的技能：任何时候都能四选一，也永远不翻倍
+            return
+        for ref in ev.data.get("refs") or []:
+            cid = ref.get("card_id") or ""
+            card = self.cards.get(cid) if (self.cards and cid) else None
+            name = card.name if card else ""
+            if name in self.CTHUN_SKILLS:
+                self.cthun_by_source.setdefault(int(src_id), set()).add(name)
+
     def _on_choices(self, ev: pl.Event) -> None:
         """发现/抉择/弃牌：记录待选选项。MULLIGAN 由留牌模块单独处理。"""
         d = ev.data
@@ -766,6 +807,9 @@ class GameState:
                     self._name_player[self._first_player_name] = 3 - pid
                     self.first_player = 3 - pid
                 self._bind_pending_names()
+
+        if d.get("source"):
+            self._choice_source = d["source"]
 
         ctype = d.get("choice_type")
         if ctype == "MULLIGAN":
@@ -1025,16 +1069,33 @@ class GameState:
 
     def note_cthun_choice(self, names) -> None:
         """从「选择并触发克苏恩技能」的选项里记录已经用过哪几个。"""
+        offered = set()
         for name in names or ():
             text = str(name or "")
             for skill in self.CTHUN_SKILLS:
                 if skill in text:
-                    self.cthun_used.add(skill)
+                    offered.add(skill)
+        # 同一个克苏恩的技能不能重复选，所以「没出现在选项里」= 已经用过。
+        # 之前把「选项里出现的」当成用过的，四个技能一出现就全记上了，
+        # 结果第一次触发就显示强化 ×3。
+        if len(offered) >= 2:
+            self.cthun_used = {s for s in self.CTHUN_SKILLS if s not in offered}
 
     def cthun_view(self) -> dict[str, Any]:
-        used = [s for s in self.CTHUN_SKILLS if s in self.cthun_used]
-        return {"used": used, "count": len(used), "total": 4,
-                "tripled": len(used) >= 4}
+        """强化看的是「哪一只克苏恩」，不同实例各自计数。"""
+        key = None
+        for e in self.entities.values():
+            if e.zone == ZONE_PLAY and e.controller == self.our_id:
+                card = self.cards.get(e.card_id) if (self.cards and e.card_id) else None
+                if card is not None and card.id == "BE_013":
+                    key = e.id
+                    break
+        if key is None:
+            key = self._choice_source.get("id")
+        used = sorted(self.cthun_by_source.get(key, set())) if key else []
+        ordered = [s for s in self.CTHUN_SKILLS if s in used]
+        return {"used": ordered, "count": len(ordered), "total": 4,
+                "tripled": len(ordered) >= 4}
 
     def _card_view(self, e: Entity) -> dict[str, Any]:
         card = self.cards.get(e.card_id) if (self.cards and e.card_id) else None
@@ -1085,7 +1146,8 @@ class GameState:
         """
         if e.zone != ZONE_PLAY or e.controller is None:
             return False
-        if self.turn_owner != e.controller:
+        # turn_owner 在日志里经常是 None，用推断出来的归属，否则谁都攻击不了
+        if self.effective_turn_owner() != e.controller:
             return False
         card = self.cards.get(e.card_id) if (self.cards and e.card_id) else None
         atk = e.atk if e.atk is not None else (card.atk if card else 0)
@@ -1094,7 +1156,12 @@ class GameState:
         # 客户端给了明确状态就以它为准（比拿 EXHAUSTED 推断准）
         if e.tags.get("ATTACKABLE") is not None:
             return bool(_int(e.tags.get("ATTACKABLE")) or 0)
-        if e.tags.get("EXHAUSTED") in (1, "1", True):
+        # 不能用 EXHAUSTED 直接判死：有些随从在手牌阶段就被打了 EXHAUSTED=1，
+        # 进场后客户端不再下发 0，会一直「不能攻击」。改成按「入场回合 + 本回合是否攻击过」。
+        played = self.played_turn.get(e.id)
+        if played is not None and played >= self.turn:
+            return False
+        if e.id in self.attacked_this_turn:
             return False
         if e.tags.get("FROZEN") in (1, "1", True):
             return False

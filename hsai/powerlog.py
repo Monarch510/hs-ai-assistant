@@ -223,7 +223,11 @@ def parse_line(line: str, pending_entity: int | None = None) -> Event | None:
             ev.kind = "chosen"
         return ev
     if source == "GameState.SendChoices":
-        return _parse_ref_line(body, time)
+        # 玩家真正提交的选择（m_chosenEntities），这是唯一能知道「选了哪个」的地方
+        refs = _all_refs(body)
+        if not refs:
+            return _parse_ref_line(body, time)
+        return Event("choice_sent", {"refs": refs}, time)
     if source == "GameState.DebugPrintEntityChoices":
         ev = _parse_choices(body, time)
         refs = _all_refs(body)
@@ -383,6 +387,11 @@ def _parse_choices(body: str, time: str) -> Event:
         d["count"] = int(m.group(1))
     if m := re.search(r"CountMin=(\d+)\s+CountMax=(\d+)", body):
         d["min"], d["max"] = int(m.group(1)), int(m.group(2))
+    # 触发源：Source=[entityName=克苏恩 id=33 ...]（判断是哪只克苏恩/哪张牌触发）
+    if m := re.search(r"Source=\[([^\]]+)\]", body):
+        src = parse_entity_ref("[" + m.group(1) + "]")
+        if src:
+            d["source"] = src
     d["refs"] = _all_refs(body)
     return Event("choices", d, time)
 

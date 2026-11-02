@@ -142,19 +142,21 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
 
     # 英雄拿武器也能攻击：打脸或打随从，同样受嘲讽限制
     weapon_atk = me.weapon.atk if (me.weapon is not None) else 0
-    if weapon_atk > 0 and me.weapon_attacks_left > 0:
+    # 英雄自带攻击力（被加攻/装备效果）也能攻击，不只有武器
+    hero_atk = max(weapon_atk, me.hero_atk)
+    if hero_atk > 0 and (me.weapon_attacks_left > 0 or me.hero_attacks_left > 0):
         if taunts:
             for j, t in enumerate(foe.board):
                 if t.alive and t.taunt and not t.dormant:
                     acts.append(Action("hero_attack", target=f"enemy:{j}",
-                                       desc=f"英雄（武器 {weapon_atk}攻）攻击第{j+1}位 {t.name}"))
+                                       desc=f"英雄（{hero_atk}攻）攻击第{j+1}位 {t.name}"))
         else:
             acts.append(Action("hero_attack", target="enemy_hero",
-                               desc=f"英雄（武器 {weapon_atk}攻）攻击英雄"))
+                               desc=f"英雄（{hero_atk}攻）攻击英雄"))
             for j, t in enumerate(foe.board):
                 if t.alive and not t.dormant:
                     acts.append(Action("hero_attack", target=f"enemy:{j}",
-                                       desc=f"英雄（武器 {weapon_atk}攻）攻击第{j+1}位 {t.name}"))
+                                       desc=f"英雄（{hero_atk}攻）攻击第{j+1}位 {t.name}"))
 
     # 帝国之眼在场：每回合可用两次技能，已用过的不能重复
     if me.cthun_uses_left > 0:
@@ -358,8 +360,8 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         return nb
 
     if action.kind == "hero_attack":
-        atk = me.weapon.atk if (me.weapon is not None) else 0
-        if atk <= 0 or me.weapon_attacks_left <= 0:
+        atk = max(me.weapon.atk if (me.weapon is not None) else 0, me.hero_atk)
+        if atk <= 0 or (me.weapon_attacks_left <= 0 and me.hero_attacks_left <= 0):
             return nb
         if action.target == "enemy_hero":
             nb.damage_hero(foe, atk)
@@ -371,7 +373,10 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
             nb.damage_unit(foe, t, atk)
             nb.damage_hero(me, t.atk)        # 打随从要挨反伤
             nb.note(f"英雄用武器攻击 {t.name}")
-        me.weapon_attacks_left -= 1
+        if me.weapon_attacks_left > 0:
+            me.weapon_attacks_left -= 1
+        else:
+            me.hero_attacks_left -= 1
         # 「在你的英雄攻击后」这类武器效果：攻击后再结算
         if me.weapon is not None and me.weapon.card_id and cards is not None:
             wcard = cards.get(me.weapon.card_id)
