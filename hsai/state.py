@@ -312,13 +312,8 @@ class GameState:
             self.player_ids[pid] = eid
             e.controller = pid
             e.tags[T_PLAYER_ID] = pid
-            # 对手的 GameAccountId 是 [hi=0 lo=0]（隐藏），我方是真实账号 ——
-            # 这是判断「哪个玩家是我」最可靠、且不依赖手牌可见性的信号
-            account = d.get("account")
-            if account and account != (0, 0) and not self._our_id_locked:
-                self.our_id, self.opp_id = pid, 3 - pid
-                self._our_id_locked = True
-                self._note(f"我方是玩家 {pid}")
+            # 不按 GameAccountId 判断「谁是我方」：练习模式下两边都有真账号，会判反。
+            # 交给 _track_visibility 用「只有自己的手牌有 card_id」来定。
 
     
         self._track_visibility(e)
@@ -335,13 +330,8 @@ class GameState:
             self.player_ids[pid] = eid
             e.controller = pid
             e.tags[T_PLAYER_ID] = pid
-            # 对手的 GameAccountId 是 [hi=0 lo=0]（隐藏），我方是真实账号 ——
-            # 这是判断「哪个玩家是我」最可靠、且不依赖手牌可见性的信号
-            account = d.get("account")
-            if account and account != (0, 0) and not self._our_id_locked:
-                self.our_id, self.opp_id = pid, 3 - pid
-                self._our_id_locked = True
-                self._note(f"我方是玩家 {pid}")
+            # 不按 GameAccountId 判断「谁是我方」：练习模式下两边都有真账号，会判反。
+            # 交给 _track_visibility 用「只有自己的手牌有 card_id」来定。
 
     def _on_full_entity(self, ev: pl.Event) -> None:
         d = ev.data

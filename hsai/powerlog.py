@@ -270,9 +270,6 @@ def parse_line(line: str, pending_entity: int | None = None) -> Event | None:
         pm = PLAYER_ID_RE.search(body)
         if pm:
             d["player_id"] = int(pm.group("pid"))
-        am = re.search(r"GameAccountId=\[hi=(\d+) lo=(\d+)\]", body)
-        if am:
-            d["account"] = (int(am.group(1)), int(am.group(2)))
         d["role"] = ("game" if body.startswith("GameEntity")
                      else "player" if body.startswith("Player") else "other")
         return Event("entity", d, time)

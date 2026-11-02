@@ -15,7 +15,7 @@
 ```powershell
 python -m hsai ui              # 悬浮窗（双击 启动AI助手.bat 等价）
 python -m hsai ui --demo       # 示例对局，不接游戏
-python -m unittest discover -s tests   # 91 个用例
+python -m unittest discover -s tests   # 92 个用例
 python -m hsai replay <日志>    # 离线解析，输出快照 JSON
 ```
 

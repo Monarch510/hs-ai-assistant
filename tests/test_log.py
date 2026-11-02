@@ -59,6 +59,23 @@ class StateTest(unittest.TestCase):
         self.assertEqual(self.st.our_id, 1)
         self.assertEqual(self.st.opp_id, 2)
 
+    def test_our_id_uses_visible_hand_not_account(self) -> None:
+        """练习模式两边都有真账号：只按 GameAccountId 判断会判反。
+
+        造一个「账号指向对手」的日志：玩家 1 账号被抹掉、玩家 2 保留真账号。
+        谁能看到自己的手牌，谁才是我们。
+        """
+        text = FIXTURE.read_text(encoding="utf-8")
+        # fixture 改了格式就让这条用例先报错，别悄悄变成空转
+        self.assertIn("Player EntityID=2 PlayerID=1 GameAccountId=[hi=144115193835963207 lo=1]", text)
+        text = text.replace(
+            "Player EntityID=2 PlayerID=1 GameAccountId=[hi=144115193835963207 lo=1]",
+            "Player EntityID=2 PlayerID=1 GameAccountId=[hi=0 lo=0]",
+        )
+        st = replay_log_text(text, self.db)
+        self.assertEqual(st.our_id, 1)
+        self.assertEqual(st.opp_id, 2)
+
     def test_classes(self) -> None:
         ours, opp = self.st.sides()
         self.assertEqual(ours.class_cn, "法师")

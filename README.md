@@ -232,7 +232,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 | `sim/__init__.py` | 导出 `match / run_game / greedy_agent / random_agent` 等接口 |
 | `learn.py` | 自主学习三件事：记录对局到 `observations.jsonl`、从自己的对局里聚类出本地环境（自举 meta）、用自对弈坐标轮换爬山优化权重 |
 
-### tests/ —— 91 个用例
+### tests/ —— 92 个用例
 
 `python -m unittest discover tests` 跑全部。`fixtures/` 里两份日志：`sample_game.log`（构造的示例局）和 `real_client_excerpt.log`（真实客户端片段，用来锁解析行为）。
 
@@ -245,7 +245,7 @@ python -m unittest discover tests -p "test_[!s]*.py"
 | 文件 | 覆盖什么 |
 |---|---|
 | `test_advice.py` | 预判概率归一、标志牌改变结论、留牌打分、建议生成、快照组装（用例最多） |
-| `test_log.py` / `test_logwatch.py` | 日志解析与跟随：tag、实体引用、换局重置、路径探测 |
+| `test_log.py` / `test_logwatch.py` | 日志解析与跟随：tag、实体引用、我方判定（看手牌不看账号）、换局重置、路径探测 |
 | `test_policy_rules.py` / `test_risk.py` / `test_race.py` | 斩杀线、风险提示、抢血/解场模式切换 |
 | `test_refs.py` | 实体引用四种形态的解析 |
 | `test_cards.py` / `test_deckcode.py` | 卡牌库加载、卡组代码往返编解码 |
