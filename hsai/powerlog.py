@@ -368,6 +368,11 @@ def _parse_block_start(body: str, time: str) -> Event:
         d["entity"] = ref.get("id")
     if (tm := re.search(r"Target=(\d+)", body)) and tm.group(1) != "0":
         d["target"] = int(tm.group(1))
+    elif tm2 := re.search(r"Target=\[([^\]]+)\]", body):
+        # 攻击块的 Target 是实体引用（带名字），拿到它才知道打的是谁
+        tref = parse_entity_ref("[" + tm2.group(1) + "]")
+        if tref:
+            d["target_ref"] = tref
     if (em := re.search(r"EffectCardId=(\w*)", body)) and em.group(1):
         d["effect_card_id"] = em.group(1)
     return Event("block_start", d, time)

@@ -51,6 +51,7 @@ OBSERVATIONS_JSONL = DATA_DIR / "observations.jsonl"   # 每局的职业/已见�
 GAMES_JSONL = DATA_DIR / "games.jsonl"                 # 完整对局记录
 LAST_REVIEW_JSON = DATA_DIR / "last_review.json"       # 上一局复盘（窗口收起时显示）
 ADVICE_LOG_JSONL = DATA_DIR / "advice_log.jsonl"       # 发出去的每条建议
+ADVICE_FEEDBACK_JSONL = DATA_DIR / "advice_feedback.jsonl"  # 「不赞同」回合的 AI 复盘
 
 
 # ---------- 长期记忆 ----------

@@ -46,9 +46,29 @@ def load_config() -> dict[str, Any]:
     return cfg
 
 
-def is_ready() -> bool:
-    cfg = load_config()
+def enabled(cfg: dict[str, Any]) -> bool:
+    """开关打开、且配了 key，才值得发请求 —— 否则白等 12 秒超时。"""
     return bool(cfg.get("enabled") and cfg.get("api_key"))
+
+
+def is_ready() -> bool:
+    return enabled(load_config())
+
+
+def json_array(text: str) -> list[Any]:
+    """从模型回复里抠出 JSON 数组，失败返回空列表。
+
+    模型常把数组包在 ``` 里，或前后加一句「以下是结果」。所以按第一个 `[`
+    到最后一个 `]` 截取，而不是指望整段就是合法 JSON。
+    """
+    body = (text or "").strip().strip("`")
+    start, end = body.find("["), body.rfind("]")
+    if start < 0 or end <= start:
+        return []
+    try:
+        return json.loads(body[start:end + 1])
+    except ValueError:
+        return []
 
 
 def build_prompt(snap: dict[str, Any]) -> str:
@@ -291,23 +311,13 @@ def review(snap: dict[str, Any], summary: str,
            missed_lethal: bool = False) -> list[str]:
     """对局结束后总结 1-3 条具体教训。失败返回空列表。"""
     cfg = cfg or load_config()
-    if not (cfg.get("enabled") and cfg.get("api_key")):
+    if not enabled(cfg):
         return []
     text = chat([
         {"role": "system", "content": REVIEW_SYSTEM},
         {"role": "user", "content": summary},
     ], cfg, max_tokens=200)
-    if not text:
-        return []
-    body = text.strip().strip("`")
-    start, end = body.find("["), body.rfind("]")
-    if start < 0 or end <= start:
-        return []
-    try:
-        items = json.loads(body[start:end + 1])
-    except ValueError:
-        return []
-    out = [str(x)[:60] for x in items if isinstance(x, str)]
+    out = [str(x)[:60] for x in json_array(text) if isinstance(x, str)]
     return [x for x in out if _lesson_is_sound(x, missed_lethal)][:3]
 
 
@@ -376,7 +386,7 @@ def decide_and_explain(
     合并成一次调用：延迟从 1.8 秒降到约 1 秒，成本也减半。
     """
     cfg = cfg or load_config()
-    if not (cfg.get("enabled") and cfg.get("api_key")) or not actions:
+    if not enabled(cfg) or not actions:
         return None
     prompt = build_decision_prompt(snap, actions)
     if conv is not None:
@@ -461,7 +471,7 @@ def plan_route(
 ) -> dict[str, Any] | None:
     """让 AI 给出一整回合的路线（含站位）。"""
     cfg = cfg or load_config()
-    if not (cfg.get("enabled") and cfg.get("api_key")) or not actions:
+    if not enabled(cfg) or not actions:
         return None
     prompt = build_decision_prompt(snap, actions)
     if conv is not None:
@@ -507,18 +517,8 @@ RULES_SYSTEM = (
 
 
 def parse_rules(text: str) -> list[dict[str, Any]]:
-    if not text:
-        return []
-    body = text.strip().strip("`")
-    start, end = body.find("["), body.rfind("]")
-    if start < 0 or end <= start:
-        return []
-    try:
-        items = json.loads(body[start:end + 1])
-    except ValueError:
-        return []
     out: list[dict[str, Any]] = []
-    for row in items:
+    for row in json_array(text):
         if not isinstance(row, dict) or not row.get("regex"):
             continue
         if not isinstance(row.get("effect"), dict):
@@ -536,7 +536,7 @@ def effects_rules(unmodelled: list[dict[str, Any]],
                   cfg: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """给未建模的牌请求规则建议。返回候选规则列表。"""
     cfg = cfg or load_config()
-    if not (cfg.get("enabled") and cfg.get("api_key")) or not unmodelled:
+    if not enabled(cfg) or not unmodelled:
         return []
     lines = ["需要补规则的卡牌："]
     for item in unmodelled[:4]:
@@ -560,5 +560,3 @@ def _load_existing_patterns() -> list[dict[str, Any]]:
         return list(data.get("patterns") or [])
     except (OSError, ValueError):
         return []
-
-

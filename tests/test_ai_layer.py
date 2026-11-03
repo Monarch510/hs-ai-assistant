@@ -26,6 +26,26 @@ class DecisionParseTest(unittest.TestCase):
         self.assertIsNone(ai.parse_decision("", 3))
 
 
+class JsonArrayTest(unittest.TestCase):
+    """模型回复的三种常见形态：裸数组、包在 ``` 里、前后带解释。"""
+
+    def test_plain_array(self) -> None:
+        self.assertEqual(ai.json_array('[1, 2]'), [1, 2])
+
+    def test_fenced_block(self) -> None:
+        self.assertEqual(ai.json_array('```json\n[{"a": 1}]\n```'), [{"a": 1}])
+
+    def test_surrounded_by_prose(self) -> None:
+        self.assertEqual(ai.json_array('结果如下：\n["x"]\n以上。'), ["x"])
+
+    def test_invalid_returns_empty(self) -> None:
+        self.assertEqual(ai.json_array("[不是 JSON]"), [])
+
+    def test_empty_returns_empty(self) -> None:
+        self.assertEqual(ai.json_array(""), [])
+        self.assertEqual(ai.json_array(None), [])  # type: ignore[arg-type]
+
+
 class LessonsTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp()) / "lessons.jsonl"

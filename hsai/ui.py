@@ -26,6 +26,7 @@ from typing import Any
 
 from .advisor import Advisor, board_from_state
 from . import ai as ai_mod
+from . import feedback as feedback_mod
 from . import effects_ai
 from . import logutil
 from . import memory
@@ -33,7 +34,9 @@ from . import policy as policy_mod
 from . import cards as cards_mod
 from .cards import CardDB
 from .live import SourceManager
-from .paths import ADVICE_LOG_JSONL, DATA_DIR, LAST_REVIEW_JSON, WINDOW_JSON
+from .paths import (
+    ADVICE_FEEDBACK_JSONL, ADVICE_LOG_JSONL, DATA_DIR, LAST_REVIEW_JSON, WINDOW_JSON,
+)
 from .state import GameState
 
 STATE_PATH = WINDOW_JSON
@@ -134,6 +137,10 @@ class Overlay:
         self._last_review = self._load_last_review()
         self._rule_report: list[str] = []
         self._ai_lessons: list[str] = []
+        # 被点了「不赞同」的回合（局后交给 AI 分析）
+        self._disagree_turns: set[int] = set()
+        self._feedback_items: list[dict[str, str]] = []
+        self._advice_by_turn: dict[int, dict[str, Any]] = {}
         self._effect_done: set[str] = set()      # 已处理过的牌名
         self._effect_report: list[str] = []      # 本局的规则补充结果
         self._effect_busy = False
@@ -424,8 +431,15 @@ class Overlay:
         snap["demo"] = self.manager.is_demo
         snap["source"] = self.manager.name
         self._last_snap = snap
+        self._cur_turn = int(snap.get("turn") or 0)
+        _acts = snap.get("actions") or []
+        if _acts and self._cur_turn:
+            rec = self._advice_by_turn.setdefault(self._cur_turn, {})
+            rec["actions"] = list(_acts)
         if snap.get("phase") == "mulligan" and (snap.get("turn") or 0) <= 1:
             self._ai_lessons = []                # 上一局的 AI 教训不能带到这局
+            self._disagree_turns = set()          # 不赞同标记也只属于一局
+            self._advice_by_turn = {}
             self._effect_done.clear()
             self._effect_report = []
             self._rule_report = []
@@ -633,6 +647,16 @@ class Overlay:
             tk.Label(inner, text=str(line), bg=PANEL, fg=TEXT_SOFT,
                      font=(FONT, self.font_size - 1), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x", pady=1)
+        # 被标「不赞同」的回合，AI 给出的教训 + 规则建议
+        for item in (getattr(self, "_feedback_items", []) or [])[:3]:
+            tk.Label(inner, text="不赞同复盘：" + str(item.get("lesson") or ""),
+                     bg=PANEL, fg="#e3b341", font=(FONT, self.font_size - 2),
+                     anchor="w", justify="left", wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
+            if item.get("rule"):
+                tk.Label(inner, text="→ " + str(item["rule"]), bg=PANEL, fg=MUTED,
+                         font=(FONT, self.font_size - 3), anchor="w", justify="left",
+                         wraplength=self.width - 46).pack(fill="x")
+
         lessons = [str(x) for x in (getattr(self, "_ai_lessons", []) or []) if str(x).strip()]
         # 只显示和这局对手职业对得上的教训（教训里会提到职业名）
         opp_cn = str((rev.get("opp_class") and cards_mod.CLASS_CN.get(str(rev.get("opp_class")), "")) or "")
@@ -854,6 +878,36 @@ class Overlay:
                 report.append(detail[:80])
         return report[:3]
 
+    def _feedback_worker(self) -> None:
+        """对被标「不赞同」的回合做一次复盘，写进 advice_feedback.jsonl。"""
+        cases = []
+        for turn in sorted(self._disagree_turns):
+            rec = self._advice_by_turn.get(turn) or {}
+            if not rec:
+                continue
+            cases.append({
+                "turn": turn,
+                "mana": rec.get("mana"),
+                "board": rec.get("board"),
+                "foe_board": rec.get("foe_board"),
+                "hand": rec.get("hand"),
+                "advice": rec.get("advice"),
+                "played": rec.get("actions") or [],
+            })
+        if not cases:
+            return
+        try:
+            summary = feedback_mod.build_summary(cases)
+            items = feedback_mod.feedback(summary)
+            if not items:
+                return
+            self._feedback_items = list(items)
+            rec = {"ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "cases": cases, "items": items}
+            with open(ADVICE_FEEDBACK_JSONL, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        except Exception as exc:
+            self._log(f"feedback worker failed: {exc}")
+
     def _ai_review_worker(self, snap: dict[str, Any]) -> None:
         """对局结束：让 AI 总结教训，写进本地 lessons.jsonl（不进仓库）。"""
         try:
@@ -876,6 +930,8 @@ class Overlay:
             lessons = ai_mod.review(snap, summary, missed_lethal=missed)
             self._rule_report = list(self._effect_report)
             self._ai_lessons = list(lessons or [])
+            if self._disagree_turns:
+                threading.Thread(target=self._feedback_worker, daemon=True).start()
             if lessons:
                 memory.add_lessons(lessons, {
                     "our_class": str((snap.get("our") or {}).get("class_en") or ""),
@@ -944,6 +1000,12 @@ class Overlay:
                     "advice": [l.get("title") for l in lines],
                     "reason": [l.get("reason") for l in lines],
                 }
+                # 同一回合的建议留一份在内存里，局后被标「不赞同」时要拿它对照
+                self._advice_by_turn[int(rec["turn"] or 0)] = {
+                    "advice": rec["advice"], "hand": rec["hand"],
+                    "board": rec["board"], "foe_board": rec["foe_board"],
+                    "mana": rec["mana"],
+                }
                 path = ADVICE_LOG_JSONL
                 with open(path, "a", encoding="utf-8") as fh:
                     fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -955,6 +1017,7 @@ class Overlay:
                 self._log(f"advice log failed: {exc}")
 
     def _render(self, snap: dict[str, Any]) -> None:
+        self._cur_turn = int(snap.get("turn") or 0)
 
         # 局面一变：作废旧建议，并把这条建议记进 advice_log.jsonl
         sig = (
@@ -1256,6 +1319,24 @@ class Overlay:
                          anchor="w", justify="left", wraplength=self.width - 46).pack(fill="x", padx=(28, 0))
 
     # --- 建议
+    def _disagree_button(self, parent, turn: int) -> None:
+        """建议行末尾的「不赞同」标记：点一下标红，再点取消。"""
+        marked = turn in self._disagree_turns
+        lbl = tk.Label(parent, text="👎" if not marked else "👎✓",
+                       bg=PANEL, fg=RED if marked else "#5b636e",
+                       cursor="hand2", font=(FONT, self.font_size - 2))
+        lbl.pack(side="right", padx=(4, 0))
+        lbl.bind("<Button-1>", lambda _e, t=turn: self._toggle_disagree(t))
+
+    def _toggle_disagree(self, turn: int) -> None:
+        if not turn:
+            return
+        if turn in self._disagree_turns:
+            self._disagree_turns.discard(turn)
+        else:
+            self._disagree_turns.add(turn)
+        self._last_sig = None      # 下一帧会重画
+
     def _render_advice(self, advice: dict[str, Any]) -> None:
         lines = advice.get("lines") or []
         if not lines and not advice.get("lethal"):
@@ -1292,6 +1373,8 @@ class Overlay:
             tk.Label(head, text=line.get("title") or "", bg=PANEL, fg=TEXT if first else MUTED,
                      font=(FONT, self.font_size - 1 + (1 if first else 0), "bold" if first else "normal"),
                      anchor="w", justify="left", wraplength=self.width - 70).pack(side="left", padx=(5, 0))
+            if first:
+                self._disagree_button(head, int(getattr(self, "_cur_turn", 0) or 0))
             score = line.get("score")
             if score:
                 tk.Label(head, text=str(score), bg=PANEL, fg=GOLD if first else MUTED,

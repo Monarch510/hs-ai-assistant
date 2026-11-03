@@ -230,6 +230,8 @@ class GameState:
         self._first_player_name: str | None = None
         self._choice_player_name: str | None = None
         self.turn_events: list[str] = []
+        # 每回合我方真正做了什么（局后对照建议用）
+        self.turn_actions: dict[int, list[str]] = {}
         self._hero_entities: dict[int, int] = {}
         self._name_player: dict[str, int] = {}
         self._first_player_id: int | None = None
@@ -262,6 +264,16 @@ class GameState:
             # 有些日志片段没有 CREATE_GAME 头，也尽量解析
             self.game_started = True
             self.phase = "mulligan"
+        if kind == "block_start" and (ev.data.get("type") or "") == "ATTACK":
+            r = ev.data.get("ref") or {}
+            t = ev.data.get("target_ref") or {}
+            if r.get("controller") == self.our_id and r.get("name") and t.get("name"):
+                # 同一次攻击会被 GameState / PowerTaskList 各打一遍，按「回合+双方」去重
+                key = (self.turn, r.get("id"), t.get("id"))
+                if key != getattr(self, "_last_attack_key", None):
+                    self._last_attack_key = key
+                    self.turn_actions.setdefault(self.turn, []).append(f"{r['name']} 攻击 {t['name']}")
+            return
         if kind == "choice_sent":
             self._on_choice_sent(ev)
             return
@@ -668,8 +680,15 @@ class GameState:
         if len(only) != 1:
             return
         pid = only[0]
+        # 只有「当前认定的我方手牌一张都看不到」时才翻，避免对手回合来回跳
+        if visible.get(self.our_id, 0) > 0:
+            return
+        # 一旦按可见手牌定过身份，就不再翻：中途翻面会让建议忽有忽无
+        if getattr(self, "_id_by_hand_done", False):
+            return
         if self.our_id != pid:
             self.our_id, self.opp_id = pid, 3 - pid
+            self._id_by_hand_done = True
             self._note(f"按可见手牌校正：我方是玩家 {pid}")
 
     def _bind_pending_names(self) -> None:
@@ -764,6 +783,7 @@ class GameState:
                         self._note(f"我方打出 {name}")
                         if e.card_id:
                             self.our_played.append(e.card_id)
+                            self.turn_actions.setdefault(self.turn, []).append(f"打出 {name}")
                             if prev == ZONE_HAND:
                                 self.our_hand_played.append(e.card_id)
         elif new == ZONE_GRAVE:
@@ -773,18 +793,15 @@ class GameState:
     def _on_choice_sent(self, ev: pl.Event) -> None:
         """玩家提交的选择。克苏恩四技能只在这里能知道「到底选了哪个」。"""
         src = self._choice_source or {}
-        src_card = str(src.get("card_id") or "")
-        src_id = src.get("id")
-        # 本体是「克苏恩，帝国之眼」(BE_013)，不是叫「克苏恩」的那张 8 费旧卡
-        if not src_id or src_card != "BE_013":
-            # 子嗣/法术触发的技能：任何时候都能四选一，也永远不翻倍
-            return
+        # 不管是谁触发的，用掉一个技能就记一次：
+        # 这样本体触发时「四个技能各用过一次」才可能成立，从而翻 3 倍。
+        # （触发者本身是不是本体，只影响「这一次是否翻倍」，不影响计数）
         for ref in ev.data.get("refs") or []:
             cid = ref.get("card_id") or ""
             card = self.cards.get(cid) if (self.cards and cid) else None
             name = card.name if card else ""
             if name in self.CTHUN_SKILLS:
-                self.cthun_by_source.setdefault(int(src_id), set()).add(name)
+                self.cthun_used.add(name)
 
     def _on_choices(self, ev: pl.Event) -> None:
         """发现/抉择/弃牌：记录待选选项。MULLIGAN 由留牌模块单独处理。"""
@@ -826,7 +843,11 @@ class GameState:
         if not cand:
             cand = [r for r in refs
                     if r.get("card_id") and r.get("zone") == ZONE_PLAY]
+        src_id = (self._choice_source or {}).get("id")
         for ref in cand:
+            # 触发源自己（本体）会被客户端列进选项里，它不是可选项
+            if src_id and ref.get("id") == src_id:
+                continue
             cid = ref.get("card_id")
             entry = {"id": cid, "name": self._name(cid), "eid": ref.get("id")}
             if all(o["eid"] != entry["eid"] for o in self.choice["options"]):
@@ -1092,7 +1113,7 @@ class GameState:
                     break
         if key is None:
             key = self._choice_source.get("id")
-        used = sorted(self.cthun_by_source.get(key, set())) if key else []
+        used = set(self.cthun_used)
         ordered = [s for s in self.CTHUN_SKILLS if s in used]
         return {"used": ordered, "count": len(ordered), "total": 4,
                 "tripled": len(ordered) >= 4}
@@ -1122,6 +1143,7 @@ class GameState:
             "dormant": e.tags.get("DORMANT") in (1, "1", True),
             "attackable": e.tags.get("ATTACKABLE"),
             "woke_turn": self.woke_turn.get(e.id),
+            "attacks_used": _int(e.tags.get(T_ATTACKS_THIS_TURN)) or 0,
             "played_turn": self.played_turn.get(e.id),
             "turn_now": self.turn,
             "keyword": card.keyword_cn if card else "",

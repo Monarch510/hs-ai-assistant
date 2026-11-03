@@ -99,6 +99,7 @@ class Effect:
     buff_hp: int = 0
     destroy: bool = False
     steal: bool = False       # 夺取控制权
+    pending_buff: int = 0     # 延迟加成：下一个随从 +N/+N（玛维）
     buff_hand: bool = False   # 顺带 buff 手牌里的随从
     summon_self: bool = True  # 召唤给施法方
     summon_opp: bool = False  # 召唤给对方（「为每个玩家召唤」）
@@ -129,6 +130,18 @@ def _as_int(v) -> int:
         m = re.search(r"-?\d+", v)
         return int(m.group(0)) if m else 0
     return 0
+
+
+def warden_buff(unit, cards_ref) -> int:
+    """场上的「在你使用一张随从牌后，使其获得+X/+X并休眠」光环，返回 X。"""
+    if cards_ref is None or unit is None or not getattr(unit, "card_id", ""):
+        return 0
+    card = cards_ref.get(unit.card_id)
+    text = (card.text if card else "") or ""
+    if "使用一张随从牌后" not in text or "休眠" not in text:
+        return 0
+    eff = parse_effect(card)
+    return int(eff.pending_buff or 0) or 3
 
 
 def parse_effect(card: Card) -> Effect:
@@ -288,6 +301,14 @@ def parse_effect(card: Card) -> Effect:
         eff.known = True
         eff.note = "回溯：暂按无效果处理"
         return eff
+    # 「在你使用一张随从牌后，使其获得+X/+Y并使其休眠」：加成是延迟的，且目标会休眠，
+    # 不能当成现在就到手的属性（否则这张牌会被严重高估）
+    if "使用一张随从牌后" in text and "休眠" in text:
+        # 加成不是现在到手，而是「下一个随从」吃到；同时那个随从会休眠一回合
+        eff.pending_buff = max(eff.pending_buff, eff.buff_atk or 3)
+        eff.buff_atk, eff.buff_hp = 0, 0
+        eff.buff_hand = False
+        eff.note = "下一个随从 +N/+N（会休眠一回合）"
     eff.known = bool(
         eff.damage or eff.heal or eff.draw or eff.buff_atk or eff.buff_hp
         or eff.destroy or eff.summon_atk or eff.summon_hp or eff.summon_count > 1
@@ -741,8 +762,12 @@ def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: fl
     me, foe = board.sides[perspective], board.sides[1 - perspective]
 
     # 武器也是「能持续输出的资源」：按攻击力计价，耐久略加权
-    my_val = sum(u.value for u in me.board if u.alive)
-    foe_val = sum(u.value for u in foe.board if u.alive)
+    # 休眠的随从这回合动不了，价值打折（玛维的 +3/+3 代价就在这里）
+    def _bval(units):
+        return sum(u.value * (0.6 if u.dormant else 1.0) for u in units if u.alive)
+
+    my_val = _bval(me.board)
+    foe_val = _bval(foe.board)
     if me.weapon is not None:
         my_val += me.weapon.atk * 1.2 + max(0, me.weapon.hp) * 0.25
     if foe.weapon is not None:
@@ -758,6 +783,11 @@ def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: fl
     # 摆位会影响相邻光环的价值，这样「第几位」才有意义
     score += w["tempo"] * (_adjacency_value(me) - _adjacency_value(foe))
     score += w["face"] * ((30 - foe.hero_hp - foe.armor) - (30 - me.hero_hp - me.armor)) * 0.5
+    # 场上有「之后每个随从 +X/+X」的光环（玛维）：按每只随从能吃到一次估
+    for _u in me.board:
+        if _u.alive and warden_buff(_u, getattr(board, "cards", None)) > 0:
+            score += 1.6
+            break
     score += w["hand"] * (resource_score(me) - resource_score(foe)) * 1.2
     score += w["health"] * ((me.hero_hp + me.armor) - (foe.hero_hp + foe.armor)) * 0.35
     score += w["taunt"] * blocked * -0.4

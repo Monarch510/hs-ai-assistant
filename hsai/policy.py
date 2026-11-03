@@ -20,6 +20,7 @@ from typing import Any
 
 from .cards import Card, CardDB
 from .model import (
+    warden_buff,
     Board,
     Effect,
     Unit,
@@ -467,6 +468,19 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
             # 突袭：入场当回合就能动，但只能吃随从，不能打脸
             u.attacks_left = 1 if u.rush else 0
             u.rush_only = u.rush
+        # 场上有玛维这类光环：之后每个打出的随从都 +N/+N，但要休眠一回合
+        _wb = 0
+        for _u2 in me.board:
+            _n = warden_buff(_u2, cards)
+            if _n > _wb:
+                _wb = _n
+        if _wb:
+            u.atk += _wb
+            u.hp += _wb
+            u.max_hp += _wb
+            u.dormant = True
+            u.attacks_left = 0
+            nb.note(f"{u.name} 获得 +{_wb}/+{_wb}，休眠一回合")
         if 0 <= action.pos <= len(me.board):
             me.board.insert(action.pos, u)      # 按建议的位置放置
         else:
@@ -743,6 +757,27 @@ def plan_turn(
             if raw <= 0.01 and nb.sides[1 - side].hero_hp > 0:
                 continue          # 什么也没改变的动作（例如没有效果的英雄技能）不参与排序
             gain = raw + PRIORITY_BONUS.get(categorize(act, working, nb, side), 0.0)
+            # 抽到的牌比看起来值钱：一张牌 ≈ 1.2，比 1 点血量（0.55）更该被看重
+            if act.kind == "play":
+                before = len(working.sides[side].hand) - 1      # 打出去那张不在手里
+                drawn = len(nb.sides[side].hand) - max(0, before)
+                if drawn > 0:
+                    gain += drawn * 1.2
+            if (mode == "trade" and act.kind == "attack"
+                    and (act.target or "").startswith("enemy:")):
+                # 解场模式：两个交换都不亏时，优先解威胁更大的那只。
+                # 光看评分会为了少挨 1 点反伤去解 1/2，放着 2/2 继续打脸。
+                try:
+                    j = int((act.target or "").split(":", 1)[1])
+                    tgt = working.sides[1 - side].board[j]
+                    atker = working.sides[side].board[act.unit_idx]
+                except (ValueError, IndexError):
+                    tgt = atker = None
+                if tgt is not None and atker is not None and tgt.alive:
+                    kills = tgt.hp <= atker.atk + (0 if not atker.poisonous else tgt.hp)
+                    survives = atker.hp > tgt.atk or atker.divine or atker.poisonous
+                    if kills and survives:
+                        gain += unit_threat(tgt, cards, working, 1 - side) * 0.6
             if act.kind == "attack" and (act.target or "").startswith("enemy:"):
                 # 并列时用更不值钱的那只去换，保住高价值随从
                 attacker = working.sides[side].board[act.unit_idx] \
@@ -753,6 +788,18 @@ def plan_turn(
             if best is None or gain > best[0]:
                 best = (gain, act, nb)
         if best is None:
+            # 没有“有收益”的动作，但手里还有能打出的牌（比如 0 费奥秘）：
+            # 别直接说“结束回合”，先把它打出去。
+            fallback = [a for a in acts
+                        if a.kind == "play" and a.cost <= working.sides[side].mana]
+            if fallback and not plan:
+                pick = min(fallback, key=lambda a: a.cost)
+                nb2 = apply_action(working, side, pick, cards)
+                plan.append({"desc": pick.desc,
+                             "reason": "没有更好的选择，能打就先打掉",
+                             "gain": 0.0})
+                working = nb2
+                continue
             break
         gain, act, nb = best
         reason = _reason(working, nb, act, side)
@@ -1009,6 +1056,16 @@ def score_choice(card, effect, board: Board, side: int, mana: int,
         if effect.armor:
             score += 0.7
             reasons.append("加甲")
+        if (effect.summon_atk or effect.summon_hp) and effect.summon_count:
+            # 召唤类（克苏恩的仆从：两个 2/3 嘲讽）之前完全没算分
+            n = max(1, int(effect.summon_count))
+            per = effect.summon_atk * 1.25 * mult + effect.summon_hp * mult
+            if "嘲讽" in ((getattr(card, "text", "") or "")):
+                per *= 1.2
+            if per > 0:
+                score += per * n * 0.7
+                reasons.append(f"召唤 {n} 个 {effect.summon_atk * mult}/{effect.summon_hp * mult}")
+
         if effect.mana:
             score += 1.2
             reasons.append("加费")
@@ -1057,6 +1114,54 @@ def score_choice(card, effect, board: Board, side: int, mana: int,
     return score, "，".join(reasons[:3])
 
 
+def _cthun_choice(board: Board, side: int, options: list, cards: CardDB
+) -> tuple[int, str] | None:
+    """克苏恩四技能：按优先级排序，同档时优先「还没用过」的那个。
+
+    优先级（用户定的）：
+      ① 抢血 / 对面随从多 → 愤怒
+      ② 我方 ≥2 个随从   → 领域
+      ③ 缺血 / 对面有大随从 → 凝视
+      ④ 其余             → 仆从
+    用过的技能照样能选，只是排在同档未用过的后面。
+    """
+    me, foe = board.sides[side], board.sides[1 - side]
+    names = [str(o.get("name") or "") for o in options]
+    used = set(getattr(me, "cthun_used", set()) or set())
+
+    race = race_plan(board, side, cards, 1.5)
+    my_minions = [u for u in me.board if u.alive]
+    foe_minions = [u for u in foe.board if u.alive]
+    foe_atk = sum(u.atk for u in foe_minions if not u.dormant)
+    need_heal = me.hero_hp <= max(12, foe_atk + 4)
+    big = max(foe_minions, key=lambda u: u.atk, default=None)
+
+    tiers: dict[str, tuple[int, str]] = {}
+    if race["mode"] == "race":
+        tiers["克苏恩的愤怒"] = (1, "抢血：愤怒铺伤害")
+    if len(foe_minions) >= 3:
+        tiers["克苏恩的愤怒"] = (1, "解场：愤怒铺开打多个随从")
+    if len(my_minions) >= 2:
+        tiers["克苏恩的领域"] = (2, "两个随从吃满 +2/+3")
+    if need_heal or (big is not None and big.atk >= 4):
+        tiers["克苏恩的凝视"] = (3, "凝视：解掉大随从并回血")
+    tiers.setdefault("克苏恩的仆从", (4, "仆从：两个 2/3 嘲讽铺场护脸"))
+
+    best: tuple[int, int, int, str] | None = None
+    for i, n in enumerate(names):
+        if not n:
+            continue
+        tier, why = tiers.get(n, (5, "克苏恩技能"))
+        rank = 0 if n not in used else 1          # 同档时未用过的优先
+        cand = (tier, rank, i, why)
+        if best is None or cand[:3] < best[:3]:
+            best = cand
+    if best is None:
+        return None
+    return best[2], best[3]
+
+
+
 def pick_choice(options: list, board: Board, cards, side: int, mana: int,
                 *, deck_cards=None, opp_fast: bool = False,
                 tripled: bool = False) -> tuple[int, str, float]:
@@ -1074,6 +1179,16 @@ def pick_choice(options: list, board: Board, cards, side: int, mana: int,
     hand_spells = sum(1 for c in board.sides[side].hand
                       if c is not None and getattr(c, "type", "") == "SPELL")
     scored: list[tuple[float, int, str]] = []
+    # 克苏恩四技能：按用户定的优先级选，不走打分
+    skill_pairs = [(i, o) for i, o in pairs
+                   if str(o.get("name")) in CTHUN_SKILL_NAMES]
+    if len(skill_pairs) >= 2:
+        ruled = _cthun_choice(board, side, [o for _, o in skill_pairs], cards)
+        if ruled is not None:
+            pick, why = ruled
+            orig_idx = skill_pairs[pick][0]
+            return orig_idx, why, 9.9
+
     for idx, opt in pairs:
         card = cards.by_name_or_id(str(opt.get("name") or ""))
         effect = parse_effect(card) if card is not None else Effect(known=False)

@@ -17,6 +17,7 @@ data/observations.jsonl
 data/games.jsonl
 data/last_review.json
 data/advice_log.jsonl
+data/advice_feedback.jsonl
 
 # 长期记忆
 data/lessons.jsonl*

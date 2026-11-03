@@ -50,6 +50,22 @@ def _load_json(path: Path) -> dict[str, Any]:
         return {}
 
 
+def _attacks_left(card, view: dict[str, Any]) -> int:
+    """这回合还能攻击几次。风怒 2 次，普通 1 次，要减掉已经打过的。"""
+    if _woke_this_turn(card, view):
+        return 0
+    if view.get("woke_turn") is not None and view.get("woke_turn") == view.get("turn_now"):
+        return 0
+    if not (view.get("attackable") or view.get("can_attack")):
+        # 客户端说不能攻击时，风怒且已打过一次的还可能剩一次
+        used = int(view.get("attacks_used") or 0)
+        total = 2 if (card is not None and card.has("WINDFURY")) else 1
+        return max(0, total - used) if used else 0
+    total = 2 if (card is not None and card.has("WINDFURY")) else 1
+    used = int(view.get("attacks_used") or 0)
+    return max(0, total - used)
+
+
 def _woke_this_turn(card, view: dict[str, Any]) -> bool:
     """休眠随从是不是本回合刚醒——刚醒的这回合不能攻击。"""
     text = (card.text or "") if card is not None else ""
@@ -98,10 +114,7 @@ def _unit_from_view(view: dict[str, Any], cards: CardDB) -> Unit:
         lifesteal=bool(card and card.has("LIFESTEAL")),
         poisonous=bool(card and card.has("POISONOUS")),
         spell_damage=0,
-        attacks_left=(0 if (_woke_this_turn(card, view)
-                            or (view.get("woke_turn") is not None
-                                and view.get("woke_turn") == view.get("turn_now")))
-                      else (1 if (view.get("attackable") or view.get("can_attack")) else 0)),
+        attacks_left=_attacks_left(card, view),
     )
 
 
@@ -196,9 +209,8 @@ def board_from_state(st: GameState) -> Board:
     rule = _PASSIVE_RULE
     if rule:
         me.passive_rule = rule
-        played = [st.cards.get(cid) for cid in (st.our_played or [])]
-        me.minions_played = sum(1 for c in played
-                                if c is not None and getattr(c, "type", "") == "MINION")
+        # 只数「从手牌打出的随从」，召唤物不算（和面板上的计数器同源）
+        me.minions_played = int(getattr(st, "our_minions_played", 0) or 0)
 
     # 牌库内容我们看不到，但「还剩几张」影响摸牌与疲劳，用占位牌补齐
     me.deck = _unknown_cards(ours.deck_count or max(0, 30 - len(me.hand) - len(me.board)))
@@ -212,7 +224,14 @@ def board_from_state(st: GameState) -> Board:
             me.hero_atk = int(_hero.tags.get("ATK") or 0)
         except (TypeError, ValueError):
             me.hero_atk = 0
-        me.hero_attacks_left = 1 if str(_hero.tags.get("EXHAUSTED", 0)) in ("0", "None") else 0
+        # 风怒武器/风怒光环下英雄能攻击两次：按「总次数 − 已攻击」算
+        _wind = bool(_hero.tags.get("WINDFURY")) or bool(
+            (ours.weapon or {}).get("id")
+            and st.cards.get((ours.weapon or {}).get("id"))
+            and st.cards.get((ours.weapon or {}).get("id")).has("WINDFURY"))
+        _total = 2 if _wind else 1
+        _used = int(_hero.tags.get("NUM_ATTACKS_THIS_TURN") or 0)
+        me.hero_attacks_left = max(0, _total - _used)
 
     if hp_view.get("id") and st.cards:
         me.hero_power = st.cards.get(hp_view["id"])
@@ -299,6 +318,8 @@ class Advisor:
             "feed": list(st.feed)[-10:],
             "choice": self._choice_view(st),
             "cthun": st.cthun_view(),
+            # 这一回合我方实际做了什么（出牌 / 攻击），局后对照建议用
+            "actions": list(getattr(st, "turn_actions", {}).get(st.turn, [])),
             # 被动英雄技能的计数器（如「每使用五张随从牌」）
             "passive": {"name": (ours.hero_power or {}).get("name") or "",
                         "played": int(getattr(st, "our_minions_played", 0) or 0),
@@ -419,7 +440,10 @@ class Advisor:
         board = board_from_state(st)
         # 用推断出来的回合归属：turn_owner 在日志里常常是 None，
         # 直接比较会让引擎永远以为「对手回合」，从而不给任何出牌建议
-        turn_owner_ours = st.effective_turn_owner() == st.our_id
+        # 日志里的 TURN 标签最权威；拿不到时才用推断值。
+        # 只要不是我们的回合，就一个字都不给。
+        _owner = st.turn_owner if st.turn_owner in (1, 2) else st.effective_turn_owner()
+        turn_owner_ours = _owner == st.our_id
         if not turn_owner_ours:
             # 对手回合不给出牌建议：他的场面马上会被改掉，这时候的建议没意义。
             # 「他刚打了什么」放到对手预判那块显示。

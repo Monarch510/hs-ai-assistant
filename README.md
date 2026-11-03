@@ -223,6 +223,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 |---|---|
 | `ai.py` | AI 客户端。出牌建议永远来自 `policy.py`，这里只负责复盘教训和「为什么这么打」的人话解释。只在回合变化时调一次，失败静默降级 |
 | `effects_ai.py` | 让 AI 补卡牌效果正则，但**三道闸门**验证：目标牌必须从「未建模」变「能解析」、已能解析的牌结果一个都不能变、单条规则最多新覆盖 3 张牌。通过才写进 `data/effects.json`（先备份） |
+| `feedback.py` | 对被点了「不赞同」的回合做复盘：输入是「引擎建议 vs 实际打法」，产出教训和可落地规则。提示词和 `ai.py` 的对局复盘不同，所以单独一层 |
 
 **自对弈与学习**
 
@@ -232,7 +233,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 | `sim/__init__.py` | 导出 `match / run_game / greedy_agent / random_agent` 等接口 |
 | `learn.py` | 自主学习三件事：记录对局到 `observations.jsonl`、从自己的对局里聚类出本地环境（自举 meta）、用自对弈坐标轮换爬山优化权重 |
 
-### tests/ —— 97 个用例
+### tests/ —— 106 个用例
 
 `python -m unittest discover tests` 跑全部。`fixtures/` 里两份日志：`sample_game.log`（构造的示例局）和 `real_client_excerpt.log`（真实客户端片段，用来锁解析行为）。
 
@@ -280,6 +281,7 @@ python -m unittest discover tests -p "test_[!s]*.py"
 | `cases.jsonl` | `memory.py` | 具体局面 → 当时怎么打 → 结果，比抽象教训更容易被模仿 |
 | `opp_history.jsonl` | `memory.py` | 对手形态历史（近期打法先验） |
 | `advice_log.jsonl` | `ui.py` | 每条发出去的建议，事后对账用 |
+| `advice_feedback.jsonl` | `ui.py` | 被标「不赞同」的回合 + AI 复盘结果 |
 | `last_review.json` | `advisor.py` / `ui.py` | 上一局复盘，窗口收起时显示 |
 | `our_deck.json` | `advisor.py` | `deck mine` 登记的自己的卡组 |
 | `mulligan_weights.json` | `learn.py` / `advisor.py` | 留牌权重（自对弈调出来的） |
