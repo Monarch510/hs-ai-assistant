@@ -4,6 +4,8 @@
 
 1. **对局记录**：每局结束把「对手职业 / 已暴露的牌 / 我们的胜负」写进
    `data/observations.jsonl`。用得越多，本地数据越厚。
+   注意这里存的是**预测和真值两份**：预测只用来算准确率，学习只吃真值
+   （`infer.retrospect()` 局末回看的那份）。拿预测当真值会让先验自我确认。
 2. **从自己的对局里自举环境**：`build_local_meta` 把观察到的牌集合聚类成
    卡组原型（见 meta.build_from_observations），不需要任何外部网站。
 3. **权重自对弈优化**：在同一套牌（镜像对局）里让「候选权重」对打「基准权重」，
@@ -89,7 +91,12 @@ def build_local_meta(cards: CardDB, *, min_games: int = 3, threshold: float = 0.
 
 
 def calibrate_priors(meta: MetaDB, cards: CardDB, observations_path: Path = OBSERVATIONS_PATH) -> int:
-    """按「你实际遇到的比例」修正先验：环境是本地化的。"""
+    """按「你实际遇到的比例」修正先验：环境是本地化的。
+
+    只统计**真值可信**的局（`truth.trusted`）。以前统计的是 `opp_archetype`，
+    那是当时的预测值 —— 预测偏哪套，先验就往哪套偏，越用越偏。
+    老版本写的行没有 truth 字段，一律跳过：宁可少学，不拿猜测训练。
+    """
     obs = load_observations(observations_path)
     if not obs:
         return 0
@@ -97,9 +104,10 @@ def calibrate_priors(meta: MetaDB, cards: CardDB, observations_path: Path = OBSE
     by_class: dict[str, int] = {}
     for row in obs:
         cls = (row.get("opp_class") or "").upper()
-        arch = row.get("opp_archetype") or ""
-        if not cls:
+        truth = row.get("truth") or {}
+        if not cls or not truth.get("trusted"):
             continue
+        arch = truth.get("arch") or ""
         by_class[cls] = by_class.get(cls, 0) + 1
         if arch:
             counts[arch] = counts.get(arch, 0) + 1

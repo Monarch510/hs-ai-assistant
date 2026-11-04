@@ -11,6 +11,7 @@ import dataclasses
 import re
 
 import json
+import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -25,7 +26,7 @@ from . import logutil
 from . import review as review_mod
 
 from .cards import DATA_DIR, Card, CardDB
-from .infer import DeckPredictor, Prediction
+from .infer import DeckPredictor, Prediction, RetroTruth
 from .meta import META_PATH, MetaDB
 from .model import Board, SideState, Unit
 from .paths import (
@@ -282,6 +283,9 @@ class Advisor:
         self._mulligan_shown = False
         self._turn_rec: review_mod.TurnRecord | None = None
         self._game_turns: list[dict] = []
+        # 每回合的预测轨迹。局末只剩一个终局置信度，而它天然接近 1、
+        # 没有信息量；要判断「70% 置信度时实际对了多少次」只能靠这条轨迹。
+        self._trace: list[dict] = []
         self.learned_count = 0
         self.last_findings: list[str] = []
         self._issues: list[str] = []
@@ -367,7 +371,7 @@ class Advisor:
 
         snap["advice"]["defense"] = self._defense(st, pred, snap)
         snap["warning"] = self._warning(st, pred, snap["advice"])
-        self._track_turn(st, snap['advice'])
+        self._track_turn(st, snap['advice'], pred)
         # 胜负单独给一个字段：AI 复盘写教训、案例入库都要用它。
         # 以前 ui 里靠 `"win" if (... and False)` 占位，导致这两处的 result 永远是空串。
         snap["result"] = ("win" if st.winner == st.our_id else "loss") if st.game_over else ""
@@ -386,6 +390,7 @@ class Advisor:
             self._mulligan_shown = False
             self._turn_rec = None
             self._game_turns = []
+            self._trace = []
             self.last_findings = []
             self._issues = []
             self._unknown_turn_seen = set()
@@ -409,7 +414,6 @@ class Advisor:
 
 
     # ------------------------------------------------------------ 预判
-    _last_pred_name: str = ""
     _passive_rule: dict = {}
 
     def _predict(self, st: GameState, opp) -> Prediction:
@@ -426,7 +430,6 @@ class Advisor:
             deck_count=opp.deck_count if opp.deck_count else max(1, 30 - st.turn),
             opp_mana=opp.max_mana,
         )
-        self._last_pred_name = pred.name or ""
         return pred
 
     def _prediction_dict(self, pred: Prediction) -> dict[str, Any]:
@@ -594,7 +597,7 @@ class Advisor:
         return "；".join(bits)
 
     # ------------------------------------------------------------ 回合追踪（复盘用）
-    def _track_turn(self, st: GameState, advice: dict[str, Any]) -> None:
+    def _track_turn(self, st: GameState, advice: dict[str, Any], pred: Prediction) -> None:
         if st.phase != "playing":
             return
         if st.effective_turn_owner() != st.our_id:
@@ -603,6 +606,11 @@ class Advisor:
         if self._turn_rec is None or self._turn_rec.turn != st.turn:
             if self._turn_rec is not None and not self._turn_rec.killed:
                 self._game_turns.append(asdict(self._turn_rec))
+            self._trace.append({
+                "t": st.turn,
+                "arch": pred.archetype_id,
+                "conf": round(pred.confidence, 3),
+            })
             ours, opp = st.sides()
             self._turn_rec = review_mod.TurnRecord(
                 turn=st.turn,
@@ -638,11 +646,6 @@ class Advisor:
             turns=self._game_turns,
         )
         review_mod.append_game(rec)
-        try:
-            from . import memory as _memory
-            _memory.record_opponent(opp.class_en or "", self._last_pred_name or "")
-        except Exception:
-            pass
         self.last_findings = review_mod.summarize(rec.as_dict())
         try:
             import json as _json
@@ -670,26 +673,27 @@ class Advisor:
 
     # ------------------------------------------------------------ 自学习落盘
     def _record_result(self, st: GameState, pred: Prediction) -> None:
-        ours, opp = st.sides()
-        won = st.winner == st.our_id
-        row = {
-            "ts": datetime.now().isoformat(timespec="seconds"),
-            "our_class": ours.class_en,
-            "opp_class": opp.class_en,
-            "opp_archetype": pred.archetype_id,
-            "confidence": round(pred.confidence, 3),
-            "result": "win" if won else "loss",
-            "revealed": list(st.revealed_opp_order),
-            "our_hand": list(st.our_hand_ids),
-        }
+        opp = st.sides()[1]
+        # 局末回看：用全部已见牌重新判一次「它到底是什么」。
+        # 这份才是能拿来学习的标签，pred 只是当时的猜测。
+        truth = self.predictor.retrospect(opp.class_en or "", st.revealed_opp_order)
+        row = observation_row(st, pred, truth, self._trace)
         try:
             DATA_DIR.mkdir(parents=True, exist_ok=True)
             with OBSERVATIONS_PATH.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         except OSError:
             return
-        if pred.archetype_id:
-            self.meta.record_result(pred.archetype_id, won)
+        self._trace = []
+        # 记对手形态也要用真值：拿预测值记，等于把偏差固化成先验。
+        # 这里存显示名 —— posteriors() 是按名字（含「职业·形态」的短名）匹配的。
+        if truth.trusted:
+            try:
+                from . import memory as _memory
+
+                _memory.record_opponent(opp.class_en or "", truth.name)
+            except Exception:
+                pass
         # 自动学习：样本够了就长出新原型，下一次遇到同样的牌就认得
         try:
             from . import learn as learn_mod
@@ -704,6 +708,51 @@ class Advisor:
             self.meta.save()
         except OSError:
             pass
+
+
+def observation_row(
+    st: GameState, pred: Prediction, truth: RetroTruth, trace: list[dict]
+) -> dict[str, Any]:
+    """一局结束后写进 observations.jsonl 的那一行。
+
+    单独抽出来是为了能被测：schema 一旦漂移，学习端会静默读到空值，
+    而不会有任何报错。每个字段为什么存在都写在下面的注释里。
+    """
+    ours, opp = st.sides()
+    return {
+        "schema": 2,
+        "game_id": _new_game_id(),
+        "ts": datetime.now().isoformat(timespec="seconds"),
+        "our_class": ours.class_en,
+        "opp_class": opp.class_en,
+        "result": "win" if st.winner == st.our_id else "loss",
+        "turns": st.turn,
+        # 对手还剩多少牌、手上有几张：学习端靠它区分
+        # 「这张牌不在卡组」和「这张牌没抽到」，这是 P(c|A) 最大的偏差来源
+        "opp_deck_left": opp.deck_count,
+        "opp_hand": opp.hand_count,
+        # 带回合：早期权重以后能拟合，而不是继续手设 1.35/1.0/0.85
+        "revealed": [[cid, st.revealed_turns.get(cid, 0)]
+                     for cid in st.revealed_opp_order],
+        # 每回合的预测轨迹：终局置信度天然接近 1，算不出校准曲线
+        "trace": list(trace),
+        # 预测与真值分开存。以前只有一个 opp_archetype，存的是预测值，
+        # 先验学习却拿它当真值 —— 预测 A 就记成 A，A 的先验因此更高，
+        # 下次更爱预测 A。这条回路没有纠错力，只会放大偏差。
+        "pred_archetype": pred.archetype_id,
+        "pred_confidence": round(pred.confidence, 3),
+        "truth": truth.as_dict() if truth.archetype_id else None,
+        "unexpected_cards": list(truth.unexplained),
+        "our_hand": list(st.our_hand_ids),
+    }
+
+
+def _new_game_id() -> str:
+    """一局一个 id，用来把 observations / games.jsonl / cases.jsonl 串起来。
+
+    以前三份数据没有任何公共键，复盘数据挂不到观察上，只能按时间猜。
+    """
+    return datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
 
 
 def load_observations(path: Path = OBSERVATIONS_PATH) -> list[dict[str, Any]]:

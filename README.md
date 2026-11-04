@@ -205,7 +205,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 
 | 文件 | 用途 |
 |---|---|
-| `infer.py` | 对手卡组预判：朴素贝叶斯 + 职业先验，按回合给牌加权。除了「对面是什么」，还回答「手上大概率有什么」「有没有清场/单解」「还可能抽到什么」 |
+| `infer.py` | 对手卡组预判：朴素贝叶斯 + 职业先验，按回合给牌加权。除了「对面是什么」，还回答「手上大概率有什么」「有没有清场/单解」「还可能抽到什么」。局末另有 `retrospect()`：用全部已见牌回看真值，**不带先验也不带早期权重**，只用来产学习标签 |
 | `mulligan.py` | 留牌打分：费用基础分 + 对位修正 + 功能修正 + 重复惩罚，权重在 `DEFAULT_WEIGHTS` 里可调 |
 | `policy.py` | **建议引擎核心**（1300+ 行）：斩杀检测（精确到每点伤害）、动作枚举与模拟评分、抢血/解场模式判定、路线贪心组合。1 层搜索，不是 MCTS——擅长斩杀/交换/站场，不擅长多回合 combo |
 
@@ -233,7 +233,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 | `sim/__init__.py` | 导出 `match / run_game / greedy_agent / random_agent` 等接口 |
 | `learn.py` | 自主学习三件事：记录对局到 `observations.jsonl`、从自己的对局里聚类出本地环境（自举 meta）、用自对弈坐标轮换爬山优化权重 |
 
-### tests/ —— 106 个用例
+### tests/ —— 120 个用例
 
 `python -m unittest discover tests` 跑全部。`fixtures/` 里两份日志：`sample_game.log`（构造的示例局）和 `real_client_excerpt.log`（真实客户端片段，用来锁解析行为）。
 
@@ -252,6 +252,7 @@ python -m unittest discover tests -p "test_[!s]*.py"
 | `test_cards.py` / `test_deckcode.py` | 卡牌库加载、卡组代码往返编解码 |
 | `test_sim.py` | 自对弈引擎跑通与结果稳定 |
 | `test_ai_layer.py` / `test_effects_ai.py` | AI 层降级行为、三道闸门、JSON 容错（**不联网**） |
+| `test_learn.py` | 学习只吃真值：局末回顾不跟先验走、可信判据、先验校准跳过老格式、观察行预测/真值分离、衍生物不进 `revealed` |
 | `test_render_smoke.py` | 界面冒烟：各种快照（斩杀、空建议、复盘、留牌、未知卡组）渲染不报错。**缺 tkinter 时用 `_ui_support.py` 的替身跑**，验的是渲染路径不抛异常，不是像素 |
 | `_ui_support.py` | 界面测试的公共准备：没有 tkinter 时装替身（只记控件树和文字），并把 `window.json`、`install_dir.txt` 改道到临时目录，免得跑测试冲掉用户的窗口摆位 |
 
@@ -275,7 +276,7 @@ python -m unittest discover tests -p "test_[!s]*.py"
 | `effects.json` | `effects_ai.py` 写，`model.py` 读 | 卡牌效果正则规则表。**这份入库**，因为它是可复现的行为定义 |
 | `effects.json.bak` | `effects_ai.py` | 改规则前的自动备份 |
 | `meta.json` / `meta.backup.json` | `meta.py` | 卡组原型库（导入或自举聚类的结果）及其备份 |
-| `observations.jsonl` | `learn.py` | 每局的对手职业、已暴露的牌、胜负 |
+| `observations.jsonl` | `advisor.py` | 每局一行（schema 2）：对手职业、带回合的已见牌、每回合预测轨迹、**预测值与真值分开存**、对手剩余牌库/手牌。先验学习只吃 `truth`，预测值只用来算准确率 |
 | `games.jsonl` | `review.py` | 完整对局记录，复盘的事实来源 |
 | `lessons.jsonl` | `ai.py` / `memory.py` | AI 总结的教训，带对局标签 |
 | `cases.jsonl` | `memory.py` | 具体局面 → 当时怎么打 → 结果，比抽象教训更容易被模仿 |

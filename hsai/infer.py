@@ -21,12 +21,13 @@ P(c | A) 由「标志牌张数 + 职业牌池平滑」构成：
 from __future__ import annotations
 
 import math
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from .cards import CLASS_CN, CardDB
 from .classify import is_aoe, is_single_removal
-from .meta import Archetype, MetaDB
+from .meta import DECK_MAX_CARDS, Archetype, MetaDB
 
 # 观测权重：越早打出越能说明形态；太晚的牌可能只是补位
 EARLY_TURNS = 3
@@ -39,6 +40,11 @@ LATE_TURN = 8
 BETA = 0.32
 # 置信度上限：再像也不说「百分之百」，因为卡组会被改牌
 CONF_CAP = 0.95
+
+# 局末真值的两条门槛。低于任何一条都记成「不可信」，不参与先验学习 ——
+# 宁可少学几局，也不要拿猜出来的标签去训练。
+TRUST_COVERAGE = 0.85   # 模板至少解释得了 85% 的已见牌
+TRUST_GAP = 0.08        # 且比第二名高出 8 个百分点，否则两套牌区分不开
 
 
 @dataclass
@@ -87,6 +93,50 @@ class Prediction:
             "note": self.note,
             "source": self.source,
             "estimated": self.estimated,
+        }
+
+
+@dataclass
+class RetroTruth:
+    """局末回顾得到的「对手真值卡组」。
+
+    和 `Prediction` 是两件事：`Prediction` 回答「此刻我认为它是什么」，
+    `RetroTruth` 回答「打完之后用全部已见牌回看，它最像哪套牌」。
+
+    只有后者能当标签用来学习。以前 `observations.jsonl` 只存了预测值，
+    先验学习拿它当真值 —— 预测偏哪套，先验就往哪套偏，形成自我确认。
+    """
+
+    archetype_id: str = ""
+    name: str = "未知"
+    coverage: float = 0.0
+    explained: int = 0
+    considered: int = 0
+    rival_id: str = ""
+    rival_coverage: float = 0.0
+    unexplained: list[str] = field(default_factory=list)
+
+    @property
+    def trusted(self) -> bool:
+        """这套真值够不够格当学习标签。
+
+        覆盖率低 = 模板解释不了大部分牌，多半是没见过的卡组；
+        和第一名咬得太紧 = 两套原型在这批牌上区分不开，标签本身就是猜的。
+        两种都不该写进先验统计，否则等于拿噪声训练。
+        """
+        if not self.archetype_id or self.coverage < TRUST_COVERAGE:
+            return False
+        return not self.rival_id or self.coverage - self.rival_coverage >= TRUST_GAP
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "arch": self.archetype_id,
+            "name": self.name,
+            "coverage": round(self.coverage, 3),
+            "considered": self.considered,
+            "rival": self.rival_id,
+            "rival_coverage": round(self.rival_coverage, 3),
+            "trusted": self.trusted,
         }
 
 
@@ -271,6 +321,79 @@ class DeckPredictor:
         if pred.prior_only:
             pred.note = "还没有足够证据，这里只是该职业的常见形态先验"
         return pred
+
+    # ------------------------------------------------------------ 局末回顾
+    def retrospect(
+        self, opp_class: str, revealed: Iterable[str | tuple[str, int | None]]
+    ) -> RetroTruth:
+        """打完之后回看：这批牌最像哪套卡组。
+
+        和 `predict()` 的三处区别都是刻意的：
+          - 不带早期回合权重（局末不再需要「越早越重要」）
+          - 不带先验（问的是「最像谁」，不是「我猜是谁」）
+          - 用全部已见牌，不是前几张
+
+        判据是「这个模板能解释多少张已见的牌」。覆盖率比似然更直白：
+        它的分子分母都是能数出来的牌数，解释不了多少就是解释不了。
+        """
+        seen: Counter[str] = Counter()
+        for item in revealed:
+            cid = item[0] if isinstance(item, tuple) else item
+            if cid:
+                seen[cid] += 1
+        pool = self.meta.for_class(opp_class) if seen else []
+        if not pool:
+            return RetroTruth()
+
+        # 只有「至少一个原型认识」的牌才有区分度。偷来的牌、幸运币谁都不认识，
+        # 算进分母会同时拉低所有原型的覆盖率，等于集体白扣分。
+        known = {cid for cid in seen if self._recognised(cid, pool)}
+        considered = sum(seen[c] for c in known)
+        if not considered:
+            return RetroTruth(unexplained=sorted(seen))
+
+        scored = [(arch, self._explain_count(arch, {c: seen[c] for c in known}))
+                  for arch in pool if arch.total() <= DECK_MAX_CARDS]
+        if not scored:
+            return RetroTruth(unexplained=sorted(seen))
+        scored.sort(key=lambda x: (-x[1], x[0].name))
+        best, best_n = scored[0]
+        rival, rival_n = scored[1] if len(scored) > 1 else (None, 0)
+        return RetroTruth(
+            archetype_id=best.id,
+            name=best.name,
+            coverage=best_n / considered,
+            explained=best_n,
+            considered=considered,
+            rival_id=rival.id if rival else "",
+            rival_coverage=(rival_n / considered) if rival else 0.0,
+            unexplained=[c for c in seen if c not in known],
+        )
+
+    def _recognised(self, card_id: str, pool: list[Archetype]) -> bool:
+        for s in self.cards.siblings(card_id):
+            if any(s in a.cards for a in pool):
+                return True
+        return False
+
+    def _explain_count(self, arch: Archetype, seen: dict[str, int]) -> int:
+        """这个原型能解释多少张已见的牌。
+
+        同一张牌可能有多个版本 id（CORE_/普通版），按牌名归到一起算，
+        且总解释数不超过模板里记的张数 —— 否则一张牌被重复计数，
+        覆盖率能算到 1 以上。
+        """
+        used: dict[str, int] = {}
+        total = 0
+        for cid, n in seen.items():
+            fam = self.cards.siblings(cid) or (cid,)
+            key = fam[0]
+            cap = max((arch.cards.get(s, 0) for s in fam), default=0)
+            take = min(n, max(0, cap - used.get(key, 0)))
+            if take:
+                used[key] = used.get(key, 0) + take
+                total += take
+        return total
 
     # ------------------------------------------------------------ 解释
     def _explain(self, opp_class: str, obs, best: Archetype, post) -> list[str]:

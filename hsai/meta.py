@@ -21,6 +21,11 @@ from .paths import META_JSON
 
 META_PATH = META_JSON
 
+# 一副合法卡组最多 40 张（雷诺/40 张模式）。超过这个数的原型不是「一套牌」，
+# 多半是两套牌被聚类合并了，或者把衍生物当成了卡组牌 —— 这种模板会靠
+# 「牌多所以解释得多」赢下覆盖率比较，不该参与判断。
+DECK_MAX_CARDS = 40
+
 # 卡牌 id 形如 CORE_CS2_029 / NEW1_025，用来区分「这是 id 还是中文名」
 @dataclass
 class Archetype:
@@ -178,13 +183,6 @@ class MetaDB:
             self.archetypes.append(arch)
         self.normalize_priors()
 
-    def record_result(self, archetype_id: str, won: bool, lr: float = 0.02) -> None:
-        """用真实战果微调先验（对抗流行度变化，而不是代替它）。"""
-        arch = self.get(archetype_id)
-        if arch is None:
-            return
-        arch.prior = max(0.01, arch.prior * (1 + lr * (1 if won else -1)))
-
     # ------------------------------------------------------------ 持久化
     def to_json(self) -> dict[str, Any]:
         return {
@@ -256,7 +254,10 @@ def build_from_observations(
     groups_by_class: dict[str, list[set[str]]] = {}
     for obs in observations:
         cls = (obs.get("opp_class") or "").upper()
-        revealed = set(obs.get("revealed") or [])
+        # schema 2 之后 revealed 是 [[card_id, 回合], ...]，老数据是 [card_id, ...]，
+        # 两种都要能读 —— 否则升级一次就把历史样本全废了。
+        revealed = {str(item[0] if isinstance(item, (list, tuple)) else item)
+                    for item in (obs.get("revealed") or []) if item}
         if not cls or len(revealed) < 2:
             continue
         groups_by_class.setdefault(cls, []).append(revealed)
@@ -289,6 +290,10 @@ def build_from_observations(
             signature = {cid: min(2, max(1, round(n / len(cluster) * 2))) for cid, n in freq.items()
                          if n / len(cluster) >= 0.5 and cid not in noisy}
             if not signature:
+                continue
+            # 牌数超过合法卡组上限，说明这个簇其实是两套牌被单链聚类串到了一起，
+            # 或者把衍生物也数了进去。留着它只会污染判断，不如整簇放弃。
+            if sum(signature.values()) > DECK_MAX_CARDS:
                 continue
             top = sorted(signature, key=lambda c: -freq[c])[:2]
             label = cards.display_name(top[0]) if top else "新形态"

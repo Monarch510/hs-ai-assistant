@@ -15,7 +15,7 @@
 ```powershell
 python -m hsai ui              # 悬浮窗（双击 启动AI助手.bat 等价）
 python -m hsai ui --demo       # 示例对局，不接游戏
-python -m unittest discover -s tests   # 106 个用例
+python -m unittest discover -s tests   # 120 个用例
 python -m hsai replay <日志>    # 离线解析，输出快照 JSON
 ```
 
@@ -149,6 +149,16 @@ hsai/logutil.py    诊断日志写入（data/hsai.log，超 1 MB 自动截断）
 - **日志里没有「剩余牌库」字段**（`DECK_SIZE`/`CARD_COUNT` 都是 0 次）。
   只能 `卡组张数 − 抽牌数`，抽牌数按 `NUM_CARDS_DRAWN_THIS_TURN` 的**段内最大值**累加
   （这个计数器每回合归零）。
+- **学习标签必须是真值，不能是预测值**。`observations.jsonl` 早期只存
+  `opp_archetype`，那是**预测**；先验校准却拿它当真值统计 —— 预测偏哪套，
+  先验就往哪套偏，越用越偏，而且没有任何报错。现在预测（`pred_*`）和真值
+  （`truth`，局末由 `infer.retrospect()` 用全部已见牌回看）分开存，只有
+  `truth.trusted` 的局才进先验统计。**别再往学习路径里塞预测值。**
+- **先验表示「多常遇到」，不是「打它赢没赢」**。曾经有 `record_result()` 按
+  胜负乘 1±0.02 改先验，打赢一套牌就让它更常见 —— 概念错了，已删。
+- **衍生物不算「对手打出的牌」**。召唤物、幸运币会进 `revealed` 的话，聚类出的
+  原型会变成 40 张的卡组，还能靠「牌多所以解释得多」赢下覆盖率比较。
+  过滤用 `cards.is_token()`（预测侧和记录侧要同一个口径）。
 
 ## 改卡牌效果时
 

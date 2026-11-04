@@ -769,10 +769,15 @@ class GameState:
                 name = self._name(e.card_id)
                 if name:
                     if self._push_feed("opp", e.card_id, name, e.id):
-                        self.revealed_opp[e.card_id or "?"] += 1
-                        if e.card_id not in self.revealed_opp_order:
-                            self.revealed_opp_order.append(e.card_id or "?")
-                            self.revealed_turns[e.card_id or "?"] = self.turn
+                        # 衍生物（召唤出来的随从、幸运币）不在对手卡组里，不能进
+                        # revealed —— 否则学出来的原型会变成「40 张的卡组」，
+                        # 而且靠「牌多所以解释得多」赢下覆盖率比较。
+                        # 判据复用 cards.is_token，和预测侧口径保持一致。
+                        if not (self.cards and self.cards.is_token(e.card_id)):
+                            self.revealed_opp[e.card_id or "?"] += 1
+                            if e.card_id not in self.revealed_opp_order:
+                                self.revealed_opp_order.append(e.card_id or "?")
+                                self.revealed_turns[e.card_id or "?"] = self.turn
                         self._note(f"对手打出 {name}")
                         self.turn_events.append(f"对手打出 {name}")
             elif e.controller == self.our_id:
