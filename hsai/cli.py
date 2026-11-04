@@ -107,6 +107,29 @@ def cmd_meta(args: argparse.Namespace) -> int:
         print("剩余:", Counter(a.source for a in meta))
         return 0
 
+    if args.action == "rebuild":
+        meta = MetaDB.load(db)
+        before = [a for a in meta if a.source == "learned"]
+        if args.dry_run:
+            print("演练模式，不写盘。")
+        else:
+            backup = META_PATH.with_suffix(".backup.json")
+            backup.write_text(META_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+        report = learn.rebuild_learned(db, meta, min_games=args.min_games)
+        if not args.dry_run:
+            meta.save()
+        print(f"删除 {len(report['removed'])} 个学出来的原型：")
+        for aid, name, total in report["removed"]:
+            print(f"  - {aid:<24} {name:<12} {total:3d} 张")
+        fresh = [a for a in meta if a.source == "learned"]
+        print(f"重新聚类：新增 {report['added']} 个")
+        for a in fresh:
+            print(f"  + {a.id:<24} {a.name:<12} {a.total():3d} 张（{len(a.cards)} 种）")
+        if not args.dry_run:
+            print(f"备份: {META_PATH.with_suffix('.backup.json').name}")
+        print(f"原型总数 {len(meta)}（学出来的 {len(before)} -> {len(fresh)}）")
+        return 0
+
     if args.action == "calibrate":
         meta = MetaDB.load(db)
         n = learn.calibrate_priors(meta, db)
@@ -473,11 +496,13 @@ def main(argv: list[str] | None = None) -> int:
     c.set_defaults(func=cmd_cards)
 
     m = sub.add_parser("meta", help="卡组原型库")
-    m.add_argument("action", choices=["list", "build", "import", "calibrate", "prune"])
+    m.add_argument("action", choices=["list", "build", "import", "calibrate", "prune", "rebuild"])
     m.add_argument("--all", action="store_true", help="连没被导入覆盖的职业的种子也删掉")
     m.add_argument("--file", default="")
     m.add_argument("--min-games", type=int, default=3)
     m.add_argument("--threshold", type=float, default=0.34)
+    m.add_argument("--dry-run", action="store_true", dest="dry_run",
+                   help="rebuild 时只演练，不写盘")
     m.set_defaults(func=cmd_meta)
 
     d = sub.add_parser("deck", help="卡组：导入对手卡组库 / 设置自己的卡组")

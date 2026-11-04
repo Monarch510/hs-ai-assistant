@@ -286,14 +286,15 @@ def _overlap(a, b) -> float:
     return len(ca & cb) / min(len(ca), len(cb))
 
 
-def absorb_observations(cards: CardDB, meta: MetaDB, *, min_games: int = 2) -> int:
+def absorb_observations(cards: CardDB, meta: MetaDB, *, min_games: int = 2,
+                        observations_path: Path = OBSERVATIONS_PATH) -> int:
     """把「打过的对局」变成新卡组原型，返回新增数量。
 
     这是自动学习的主干：每局结束调一次，够了样本就长出一个本地原型，
     下一局遇到同样的牌就能认出来。和已有的（导入/种子）原型重合度高就跳过，
     免得同一套牌被反复加进去。
     """
-    obs = load_observations()
+    obs = load_observations(observations_path)
     if len(obs) < min_games:
         return 0
     learned = build_from_observations(obs, cards, min_games=min_games, threshold=0.34)
@@ -318,6 +319,28 @@ def absorb_observations(cards: CardDB, meta: MetaDB, *, min_games: int = 2) -> i
         )
         added += 1
     return added
+
+
+def rebuild_learned(cards: CardDB, meta: MetaDB, *, min_games: int = 2,
+                    observations_path: Path = OBSERVATIONS_PATH) -> dict[str, Any]:
+    """把「学出来的原型」整批丢掉，按当前口径从对局记录重新聚类。
+
+    为什么需要它：模板是从历史 revealed 聚出来的，而历史数据里混着 28% 的
+    衍生物（召唤物、幸运币）。采集端修好之后老模板不会自己变干净 —— 只能重建。
+
+    只动 `source == "learned"` 的。导入的卡组（deckcode）和内置种子（seed）
+    是外部输入，重建它们等于篡改用户数据。
+    """
+    removed = [a for a in meta if a.source == "learned"]
+    keep = [a for a in meta if a.source != "learned"]
+    meta.archetypes = keep
+    meta.normalize_priors()
+    added = absorb_observations(cards, meta, min_games=min_games,
+                                observations_path=observations_path)
+    return {
+        "removed": [(a.id, a.name, a.total()) for a in removed],
+        "added": added,
+    }
 
 
 def stats(observations_path: Path = OBSERVATIONS_PATH) -> dict[str, Any]:

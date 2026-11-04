@@ -191,6 +191,78 @@ class TokenInRevealedTest(unittest.TestCase):
         self.assertIn(cid, st.revealed_opp_order)
 
 
+class RebuildTest(unittest.TestCase):
+    """重建只动学出来的原型，且不再把衍生物当成卡组牌。"""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.db = cards_mod.load()
+        pool = [c.id for c in cls.db.standard_pool("WARRIOR")
+                if c.name and not cls.db.is_token(c.id)]
+        cls.deck, cls.seed_cards = pool[:6], pool[6:8]
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _obs(self, rows: list[dict]) -> Path:
+        path = self.tmp / "obs.jsonl"
+        path.write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+            encoding="utf-8",
+        )
+        return path
+
+    def test_drops_only_learned_archetypes(self) -> None:
+        """导入的卡组和内置种子是外部输入，重建不该碰。"""
+        m = meta.MetaDB([
+            meta.Archetype(id="seed_x", name="种子", card_class="WARRIOR",
+                           prior=0.5, cards={c: 2 for c in self.seed_cards},
+                           source="seed"),
+            meta.Archetype(id="deck_y", name="导入的", card_class="WARRIOR",
+                           prior=0.3, cards={"STALE": 2}, source="deckcode"),
+            meta.Archetype(id="learned_warrior_9", name="旧学出来的",
+                           card_class="WARRIOR", prior=0.2, cards={"STALE": 2},
+                           source="learned"),
+        ])
+        path = self._obs([{"opp_class": "WARRIOR", "revealed": self.deck}] * 3)
+        report = learn.rebuild_learned(self.db, m, min_games=2, observations_path=path)
+
+        ids = {a.id for a in m}
+        self.assertIn("seed_x", ids)
+        self.assertIn("deck_y", ids)
+        self.assertNotIn("learned_warrior_9", ids)
+        self.assertEqual(len(report["removed"]), 1)
+        self.assertGreaterEqual(report["added"], 1, "重建应该从记录里重新长出原型")
+
+    def test_tokens_never_enter_the_template(self) -> None:
+        """历史数据里 28% 的 revealed 是召唤物，重建时必须滤掉。"""
+        rows = [{"opp_class": "WARRIOR",
+                 "revealed": self.deck + ["ICC_026t", "GAME_005"]}] * 3
+        m = meta.MetaDB([])
+        learn.rebuild_learned(self.db, m, min_games=2,
+                              observations_path=self._obs(rows))
+        built = next(a for a in m if a.source == "learned")
+        self.assertNotIn("ICC_026t", built.cards)
+        self.assertNotIn("GAME_005", built.cards)
+        self.assertEqual(set(built.cards), set(self.deck))
+
+    def test_label_tiebreak_is_stable(self) -> None:
+        """同频次时按 id 排序取名字。
+
+        不排序的话 `freq` 的遍历顺序来自 set，字符串哈希随机化会让同一个
+        重建跑两次得到不同的名字，而 opp_history 是按名字匹配的。
+        """
+        ids = sorted(self.deck[:3])
+        rows = [{"opp_class": "WARRIOR", "revealed": ids}] * 3
+        built = meta.build_from_observations(rows, self.db, min_games=2)
+        a = next(x for x in built if x.card_class == "WARRIOR")
+        self.assertTrue(a.name.endswith(self.db.display_name(ids[0])), a.name)
+
+
 class RevealedFormatTest(unittest.TestCase):
     """聚类要同时吃得下新旧两种 revealed 写法。"""
 

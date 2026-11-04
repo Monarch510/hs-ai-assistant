@@ -133,6 +133,7 @@ python -m hsai ui --check                 # 只做环境检查
 python -m hsai setup-log                  # 写入 log.config
 python -m hsai deck add|mine <卡组代码>    # 卡组代码导入
 python -m hsai meta build                 # 从自己的对局记录聚类出本地环境
+python -m hsai meta rebuild [--dry-run]   # 丢掉学出来的原型，按当前口径重聚类（先备份）
 python -m hsai cards --update             # 更新卡牌库
 python -m hsai log                        # 终端里跟日志
 python -m hsai replay <日志文件>           # 离线解析，输出快照 JSON
@@ -198,7 +199,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 | `logutil.py` | 运行时诊断日志的唯一写入口：`log()` 统一时间戳、超 1 MB 自动截断保留最后 2000 行。此前 advisor / state / ui 三处各写各的、格式不一且无轮转 |
 | `paths.py` | **`data/` 下所有路径的唯一出处**，也是唯一允许写文件名的地方。此前 `lessons.jsonl`、`effects.json`、`hsai.log` 各有 2–3 份重复定义，改一处忘一处就会「记了但查不到」且不报错 |
 | `deckcode.py` | 卡组代码（`AAEC...`）编解码：LEB128 varint + base64，格式在文件头写全了 |
-| `meta.py` | 卡组原型库：一个原型 = 职业 + 标志牌及张数，剩余槽位用职业牌池平滑补齐。三来源：`data/meta.json` > 内置种子 > 自举聚类；同职业重复原型自动合并 |
+| `meta.py` | 卡组原型库：一个原型 = 职业 + 标志牌及张数，剩余槽位用职业牌池平滑补齐。三来源：`data/meta.json` > 内置种子 > 自举聚类；同职业重复原型自动合并。聚类时**滤掉衍生物**（历史数据里占 28%），超过 40 张的簇整簇放弃，标志牌取名按 id 兜底排序保证可复现 |
 | `model.py` | 共享局面模型 + 卡牌效果解释器 + `evaluate()` 评估函数。policy、sim、learn 三处共用，避免规则写三遍。**不是完整规则引擎**，建模不了的牌标记「效果未知」并降低推荐权重 |
 
 **判断层**
@@ -231,9 +232,9 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 |---|---|
 | `sim/engine.py` | 自对弈引擎：两套牌交给两个 agent 真打完一局。是学习闭环的训练场，也是验证建议引擎的工具。模拟胜率只能做**相对比较**，不等于天梯胜率 |
 | `sim/__init__.py` | 导出 `match / run_game / greedy_agent / random_agent` 等接口 |
-| `learn.py` | 自主学习三件事：记录对局到 `observations.jsonl`、从自己的对局里聚类出本地环境（自举 meta）、用自对弈坐标轮换爬山优化权重 |
+| `learn.py` | 自主学习三件事：记录对局到 `observations.jsonl`、从自己的对局里聚类出本地环境（自举 meta）、用自对弈坐标轮换爬山优化权重。`rebuild_learned()` 丢掉学出来的原型按当前口径重聚类，只动 `source=learned`，不碰导入的卡组和种子 |
 
-### tests/ —— 120 个用例
+### tests/ —— 123 个用例
 
 `python -m unittest discover tests` 跑全部。`fixtures/` 里两份日志：`sample_game.log`（构造的示例局）和 `real_client_excerpt.log`（真实客户端片段，用来锁解析行为）。
 
@@ -252,7 +253,7 @@ python -m unittest discover tests -p "test_[!s]*.py"
 | `test_cards.py` / `test_deckcode.py` | 卡牌库加载、卡组代码往返编解码 |
 | `test_sim.py` | 自对弈引擎跑通与结果稳定 |
 | `test_ai_layer.py` / `test_effects_ai.py` | AI 层降级行为、三道闸门、JSON 容错（**不联网**） |
-| `test_learn.py` | 学习只吃真值：局末回顾不跟先验走、可信判据、先验校准跳过老格式、观察行预测/真值分离、衍生物不进 `revealed` |
+| `test_learn.py` | 学习只吃真值（17 条）：局末回顾不跟先验走、可信判据、先验校准跳过老格式、观察行预测/真值分离、衍生物不进 `revealed`、重建只动 `learned` 且结果可复现 |
 | `test_render_smoke.py` | 界面冒烟：各种快照（斩杀、空建议、复盘、留牌、未知卡组）渲染不报错。**缺 tkinter 时用 `_ui_support.py` 的替身跑**，验的是渲染路径不抛异常，不是像素 |
 | `_ui_support.py` | 界面测试的公共准备：没有 tkinter 时装替身（只记控件树和文字），并把 `window.json`、`install_dir.txt` 改道到临时目录，免得跑测试冲掉用户的窗口摆位 |
 

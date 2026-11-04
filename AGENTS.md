@@ -15,7 +15,7 @@
 ```powershell
 python -m hsai ui              # 悬浮窗（双击 启动AI助手.bat 等价）
 python -m hsai ui --demo       # 示例对局，不接游戏
-python -m unittest discover -s tests   # 120 个用例
+python -m unittest discover -s tests   # 123 个用例
 python -m hsai replay <日志>    # 离线解析，输出快照 JSON
 ```
 
@@ -159,6 +159,15 @@ hsai/logutil.py    诊断日志写入（data/hsai.log，超 1 MB 自动截断）
 - **衍生物不算「对手打出的牌」**。召唤物、幸运币会进 `revealed` 的话，聚类出的
   原型会变成 40 张的卡组，还能靠「牌多所以解释得多」赢下覆盖率比较。
   过滤用 `cards.is_token()`（预测侧和记录侧要同一个口径）。
+  历史数据里它们占了 28%，所以**聚类读取时也要滤一遍**，不能只靠采集端。
+- **别让 set 的遍历顺序影响输出**。`freq` 是从 set 里数出来的，字符串哈希
+  随机化（PYTHONHASHSEED）会让「同频次取前两名」每次跑出不同结果 ——
+  `hsai meta rebuild` 因此两次生成过不同的原型名，而 `opp_history` 按名字匹配，
+  名字一变先验就断档。排序要带 id 兜底：`key=lambda c: (-freq[c], c)`。
+- **增量学习会冻结模板**。`absorb_observations` 每局只「新增」，已有原型重合度
+  超 0.6 就跳过，所以学出来的模板永远停在它创建那一刻的数据上
+  （有个原型是 5 局样本定的型，后来 108 局都记在它头上）。口径变了就
+  `hsai meta rebuild` 重来，别指望它自己更新。
 
 ## 改卡牌效果时
 

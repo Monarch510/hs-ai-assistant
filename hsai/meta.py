@@ -256,8 +256,14 @@ def build_from_observations(
         cls = (obs.get("opp_class") or "").upper()
         # schema 2 之后 revealed 是 [[card_id, 回合], ...]，老数据是 [card_id, ...]，
         # 两种都要能读 —— 否则升级一次就把历史样本全废了。
-        revealed = {str(item[0] if isinstance(item, (list, tuple)) else item)
-                    for item in (obs.get("revealed") or []) if item}
+        #
+        # 衍生物必须在这里滤掉，不能只靠采集端：老数据里召唤物和幸运币占了
+        # 28%，它们会进「出现率 >= 50% 就是标志牌」的统计，把原型撑到 40 张。
+        revealed: set[str] = set()
+        for item in (obs.get("revealed") or []):
+            cid = item[0] if isinstance(item, (list, tuple)) else item
+            if cid and not cards.is_token(str(cid)):
+                revealed.add(str(cid))
         if not cls or len(revealed) < 2:
             continue
         groups_by_class.setdefault(cls, []).append(revealed)
@@ -295,7 +301,10 @@ def build_from_observations(
             # 或者把衍生物也数了进去。留着它只会污染判断，不如整簇放弃。
             if sum(signature.values()) > DECK_MAX_CARDS:
                 continue
-            top = sorted(signature, key=lambda c: -freq[c])[:2]
+            # 同频次时按 id 兜底排序：freq 是从 set 遍历来的，字符串哈希随机化
+            # 会让同名次顺序每次不同 —— 否则同一个重建跑两次，原型名字会变，
+            # 而 opp_history 是按名字匹配的，名字一变先验就断档。
+            top = sorted(signature, key=lambda c: (-freq[c], c))[:2]
             label = cards.display_name(top[0]) if top else "新形态"
             archetypes.append(
                 Archetype(
