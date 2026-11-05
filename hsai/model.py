@@ -412,26 +412,18 @@ class SideState:
     cthun_used: set = field(default_factory=set)       # 这个克苏恩已经用过的技能
 
     def clone(self) -> "SideState":
-        return SideState(
-            hero_hp=self.hero_hp,
-            armor=self.armor,
-            mana=self.mana,
-            max_mana=self.max_mana,
-            deck=list(self.deck),
-            hand=list(self.hand),
-            board=[u.clone() for u in self.board],
-            fatigue=self.fatigue,
-            weapon=self.weapon.clone() if self.weapon else None,
-            hero_class=self.hero_class,
-            hero_power_used=self.hero_power_used,
-            hero_power=self.hero_power,
-            spells_cast=self.spells_cast,
-            weapon_attacks_left=self.weapon_attacks_left,
-            minions_played=self.minions_played,
-            passive_rule=dict(self.passive_rule),
-            cthun_uses_left=self.cthun_uses_left,
-            cthun_used=set(self.cthun_used),
-        )
+        # 用 copy.copy 而不是逐字段重建：以前是手写字段列表，后来加的
+        # hero_atk / hero_attacks_left / _cthun_by_unit 全漏了，模拟里英雄攻击、
+        # 克苏恩「同一只不能重复选」都会凭空消失，而且没有任何报错。
+        c = copy.copy(self)
+        c.deck = list(self.deck)
+        c.hand = list(self.hand)
+        c.board = [u.clone() for u in self.board]
+        c.weapon = self.weapon.clone() if self.weapon else None
+        c.passive_rule = dict(self.passive_rule)
+        c.cthun_used = set(self.cthun_used)
+        c._cthun_by_unit = {k: set(v) for k, v in getattr(self, "_cthun_by_unit", {}).items()}
+        return c
 
     @property
     def board_attack(self) -> int:

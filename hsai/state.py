@@ -228,11 +228,10 @@ class GameState:
         # 实体 -> (死亡回合, 死亡顺序)；顺序按发生先后递增
         self.attacked_this_turn: set[int] = set()
         # 每只克苏恩各自用过哪些技能（key = 触发源实体 id）
-        self.cthun_by_source: dict[int, set[str]] = {}
         self._choice_source: dict = {}
         self.grave_meta: dict[int, tuple[int, int]] = {}
         self._grave_seq: int = 0
-        # 克苏恩的四个技能：整局里分别触发过没有（集齐四个后它的技能效果 ×3）
+        # 克苏恩的四个技能：整局里分别触发过没有（集齐四个后它的技能效果 ×4）
         self.cthun_used: set[str] = set()
         # 当前待做的选择（发现/抉择/弃牌等）：选项列表 + 来源牌
         self.choice: dict[str, Any] | None = None
@@ -815,7 +814,7 @@ class GameState:
         """玩家提交的选择。克苏恩四技能只在这里能知道「到底选了哪个」。"""
         src = self._choice_source or {}
         # 不管是谁触发的，用掉一个技能就记一次：
-        # 这样本体触发时「四个技能各用过一次」才可能成立，从而翻 3 倍。
+        # 这样本体触发时「四个技能各用过一次」才可能成立，从而翻四倍。
         # （触发者本身是不是本体，只影响「这一次是否翻倍」，不影响计数）
         for ref in ev.data.get("refs") or []:
             cid = ref.get("card_id") or ""
@@ -1135,7 +1134,7 @@ class GameState:
                     offered.add(skill)
         # 同一个克苏恩的技能不能重复选，所以「没出现在选项里」= 已经用过。
         # 之前把「选项里出现的」当成用过的，四个技能一出现就全记上了，
-        # 结果第一次触发就显示强化 ×3。
+        # 结果第一次触发就显示强化 ×4。
         if len(offered) >= 2:
             self.cthun_used = {s for s in self.CTHUN_SKILLS if s not in offered}
 

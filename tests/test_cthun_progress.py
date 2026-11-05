@@ -1,4 +1,4 @@
-"""克苏恩技能计数：任何触发的技能都算用掉一次，四个各一次才翻 3 倍。"""
+"""克苏恩技能计数：任何触发的技能都算用掉一次，四个各一次才翻四倍。"""
 
 from __future__ import annotations
 
@@ -42,6 +42,29 @@ class CthunProgressTest(unittest.TestCase):
         self._send("BE_013t1")
         self.st.reset()
         self.assertEqual(self.st.cthun_used, set())
+
+
+class CloneKeepsStateTest(unittest.TestCase):
+    """模拟会 clone 局面：以前手写字段列表漏掉的属性必须还在。"""
+
+    def test_hero_attack_survives_clone(self) -> None:
+        from hsai import model
+
+        s = model.SideState(hero_hp=20, hero_atk=3, hero_attacks_left=1)
+        c = s.clone()
+        self.assertEqual(c.hero_atk, 3, "英雄攻击力不能被 clone 丢掉")
+        self.assertEqual(c.hero_attacks_left, 1)
+
+    def test_per_unit_skill_set_survives_clone(self) -> None:
+        from hsai import model
+
+        s = model.SideState(hero_hp=20)
+        s._cthun_by_unit = {"cthun#0": {"克苏恩的愤怒"}}
+        c = s.clone()
+        self.assertEqual(c._cthun_by_unit, {"cthun#0": {"克苏恩的愤怒"}})
+        c._cthun_by_unit["cthun#0"].add("克苏恩的领域")
+        self.assertEqual(s._cthun_by_unit["cthun#0"], {"克苏恩的愤怒"},
+                         "副本改了不能影响原局面")
 
 
 if __name__ == "__main__":

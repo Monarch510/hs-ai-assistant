@@ -15,7 +15,7 @@
 ```powershell
 python -m hsai ui              # 悬浮窗（双击 启动AI助手.bat 等价）
 python -m hsai ui --demo       # 示例对局，不接游戏
-python -m unittest discover -s tests   # 220 个用例
+python -m unittest discover -s tests   # 226 个用例
 python -m hsai replay <日志>    # 离线解析，输出快照 JSON
 ```
 
@@ -251,6 +251,10 @@ hsai/logutil.py    诊断日志写入（data/hsai.log，超 1 MB 自动截断）
 - **写进 JSONL 的功能必须有人读**。`advice_feedback.jsonl` 曾经只写不读，重启就「消失」；
   加落盘时同时写读取方，并给「文件不存在/坏行」一条空结果路径。**引擎返回的置信度信号
   别在 UI 层丢掉**（`pick_choice` 的「与第二名分差」曾被调用方用 `_` 接住）。
+- **`clone()` 别手写字段列表**。`SideState.clone()` 曾经逐字段重建，后来加的
+  `hero_atk` / `hero_attacks_left` / `_cthun_by_unit` 全被漏掉，模拟里英雄攻击凭空归零、
+  克苏恩「同一只不能重复选」也失效 —— 两处都没有报错，只是行为悄悄变了。
+  改成 `copy.copy(self)` + 手动深拷可变容器（list/set/dict），加新字段就不用记得改 clone。
 
 ## 改卡牌效果时
 

@@ -411,7 +411,7 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         used_here = per_unit.setdefault(key, set())
         if skill in used_here:
             return nb
-        tripled = len(used_here | set(getattr(me, "_log_cthun", set()))) >= 4
+        tripled = len(me.cthun_used) >= 4   # 口径：任何来源用过的技能都计入
         nb.note(apply_cthun_skill(nb, side, skill, tripled=tripled))
         used_here.add(skill)
         me.cthun_used.add(skill)
@@ -942,14 +942,19 @@ def validate_sequence(board: Board, descs: list[str], cards: CardDB,
 
 CTHUN_SKILL_NAMES = ("克苏恩的愤怒", "克苏恩的领域", "克苏恩的凝视", "克苏恩的仆从")
 
+# 卡牌库 BE_013「集齐四个技能后效果变为四倍」；结算和打分都读这一处，
+# 免得改了模拟里的倍数、建议理由还按旧倍数写。
+# 参数名 tripled 是三倍时代留下的，接口沿用以免牵动快照/界面。
+CTHUN_MULTIPLIER = 4
+
 
 def apply_cthun_skill(board: Board, side: int, name: str, tripled: bool = False) -> str:
     """结算一项克苏恩技能。返回一句说明（用于建议理由）。"""
     me, foe = board.sides[side], board.sides[1 - side]
-    mult = 3 if tripled else 1
+    mult = CTHUN_MULTIPLIER if tripled else 1
 
     if name == "克苏恩的愤怒":
-        total = 7 * mult
+        total = 6 * mult
         targets = [u for u in foe.board if u.alive]
         if targets:
             each = max(1, total // max(1, len(targets) + 1))
@@ -975,16 +980,18 @@ def apply_cthun_skill(board: Board, side: int, name: str, tripled: bool = False)
         buffers = [u for u in me.board if u.alive][:2]
         for u in buffers:
             u.atk += 2 * mult
-            u.hp += 3 * mult
-        return f"领域：{len(buffers)} 个随从获得 +{2*mult}/+{3*mult}"
+            u.hp += 2 * mult
+        return f"领域：{len(buffers)} 个随从获得 +{2*mult}/+{2*mult}"
 
     if name == "克苏恩的仆从":
-        count = 2 * mult
+        # 卡牌文本「两个 2/2」→「两个 8/8」：四倍放大的只有身材，个数一直是 2
+        count, stat = 2, 2 * mult
         for _ in range(count):
             if len([u for u in me.board if u.alive]) >= 7:
                 break
-            me.board.append(Unit(card_id="", name="狂热者", atk=2, hp=3, taunt=True, attacks_left=0))
-        return f"仆从：召唤 {count} 个 2/3 嘲讽"
+            me.board.append(Unit(card_id="", name="狂热者", atk=stat, hp=stat,
+                                 taunt=True, attacks_left=0))
+        return f"仆从：召唤 {count} 个 {stat}/{stat} 嘲讽"
 
     return "未知技能"
 
@@ -1044,7 +1051,7 @@ def score_choice(card, effect, board: Board, side: int, mana: int,
         score -= 2.0
 
     # ② 立即收益
-    mult = 3 if tripled else 1
+    mult = CTHUN_MULTIPLIER if tripled else 1
     if effect.known:
         if effect.damage and effect.scope in ("any", "minion", "enemy", "target", "enemy_minion"):
             killable = [u for u in foe.board
@@ -1068,7 +1075,7 @@ def score_choice(card, effect, board: Board, side: int, mana: int,
             score += 0.7
             reasons.append("加甲")
         if (effect.summon_atk or effect.summon_hp) and effect.summon_count:
-            # 召唤类（克苏恩的仆从：两个 2/3 嘲讽）之前完全没算分
+            # 召唤类（克苏恩的仆从：两个 2/2 嘲讽）之前完全没算分
             n = max(1, int(effect.summon_count))
             per = effect.summon_atk * 1.25 * mult + effect.summon_hp * mult
             if "嘲讽" in ((getattr(card, "text", "") or "")):
@@ -1154,10 +1161,10 @@ def _cthun_choice(board: Board, side: int, options: list, cards: CardDB
     if len(foe_minions) >= 3:
         tiers["克苏恩的愤怒"] = (1, "解场：愤怒铺开打多个随从")
     if len(my_minions) >= 2:
-        tiers["克苏恩的领域"] = (2, "两个随从吃满 +2/+3")
+        tiers["克苏恩的领域"] = (2, "两个随从吃满 +2/+2")
     if need_heal or (big is not None and big.atk >= 4):
         tiers["克苏恩的凝视"] = (3, "凝视：解掉大随从并回血")
-    tiers.setdefault("克苏恩的仆从", (4, "仆从：两个 2/3 嘲讽铺场护脸"))
+    tiers.setdefault("克苏恩的仆从", (4, "仆从：两个 2/2 嘲讽铺场护脸"))
 
     best: tuple[int, int, int, str] | None = None
     for i, n in enumerate(names):
