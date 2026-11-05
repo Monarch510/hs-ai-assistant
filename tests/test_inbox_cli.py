@@ -77,6 +77,27 @@ class InboxClaimTest(unittest.TestCase):
         self.assertEqual(self._run("reap", "--ttl", "3600"), 0)
         self.assertFalse(claim.exists(), "超时凭据要回收，否则任务永远卡在已领取")
 
+    def test_name_with_suffix_works_end_to_end(self) -> None:
+        """list 显示的名字带 .md，复制过去也要能收尾。
+
+        曾经 claim 会把名字规范化成 stem、finish 却直接用参数查凭据，
+        于是 claim 成功、finish 失败，任务卡在「已领」且原文件留在收件箱。
+        """
+        self.assertEqual(self._run("claim", "01-foo.md", "--as", "worker-a"), 0)
+        self.assertEqual(self._run("finish", "01-foo.md", "--as", "worker-a",
+                                   "--status", "ok", "--note", "带后缀收尾"), 0)
+        self.assertFalse((self.root / "01-foo.md").exists())
+        self.assertTrue((self.root / "archive" / "01-foo.md").exists())
+        result = (self.root / "done" / "01-foo.md").read_text(encoding="utf-8")
+        self.assertIn("带后缀收尾", result)
+        self.assertFalse((self.root / ".claims" / "01-foo.json").exists())
+
+    def test_stem_and_suffix_are_interchangeable(self) -> None:
+        """不带后缀 claim、带后缀 release，凭据要认得出来。"""
+        self.assertEqual(self._run("claim", "01-foo", "--as", "worker-a"), 0)
+        self.assertEqual(self._run("release", "01-foo.md", "--as", "worker-a"), 0)
+        self.assertEqual(self._run("claim", "01-foo.md", "--as", "worker-b"), 0)
+
     def test_hidden_and_underscore_files_ignored(self) -> None:
         (self.root / "_README.md").write_text("说明", encoding="utf-8")
         listed = []

@@ -146,6 +146,21 @@ python -m hsai review [-n 3]              # 复盘最近几局的斩杀/空过�
 python -m hsai stats                      # 对局统计
 ```
 
+## 多 AI 并行：任务投递收件箱
+
+想让几个 AI 同时改互不重叠的任务时，用 `docs/plan/inbox/` 这个本地队列
+（`docs/` 不入库，完整规则见根目录 `AGENTS.md`）。脚本只做认领和状态，任务内容由领到的 AI 自己执行：
+
+```powershell
+python scripts/inbox.py list
+python scripts/inbox.py claim 01-xxx --as worker-a      # 原子抢；退出码 3 表示被抢，换下一个
+python scripts/inbox.py finish 01-xxx --as worker-a --status ok --note "验收 OK"
+```
+
+`finish` 会写 `done/`、把原任务移进 `archive/`、清掉 `.claims/` 凭据，所以不会重复执行。
+失败想留给别人重试用 `release`，worker 崩了用 `reap --ttl 3600` 回收超时凭据。
+任务书写法沿用 `docs/plan/` 里的任务书：目标 / 涉及文件 / 禁改 / 验收命令。
+
 ---
 
 ## 文件地图
