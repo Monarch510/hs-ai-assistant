@@ -195,9 +195,13 @@ def resolve(code: DeckCode, cards: CardDB, *, name: str = "") -> ResolvedDeck:
 
     resolved.sort(key=lambda c: (c.cost, c.name))
     if not name:
-        # 用最贵的两张牌给个临时名字，方便在列表里认
-        top = [c.name for c in sorted(resolved, key=lambda c: -c.cost)[:2]]
-        name = f"{card_class_title(card_class)}·{'/'.join(top) if top else '新卡组'}"
+        # 没给名字时按「关键牌」起个临时名，方便在列表里认。
+        # 以前用的是「最贵的两张牌」—— 那可能是一张 8 费的边缘牌，认不出是哪套。
+        from .meta import pick_key_cards
+
+        keys = pick_key_cards(counts, cards)
+        label = cards.display_name(keys[0]) if keys else "新卡组"
+        name = f"{card_class_title(card_class)}·{label}"
     return ResolvedDeck(
         name=name,
         card_class=card_class,

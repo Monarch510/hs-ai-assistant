@@ -6,9 +6,12 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from .ai import chat as _chat, enabled, json_array, load_config
+from .paths import ADVICE_FEEDBACK_JSONL
 
 FEEDBACK_SYSTEM = (
     "你是炉石传说对局复盘助手。用户对某些回合的出牌建议点了「不赞同」，"
@@ -42,6 +45,36 @@ def feedback(summary: str, cfg: dict[str, Any] | None = None) -> list[dict[str, 
         if lesson:
             out.append({"lesson": lesson, "rule": rule})
     return out[:3]
+
+
+def load_recent(limit: int = 3, path: Path | None = None) -> list[dict[str, str]]:
+    """读最后一条「不赞同复盘」，返回 [{lesson, rule}]；文件缺失/坏行都返回 []。
+
+    一局一条记录，只看最后一条：更早的复盘已经被这次覆盖，混着显示会误导。
+    """
+    try:
+        rows = (path or ADVICE_FEEDBACK_JSONL).read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError):
+        return []
+    for row in reversed(rows):
+        try:
+            rec = json.loads(row)
+        except ValueError:
+            continue
+        if not isinstance(rec, dict):
+            continue
+        items = rec.get("items")
+        if not isinstance(items, list):
+            return []
+        out = []
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            lesson = str(it.get("lesson") or "").strip()
+            if lesson:
+                out.append({"lesson": lesson, "rule": str(it.get("rule") or "").strip()})
+        return out[:max(0, limit)]
+    return []
 
 
 def build_summary(cases: list[dict[str, Any]]) -> str:

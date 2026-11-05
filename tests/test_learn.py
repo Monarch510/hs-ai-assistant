@@ -85,13 +85,18 @@ class RetrospectTest(unittest.TestCase):
 
 
 class CalibratePriorTest(unittest.TestCase):
-    """先验校准只认可信真值。"""
+    """先验校准只认可信真值，且真值按**当前**原型库重算。"""
 
     def setUp(self) -> None:
         self.db = cards_mod.load()
+        pool = [c.id for c in self.db.standard_pool("WARRIOR")
+                if c.name and not self.db.is_token(c.id)]
+        self.a_ids, self.b_ids = pool[:3], pool[3:6]
         self.meta = meta.MetaDB([
-            meta.Archetype(id="a", name="战士·甲", card_class="WARRIOR", prior=0.5),
-            meta.Archetype(id="b", name="战士·乙", card_class="WARRIOR", prior=0.5),
+            meta.Archetype(id="a", name="战士·甲", card_class="WARRIOR", prior=0.5,
+                           cards={c: 2 for c in self.a_ids}),
+            meta.Archetype(id="b", name="战士·乙", card_class="WARRIOR", prior=0.5,
+                           cards={c: 2 for c in self.b_ids}),
         ])
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = Path(self._tmp.name)
@@ -107,13 +112,29 @@ class CalibratePriorTest(unittest.TestCase):
         )
         return path
 
-    def test_old_rows_without_truth_are_ignored(self) -> None:
-        """6 局真值指向 a，6 局老格式（只有预测值）指向 b。
+    def test_revealed_wins_over_stale_stored_truth(self) -> None:
+        """存下来的 truth 指向一个已经不存在的 id，但 revealed 明显是甲。
 
-        老行要是被当真值统计，两边会打平；被跳过则 a 明显更高。
+        原型库重建过之后这是常态：id 变了、存的标签就指向死链。校准必须按
+        **当前**原型库重算，否则这些局全部作废，先验永远学不动。
         """
+        rows = [{"opp_class": "WARRIOR", "revealed": self.a_ids,
+                 "truth": {"arch": "learned_战士_已删除", "trusted": True}}] * 6
+        learn.calibrate_priors(self.meta, self.db, self._write(rows))
+        a, b = self.meta.get("a"), self.meta.get("b")
+        self.assertGreater(a.prior, b.prior * 1.5,
+                           "应该按 revealed 重算成甲，而不是信那个死链 id")
+
+    def test_rows_without_revealed_fall_back_to_stored_truth(self) -> None:
+        """连 revealed 都没有的老行，只能退回读存下来的 truth。"""
         rows = [{"opp_class": "WARRIOR", "truth": {"arch": "a", "trusted": True}}] * 6
-        rows += [{"opp_class": "WARRIOR", "opp_archetype": "b"}] * 6
+        learn.calibrate_priors(self.meta, self.db, self._write(rows))
+        self.assertGreater(self.meta.get("a").prior, self.meta.get("b").prior * 1.5)
+
+    def test_prediction_only_rows_are_ignored(self) -> None:
+        """只有预测值（老格式）的行一律跳过 —— 拿预测当真值会自我确认。"""
+        rows = [{"opp_class": "WARRIOR", "opp_archetype": "b"}] * 6
+        rows += [{"opp_class": "WARRIOR", "truth": {"arch": "a", "trusted": True}}] * 6
         learn.calibrate_priors(self.meta, self.db, self._write(rows))
         a, b = self.meta.get("a"), self.meta.get("b")
         self.assertGreater(a.prior, b.prior * 1.5,
@@ -121,7 +142,114 @@ class CalibratePriorTest(unittest.TestCase):
 
     def test_untrusted_truth_is_ignored(self) -> None:
         rows = [{"opp_class": "WARRIOR", "truth": {"arch": "a", "trusted": False}}] * 8
-        self.assertEqual(learn.calibrate_priors(self.meta, self.db, self._write(rows)), 0)
+        self.assertEqual(learn.calibrate_priors(self.meta, self.db, self._write(rows))["updated"], [])
+
+    def test_repeated_calibration_is_idempotent(self) -> None:
+        """同一个命令跑三遍，先验不能一遍比一遍更偏。
+
+        以前每次都在「当前先验」上再混一次，跑三遍就把先验洗成观测频率
+        （实测 0.76 → 0.87 → 0.91 → 0.92），而且没有任何提示。
+        """
+        path = self._write([{"opp_class": "WARRIOR", "revealed": self.a_ids}] * 6)
+        learn.calibrate_priors(self.meta, self.db, path)
+        once = {a.id: a.prior for a in self.meta}
+        for _ in range(2):
+            learn.calibrate_priors(self.meta, self.db, path)
+        again = {a.id: a.prior for a in self.meta}
+        for aid in once:
+            self.assertAlmostEqual(once[aid], again[aid], places=6,
+                                   msg=f"{aid} 的先验在重复校准中继续漂移")
+
+    def test_prior_base_is_frozen_at_original_value(self) -> None:
+        """校准起点要钉在原始先验上，不能钉在上一轮的校准结果上。"""
+        path = self._write([{"opp_class": "WARRIOR", "revealed": self.a_ids}] * 6)
+        learn.calibrate_priors(self.meta, self.db, path)
+        a = self.meta.get("a")
+        self.assertAlmostEqual(a.prior_base, 0.5, places=6)
+        self.assertNotAlmostEqual(a.prior, a.prior_base, places=3,
+                                  msg="校准应该真的改变了 prior")
+
+    def test_schema2_list_revealed_is_accepted(self) -> None:
+        """schema 2 的 revealed 是 [[id, 回合]]，从 json 读出来是 list 不是 tuple。
+
+        只判 tuple 会把 list 当成 card_id 塞进 Counter，抛 unhashable。
+        """
+        rows = [{"opp_class": "WARRIOR",
+                 "revealed": [[cid, 2] for cid in self.a_ids]} for _ in range(6)]
+        path = self._write(rows)
+        t = infer.DeckPredictor(self.meta, self.db).retrospect(
+            "WARRIOR", json.loads(path.read_text(encoding="utf-8").splitlines()[0])["revealed"])
+        self.assertEqual(t.archetype_id, "a")
+        self.assertTrue(t.trusted)
+
+
+class BackfillTruthTest(unittest.TestCase):
+    """历史回填：把 schema 2 之前那些没有 truth 的行补上。"""
+
+    def setUp(self) -> None:
+        self.db = cards_mod.load()
+        pool = [c.id for c in self.db.standard_pool("WARRIOR")
+                if c.name and not self.db.is_token(c.id)]
+        self.a_ids = pool[:3]
+        self.meta = meta.MetaDB([
+            meta.Archetype(id="a", name="战士·甲", card_class="WARRIOR", prior=1.0,
+                           cards={c: 2 for c in self.a_ids}),
+        ])
+        self._tmp = tempfile.TemporaryDirectory()
+        self.path = Path(self._tmp.name) / "observations.jsonl"
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _old_rows(self, n: int = 3) -> None:
+        """老格式：只有 opp_archetype（预测值），没有 truth，revealed 是纯 id 数组。"""
+        rows = [{"ts": "2026-01-01T00:00:00", "opp_class": "WARRIOR",
+                 "opp_archetype": "b", "result": "win", "revealed": self.a_ids}
+                for _ in range(n)]
+        self.path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+                             encoding="utf-8")
+
+    def test_fills_missing_truth(self) -> None:
+        self._old_rows()
+        report = learn.backfill_truth(self.db, self.meta, observations_path=self.path)
+        self.assertEqual(report["total"], 3)
+        self.assertEqual(report["filled"], 3)
+        self.assertTrue(report["written"])
+
+        row = json.loads(self.path.read_text(encoding="utf-8").splitlines()[0])
+        self.assertEqual(row["truth"]["arch"], "a", "回填应该按 revealed 重算，不是抄预测值")
+        self.assertTrue(row["truth"]["trusted"])
+
+    def test_other_fields_are_preserved(self) -> None:
+        self._old_rows()
+        learn.backfill_truth(self.db, self.meta, observations_path=self.path)
+        row = json.loads(self.path.read_text(encoding="utf-8").splitlines()[0])
+        self.assertEqual(row["ts"], "2026-01-01T00:00:00")
+        self.assertEqual(row["opp_archetype"], "b", "老字段原样留着，不替用户删")
+        self.assertEqual(row["result"], "win")
+
+    def test_dry_run_does_not_write(self) -> None:
+        self._old_rows()
+        before = self.path.read_text(encoding="utf-8")
+        report = learn.backfill_truth(self.db, self.meta, observations_path=self.path, dry_run=True)
+        self.assertFalse(report["written"])
+        self.assertEqual(before, self.path.read_text(encoding="utf-8"))
+
+    def test_backup_is_kept(self) -> None:
+        self._old_rows()
+        before = self.path.read_text(encoding="utf-8")
+        learn.backfill_truth(self.db, self.meta, observations_path=self.path)
+        backup = self.path.with_suffix(".jsonl.bak")
+        self.assertTrue(backup.exists())
+        self.assertEqual(before, backup.read_text(encoding="utf-8"))
+
+    def test_broken_line_is_preserved(self) -> None:
+        self._old_rows(1)
+        with self.path.open("a", encoding="utf-8") as fh:
+            fh.write("{ 这不是合法 JSON\n")
+        learn.backfill_truth(self.db, self.meta, observations_path=self.path)
+        self.assertIn("这不是合法 JSON", self.path.read_text(encoding="utf-8"),
+                      "解析不了的行要原样留着，不能替用户丢数据")
 
 
 class ObservationRowTest(unittest.TestCase):
@@ -217,9 +345,9 @@ class RebuildTest(unittest.TestCase):
         return path
 
     def test_drops_only_learned_archetypes(self) -> None:
-        """导入的卡组和内置种子是外部输入，重建不该碰。"""
+        """导入的卡组是外部输入，重建不该碰；老文件里遗留的 seed 也不该碰。"""
         m = meta.MetaDB([
-            meta.Archetype(id="seed_x", name="种子", card_class="WARRIOR",
+            meta.Archetype(id="seed_x", name="旧种子", card_class="WARRIOR",
                            prior=0.5, cards={c: 2 for c in self.seed_cards},
                            source="seed"),
             meta.Archetype(id="deck_y", name="导入的", card_class="WARRIOR",
@@ -232,7 +360,7 @@ class RebuildTest(unittest.TestCase):
         report = learn.rebuild_learned(self.db, m, min_games=2, observations_path=path)
 
         ids = {a.id for a in m}
-        self.assertIn("seed_x", ids)
+        self.assertIn("seed_x", ids, "老数据里可能还留着 source=seed 的文件，重建不该删")
         self.assertIn("deck_y", ids)
         self.assertNotIn("learned_warrior_9", ids)
         self.assertEqual(len(report["removed"]), 1)
@@ -250,17 +378,28 @@ class RebuildTest(unittest.TestCase):
         self.assertNotIn("GAME_005", built.cards)
         self.assertEqual(set(built.cards), set(self.deck))
 
-    def test_label_tiebreak_is_stable(self) -> None:
-        """同频次时按 id 排序取名字。
+    def test_ids_are_content_based_and_stable(self) -> None:
+        """重建两次，学出来的 id 必须一模一样。
 
-        不排序的话 `freq` 的遍历顺序来自 set，字符串哈希随机化会让同一个
-        重建跑两次得到不同的名字，而 opp_history 是按名字匹配的。
+        以前 id 是「同职业第几个」，删/加一个原型就让其余全部平移 ——
+        而 observations 里的 truth.arch 是按 id 记的，历史真值当场对不上。
         """
-        ids = sorted(self.deck[:3])
-        rows = [{"opp_class": "WARRIOR", "revealed": ids}] * 3
-        built = meta.build_from_observations(rows, self.db, min_games=2)
-        a = next(x for x in built if x.card_class == "WARRIOR")
-        self.assertTrue(a.name.endswith(self.db.display_name(ids[0])), a.name)
+        rows = [{"opp_class": "WARRIOR", "revealed": self.deck}] * 3
+        first = meta.build_from_observations(rows, self.db, min_games=2)
+        second = meta.build_from_observations(rows, self.db, min_games=2)
+        self.assertEqual([a.id for a in first], [a.id for a in second])
+        self.assertRegex(first.archetypes[0].id, r"^warrior_[0-9a-f]{8}$")
+
+    def test_different_decks_get_different_ids(self) -> None:
+        """内容不同 id 就必须不同，否则两套牌会互相覆盖。"""
+        a = meta.content_id("WARRIOR", {self.deck[0]: 2})
+        b = meta.content_id("WARRIOR", {self.deck[1]: 2})
+        self.assertNotEqual(a, b)
+
+    def test_id_ignores_dict_order(self) -> None:
+        a = meta.content_id("WARRIOR", {self.deck[0]: 2, self.deck[1]: 1})
+        b = meta.content_id("WARRIOR", {self.deck[1]: 1, self.deck[0]: 2})
+        self.assertEqual(a, b, "同一套牌，插入顺序不同不能算出两个 id")
 
 
 class RevealedFormatTest(unittest.TestCase):

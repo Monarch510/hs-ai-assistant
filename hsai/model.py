@@ -638,6 +638,10 @@ class Board:
             else:
                 my_side.hero_hp = min(30, my_side.hero_hp + eff.heal)
 
+        # armor 以前只在亡语里结算，普通法术/技能拿到护甲会被静默丢掉
+        if eff.armor:
+            caster.armor += eff.armor
+
         if eff.buff_atk or eff.buff_hp:
             if target is not None and target in my_side.board:
                 target.atk += eff.buff_atk
@@ -813,10 +817,11 @@ def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: fl
     # 但**不要再加「我能斩杀」的阶跃加分**：打一下脸就会让「还能不能斩杀」翻转，
     # 评分出现 -800 的悬崖，AI 反而打一下就不打了。斩交由 policy._lethal_sequence
     # 单独处理（按伤害贪心拼完整顺序）。
-    if w.get("lethal_bonus", 1.0):
-        foe_reach = foe.board_attack + (foe.weapon.atk if foe.weapon else 0)
-        if foe_reach >= me.hero_hp + me.armor:
-            score -= 420 * w.get("lethal_bonus", 1.0)
+    # 固定阶跃，不是可调权重：DEFAULT_WEIGHTS 里没有 lethal_bonus，
+    # w.get(..., 1.0) 看着像参数，实际外部传 100 就会把分数压掉 42000
+    foe_reach = foe.board_attack + (foe.weapon.atk if foe.weapon else 0)
+    if foe_reach >= me.hero_hp + me.armor:
+        score -= 420
     return score
 
 

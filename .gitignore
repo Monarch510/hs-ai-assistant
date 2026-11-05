@@ -8,8 +8,13 @@
 data/cards_*.json
 
 # 卡组与环境
+# meta/ 是「一个原型一个文件」；meta_backup/ 是 rebuild 前的自动备份
 data/meta.json
+data/meta.json.migrated
 data/meta.backup.json
+data/meta/
+data/meta_backup/
+data/meta_before_*/
 data/our_deck.json
 
 # 对局记录
@@ -58,3 +63,8 @@ venv/
 # 本地 AI 代理的工作记录（个人笔记，不属于项目代码）
 # ============================================================
 .workbuddy-ai/
+
+# 运行时/工具产物，不入库
+.agent-teams/
+.workbuddy/
+docs/plan/_*.txt

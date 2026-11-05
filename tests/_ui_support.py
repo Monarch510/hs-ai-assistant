@@ -317,5 +317,6 @@ def prepare() -> bool:
 
     ui.STATE_PATH = _tmp_dir() / "window.json"
     ui.LAST_REVIEW_JSON = _tmp_dir() / "no_review.json"
+    ui.ADVICE_FEEDBACK_JSONL = _tmp_dir() / "advice_feedback.jsonl"
     logwatch.INSTALL_CACHE = _tmp_dir() / "install_dir.txt"
     return stub

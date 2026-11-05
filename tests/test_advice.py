@@ -9,7 +9,7 @@ from hsai import cards as cards_mod
 from hsai import mulligan, policy
 from hsai.advisor import Advisor, board_from_state
 from hsai.infer import Candidate, DeckPredictor, Prediction
-from hsai.meta import MetaDB
+from hsai.meta import Archetype, MetaDB
 from hsai.model import Board, SideState, Unit, evaluate
 from hsai.state import replay_log_text
 
@@ -17,10 +17,21 @@ FIXTURE = Path(__file__).parent / "fixtures" / "sample_game.log"
 
 
 class InferTest(unittest.TestCase):
+    """预判算法本身。
+
+    这里用**自建的**两个战士原型，不读 `data/meta/`：内置种子删掉之后真实库里
+    有什么完全取决于用户导入了哪些卡组，拿它当断言对象，测试就会随用户数据飘。
+    """
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.db = cards_mod.load()
-        cls.meta = MetaDB.load(cls.db)
+        cls.meta = MetaDB([
+            Archetype(id="tempo_warrior", name="节奏战", card_class="WARRIOR", prior=0.5,
+                      cards={"NEW1_025": 2, "CORE_EX1_604": 2}, source="import"),
+            Archetype(id="control_warrior", name="控制战", card_class="WARRIOR", prior=0.5,
+                      cards={"CORE_EX1_407": 2, "CORE_CS2_108": 2}, source="import"),
+        ], cls.db)
         cls.pred = DeckPredictor(cls.meta, cls.db)
 
     def test_posteriors_sum_to_one(self) -> None:

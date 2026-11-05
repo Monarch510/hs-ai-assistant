@@ -40,7 +40,12 @@ EFFECTS_BACKUP = DATA_DIR / "effects.json.bak"
 
 # ---------- 卡组与环境 ----------
 
-META_JSON = DATA_DIR / "meta.json"                  # 卡组原型库
+# 卡组原型库：一个原型一个文件，`data/meta/<id>.json`。
+# 单个 meta.json 要改一个原型就得重写整份文件，也没法手工增删一套牌。
+META_DIR = DATA_DIR / "meta"
+META_BACKUP_DIR = DATA_DIR / "meta_backup"
+# 老格式（单文件）。只在迁移时读一次，之后改名留档。
+META_JSON = DATA_DIR / "meta.json"
 META_BACKUP = DATA_DIR / "meta.backup.json"
 OUR_DECK_JSON = DATA_DIR / "our_deck.json"          # deck mine 登记的自己卡组
 

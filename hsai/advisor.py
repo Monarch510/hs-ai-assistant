@@ -27,7 +27,8 @@ from . import review as review_mod
 
 from .cards import DATA_DIR, Card, CardDB
 from .infer import DeckPredictor, Prediction, RetroTruth
-from .meta import META_PATH, MetaDB
+from .meta import MetaDB
+from .paths import META_DIR
 from .model import Board, SideState, Unit
 from .paths import (
     LAST_REVIEW_JSON,
@@ -165,12 +166,15 @@ def board_from_state(st: GameState) -> Board:
             me.hand.append(card)
         me.board = [_unit_from_view(v, st.cards) for v in ours.board]
         them.board = [_unit_from_view(v, st.cards) for v in opp.board]
-    # 武器攻击：装备了武器、且英雄本回合还没攻击过，才算可用
+    # 武器只在这里建一次：再建一遍会把耐久覆盖成 1，风怒也会丢
     if ours.weapon:
         w = ours.weapon
+        wcard = st.cards.get(w.get("id") or "") if st.cards else None
+        dur = max(1, int(w.get("durability") or w.get("health") or 1))
         me.weapon = Unit(card_id=w.get("id") or "", name=w.get("name") or "武器",
                          atk=max(0, int(w.get("atk") or 0)),
-                         hp=int(w.get("durability") or w.get("health") or 1))
+                         hp=dur, max_hp=dur,
+                         windfury=bool(wcard is not None and wcard.has("WINDFURY")))
     if me.weapon is not None:
         hero = st.hero(st.our_id)
         can_hit = hero is not None and st.can_attack(hero)
@@ -213,9 +217,12 @@ def board_from_state(st: GameState) -> Board:
         # 只数「从手牌打出的随从」，召唤物不算（和面板上的计数器同源）
         me.minions_played = int(getattr(st, "our_minions_played", 0) or 0)
 
-    # 牌库内容我们看不到，但「还剩几张」影响摸牌与疲劳，用占位牌补齐
-    me.deck = _unknown_cards(ours.deck_count or max(0, 30 - len(me.hand) - len(me.board)))
-    them.deck = _unknown_cards(opp.deck_count or max(0, 30 - opp.hand_count - len(them.board)))
+    # 牌库内容我们看不到，但「还剩几张」影响摸牌与疲劳，用占位牌补齐。
+    # 0 张（疲劳期）是合法值，不能拿 `or` 当「没数据」；只有 None 才回退到估算。
+    me.deck = _unknown_cards(ours.deck_count if ours.deck_count is not None
+                             else max(0, 30 - len(me.hand) - len(me.board)))
+    them.deck = _unknown_cards(opp.deck_count if opp.deck_count is not None
+                               else max(0, 30 - opp.hand_count - len(them.board)))
     them.hand = _unknown_cards(opp.hand_count)
     hp_view = ours.hero_power or {}
     _hero = st.hero(st.our_id) if hasattr(st, "hero") else None
@@ -236,10 +243,8 @@ def board_from_state(st: GameState) -> Board:
 
     if hp_view.get("id") and st.cards:
         me.hero_power = st.cards.get(hp_view["id"])
+        # shortcut: 日志里没有可靠的「英雄技能已用」标记，这里恒 False，等拿到日志样本再接（见 00-现状 §3.5）
         me.hero_power_used = bool(hp_view.get("used"))
-    if ours.weapon:
-        me.weapon = Unit(card_id=ours.weapon.get("id", ""), name=ours.weapon.get("name", "武器"),
-                         atk=max(0, ours.weapon.get("atk") or 0), hp=1, max_hp=1)
     if opp.weapon:
         them.weapon = Unit(card_id=opp.weapon.get("id", ""), name=opp.weapon.get("name", "武器"),
                            atk=max(0, opp.weapon.get("atk") or 0), hp=1, max_hp=1)
@@ -263,7 +268,7 @@ class Collected:
 
 
 class Advisor:
-    def __init__(self, cards: CardDB | None = None, *, meta_path: Path = META_PATH) -> None:
+    def __init__(self, cards: CardDB | None = None, *, meta_path: Path = META_DIR) -> None:
         self.cards = cards if cards is not None else CardDB.load()
         self.meta = MetaDB.load(self.cards, meta_path)
         self.predictor = DeckPredictor(self.meta, self.cards)
@@ -293,6 +298,10 @@ class Advisor:
 
     # ------------------------------------------------------------ 主入口
     def snapshot(self, st: GameState) -> dict[str, Any]:
+        # 卡组张数优先用登记过的（40 张卡组也能算对）。同步给状态层：
+        # 抽牌计数的物理上限和这里的牌库反推必须是同一个数。
+        deck_total = len(self.our_deck) or 30
+        st.deck_size = deck_total
         ours, opp = st.sides()
         collected = Collected(
             our_class=ours.class_en or "",
@@ -305,10 +314,7 @@ class Advisor:
         collected.prediction = pred
 
         # 牌库张数：日志里没有「剩余牌库」字段，只能 卡组张数 - 已抽到。
-        # 卡组张数优先用登记过的（40 张卡组也能算对）。
         # 只在这里算一次，不放进快照 —— 界面和 AI 都只关心算好的 deck_count。
-        deck_total = len(self.our_deck) or 30
-
         snap: dict[str, Any] = {
             "type": "snapshot",
             "ts": datetime.now().strftime("%H:%M:%S"),

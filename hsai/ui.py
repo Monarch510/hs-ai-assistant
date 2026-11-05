@@ -120,6 +120,7 @@ class Overlay:
         self._ai_pick: tuple[str, str] | None = None
         self._ai_route: list[dict] | None = None
         self._pick_source = "AI"
+        self._pick_gap = 0.0                 # 0 表示这轮还没算过与第二名的分差
         self._hint_busy = False
         self._hint_result: tuple | None = None          # 这条建议是 AI 给的还是引擎给的
         # 工作线程只写这个字段，主线程在 _tick 里取走 —— Tk 不是线程安全的，
@@ -139,7 +140,9 @@ class Overlay:
         self._ai_lessons: list[str] = []
         # 被点了「不赞同」的回合（局后交给 AI 分析）
         self._disagree_turns: set[int] = set()
-        self._feedback_items: list[dict[str, str]] = []
+        # 重启后也要看得到上次点 👎 的复盘：写盘的地方在 _feedback_worker
+        self._feedback_items: list[dict[str, str]] = feedback_mod.load_recent(
+            path=ADVICE_FEEDBACK_JSONL)
         self._advice_by_turn: dict[int, dict[str, Any]] = {}
         self._effect_done: set[str] = set()      # 已处理过的牌名
         self._effect_report: list[str] = []      # 本局的规则补充结果
@@ -738,6 +741,7 @@ class Overlay:
                     board_now.sides[0].mana, deck_cards=deck_cards,
                     tripled=bool((snap.get("cthun") or {}).get("tripled")))
                 self._ai_pick = (str((choice.get("options") or [{}])[idx].get("name")), why)
+                self._pick_gap = float(gap)
                 self._pick_source = "引擎"
                 self._ai_route = None
                 self._ai_text = ""
@@ -1031,6 +1035,7 @@ class Overlay:
             self._advice_sig = sig
             self._log_advice(snap)
             self._ai_pick = None
+            self._pick_gap = 0.0
             self._ai_route = None
             self._ai_text = ""
 
@@ -1061,6 +1066,7 @@ class Overlay:
         if snap.get("phase") != "playing" or not snap.get("is_our_turn"):
             if self._ai_pick or self._ai_text or self._ai_route:
                 self._ai_pick = None
+                self._pick_gap = 0.0
                 self._ai_text = ""
                 self._ai_route = None
                 self._ai_busy = False
@@ -1106,8 +1112,11 @@ class Overlay:
             board = [m for m in (side.get("board") or []) if m.get("atk")]
             atk = sum(int(m.get("atk") or 0) for m in board)
             weapon = (side.get("weapon") or {}).get("atk") or 0
+            # 对手没有抽牌标签时牌库是粗估，界面上要看得出来，别当成实测值
+            deck = side.get("deck_count")
+            deck_text = f"约{deck}" if side.get("deck_estimated") else str(deck)
             return (f"{label} {live} · 手牌 {side.get('hand_count')} · "
-                    f"牌库 {side.get('deck_count')} · 场攻 {atk + weapon}")
+                    f"牌库 {deck_text} · 场攻 {atk + weapon}")
 
         inner_b = self._section("对战信息")
         for side, label in ((snap.get("opp") or {}, "对手"), (snap.get("our") or {}, "我方")):
@@ -1147,6 +1156,13 @@ class Overlay:
             tk.Label(inner_pick, text=self._ai_pick[1], bg=PANEL, fg=MUTED,
                      font=(FONT, self.font_size - 2), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x")
+            # 分差只在真的算过时显示：0 是初值，9.9/99 是规则化选择或只有一个候选
+            gap = getattr(self, "_pick_gap", 0.0) or 0.0
+            if 0.0 < gap < 9.0:
+                tip = f"与第二名差 {gap:.1f} 分" + ("（咬得紧）" if gap < 1.0 else "")
+                tk.Label(inner_pick, text=tip, bg=PANEL, fg=BLUE,
+                         font=(FONT, self.font_size - 3), anchor="w", justify="left",
+                         wraplength=self.width - 46).pack(fill="x")
         passive = snap.get("passive") or {}
         every = int(passive.get("every") or 0)
         played = int(passive.get("played") or 0)

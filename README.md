@@ -134,6 +134,8 @@ python -m hsai setup-log                  # 写入 log.config
 python -m hsai deck add|mine <卡组代码>    # 卡组代码导入
 python -m hsai meta build                 # 从自己的对局记录聚类出本地环境
 python -m hsai meta rebuild [--dry-run]   # 丢掉学出来的原型，按当前口径重聚类（先备份）
+python -m hsai meta calibrate             # 按实际遇到的比例修正先验（可重复跑，结果一样）
+python -m hsai learn --backfill [--dry-run]  # 给老对局补真值标签（写盘前留 .bak）
 python -m hsai cards --update             # 更新卡牌库
 python -m hsai log                        # 终端里跟日志
 python -m hsai replay <日志文件>           # 离线解析，输出快照 JSON
@@ -199,7 +201,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 | `logutil.py` | 运行时诊断日志的唯一写入口：`log()` 统一时间戳、超 1 MB 自动截断保留最后 2000 行。此前 advisor / state / ui 三处各写各的、格式不一且无轮转 |
 | `paths.py` | **`data/` 下所有路径的唯一出处**，也是唯一允许写文件名的地方。此前 `lessons.jsonl`、`effects.json`、`hsai.log` 各有 2–3 份重复定义，改一处忘一处就会「记了但查不到」且不报错 |
 | `deckcode.py` | 卡组代码（`AAEC...`）编解码：LEB128 varint + base64，格式在文件头写全了 |
-| `meta.py` | 卡组原型库：一个原型 = 职业 + 标志牌及张数，剩余槽位用职业牌池平滑补齐。三来源：`data/meta.json` > 内置种子 > 自举聚类；同职业重复原型自动合并。聚类时**滤掉衍生物**（历史数据里占 28%），超过 40 张的簇整簇放弃，标志牌取名按 id 兜底排序保证可复现 |
+| `meta.py` | 卡组原型库：一个原型 = 职业 + 标志牌及张数，剩余槽位用职业牌池平滑补齐。**一个原型一个文件**（`data/meta/<id>.json`），`cards` 写成带名称/费用/张数的数组并按费用升序。两来源：导入（`deck import`）与自举聚类（`meta rebuild`）——内置种子已删除，它们不是真实天梯数据，却和真卡组一起参与概率比较。聚类时**滤掉衍生物**（历史数据里占 28%），超过 40 张的簇整簇放弃。**命名取关键牌**：稀有度优先（有传说用传说，没传说退史诗，再退稀有、普通），同档比出牌率，**只取一张牌的名字**。不是取出牌率最高的牌——那样会得到「战士·斩杀」这种看不出是哪套牌的名字 |
 | `model.py` | 共享局面模型 + 卡牌效果解释器 + `evaluate()` 评估函数。policy、sim、learn 三处共用，避免规则写三遍。**不是完整规则引擎**，建模不了的牌标记「效果未知」并降低推荐权重 |
 
 **判断层**
@@ -232,9 +234,9 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 |---|---|
 | `sim/engine.py` | 自对弈引擎：两套牌交给两个 agent 真打完一局。是学习闭环的训练场，也是验证建议引擎的工具。模拟胜率只能做**相对比较**，不等于天梯胜率 |
 | `sim/__init__.py` | 导出 `match / run_game / greedy_agent / random_agent` 等接口 |
-| `learn.py` | 自主学习三件事：记录对局到 `observations.jsonl`、从自己的对局里聚类出本地环境（自举 meta）、用自对弈坐标轮换爬山优化权重。`rebuild_learned()` 丢掉学出来的原型按当前口径重聚类，只动 `source=learned`，不碰导入的卡组和种子 |
+| `learn.py` | 自主学习三件事：记录对局到 `observations.jsonl`、从自己的对局里聚类出本地环境（自举 meta）、用自对弈坐标轮换爬山优化权重。`rebuild_learned()` 丢掉学出来的原型按当前口径重聚类，只动 `source=learned`，不碰导入的卡组。`backfill_truth()` 给 schema 2 之前的老行补真值（写盘前留 `.bak`）；`calibrate_priors()` 按当前原型库**重算**每局真值，所以重建原型之后不用回填也不会串味 |
 
-### tests/ —— 123 个用例
+### tests/ —— 220 个用例
 
 `python -m unittest discover tests` 跑全部。`fixtures/` 里两份日志：`sample_game.log`（构造的示例局）和 `real_client_excerpt.log`（真实客户端片段，用来锁解析行为）。
 
@@ -253,7 +255,9 @@ python -m unittest discover tests -p "test_[!s]*.py"
 | `test_cards.py` / `test_deckcode.py` | 卡牌库加载、卡组代码往返编解码 |
 | `test_sim.py` | 自对弈引擎跑通与结果稳定 |
 | `test_ai_layer.py` / `test_effects_ai.py` | AI 层降级行为、三道闸门、JSON 容错（**不联网**） |
-| `test_learn.py` | 学习只吃真值（17 条）：局末回顾不跟先验走、可信判据、先验校准跳过老格式、观察行预测/真值分离、衍生物不进 `revealed`、重建只动 `learned` 且结果可复现 |
+| `test_learn.py` | 学习只吃真值（27 条）：局末回顾不跟先验走、可信判据、先验校准按当前原型库重算（存下来的旧 id 不算数）、历史回填、观察行预测/真值分离、衍生物不进 `revealed`、内容哈希 id 可复现、重建只动 `learned` |
+| `test_meta_store.py` | 原型库存储（9 条）：一个原型一个文件、`cards` 带名称/费用/张数且按费用升序、老格式兼容、单文件自动迁移、手改坏的文件不被静默删掉、内置种子确实已删 |
+| `test_naming.py` | 卡组命名（14 条）：稀有度是硬优先级（传说压过 100% 出牌率的普通牌、便宜传说压过昂贵史诗）、同档才比出牌率、单张传说不被扣分、撞名往后挪而不拼接、插入顺序不影响名次、重建名字稳定、卡组代码的自动名与给定名 |
 | `test_render_smoke.py` | 界面冒烟：各种快照（斩杀、空建议、复盘、留牌、未知卡组）渲染不报错。**缺 tkinter 时用 `_ui_support.py` 的替身跑**，验的是渲染路径不抛异常，不是像素 |
 | `_ui_support.py` | 界面测试的公共准备：没有 tkinter 时装替身（只记控件树和文字），并把 `window.json`、`install_dir.txt` 改道到临时目录，免得跑测试冲掉用户的窗口摆位 |
 
@@ -276,8 +280,10 @@ python -m unittest discover tests -p "test_[!s]*.py"
 | `cards_zhCN.json` | `cards.py` | 卡牌库缓存（约 4 MB，首次运行下载） |
 | `effects.json` | `effects_ai.py` 写，`model.py` 读 | 卡牌效果正则规则表。**这份入库**，因为它是可复现的行为定义 |
 | `effects.json.bak` | `effects_ai.py` | 改规则前的自动备份 |
-| `meta.json` / `meta.backup.json` | `meta.py` | 卡组原型库（导入或自举聚类的结果）及其备份 |
-| `observations.jsonl` | `advisor.py` | 每局一行（schema 2）：对手职业、带回合的已见牌、每回合预测轨迹、**预测值与真值分开存**、对手剩余牌库/手牌。先验学习只吃 `truth`，预测值只用来算准确率 |
+| `meta/<id>.json` | `meta.py` | 卡组原型库，**一个原型一个文件**：`cards` 是 `[{id,name,cost,count}]` 且按费用升序，方便人工核对和手改 |
+| `meta_backup/` | `cli.py` | `meta rebuild` 前的自动备份（逐文件复制） |
+| `meta.json` | 仅迁移时读 | 老的单文件格式。第一次加载时自动拆成 `meta/<id>.json`，原文件改名成 `meta.json.migrated` 留档 |
+| `observations.jsonl` | `advisor.py` | 每局一行（schema 2）：对手职业、带回合的已见牌、每回合预测轨迹、**预测值与真值分开存**、对手剩余牌库/手牌。先验学习只吃 `truth`，预测值只用来算准确率。老行没有 `truth` 的话跑一次 `learn --backfill` 补上（会先留 `.bak`） |
 | `games.jsonl` | `review.py` | 完整对局记录，复盘的事实来源 |
 | `lessons.jsonl` | `ai.py` / `memory.py` | AI 总结的教训，带对局标签 |
 | `cases.jsonl` | `memory.py` | 具体局面 → 当时怎么打 → 结果，比抽象教训更容易被模仿 |

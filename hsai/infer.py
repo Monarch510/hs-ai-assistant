@@ -338,7 +338,10 @@ class DeckPredictor:
         """
         seen: Counter[str] = Counter()
         for item in revealed:
-            cid = item[0] if isinstance(item, tuple) else item
+            # schema 2 存的是 [[card_id, 回合], ...]，从 json 读出来是 list 不是 tuple ——
+            # 只判 tuple 的话，list 会被当成 card_id 塞进 Counter，直接抛
+            # TypeError: unhashable type: 'list'。回填历史数据时会撞上。
+            cid = item[0] if isinstance(item, (list, tuple)) else item
             if cid:
                 seen[cid] += 1
         pool = self.meta.for_class(opp_class) if seen else []

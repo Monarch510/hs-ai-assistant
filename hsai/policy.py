@@ -582,8 +582,13 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
             continue
         hits = 2 if (u.windfury and u.attacks_left >= 2) else 1
         swings.extend([u.atk] * hits)
-    if me.weapon and me.weapon.atk > 0:
-        swings.append(me.weapon.atk)
+    # 英雄自己也是攻击者：有武器时 hero_atk 通常已经等于武器攻击力，
+    # 取 max 而不是相加，否则同一把武器会被算两次。
+    weapon_atk = me.weapon.atk if (me.weapon and (me.weapon.hp or 0) > 0) else 0
+    hero_atk = max(me.hero_atk, weapon_atk)
+    if hero_atk > 0:
+        # 0 次表示本回合已经打过，不能当成「未知按 1 次算」
+        swings.extend([hero_atk] * min(2, max(0, me.hero_attacks_left)))
 
     attack = sum(swings)
     taunt_hp = sum((3 if u.divine else u.hp) for u in taunts)
@@ -601,6 +606,8 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
     spell_dmg = 0
     mana = me.mana
     face_spells = []
+    # 场上法伤对每张直伤法术都加成，和 apply_action / model.apply_effect 同口径
+    bonus = sum(u.spell_damage for u in me.board if u.alive)
     for card in sorted(me.hand, key=lambda c: c.cost):
         if not card.is_spell or card.cost > mana:
             continue
@@ -610,7 +617,7 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
     for cost, dmg, name in face_spells:
         if cost <= mana:
             mana -= cost
-            spell_dmg += dmg
+            spell_dmg += dmg + bonus
 
     hp_name, hp_cost, hp_eff = hero_power_effect(me.hero_class, me.hero_power)
     hero_power = 0
@@ -1101,7 +1108,8 @@ def score_choice(card, effect, board: Board, side: int, mana: int,
 
     # ⑥ 对手形态：快攻优先解场/回血，控制优先大身材/过牌
     if opp_fast:
-        if effect.damage or effect.destroy or effect.taunt if hasattr(effect, "taunt") else False:
+        # 认不出的牌不因为「可能是解牌」加分，否则快攻对局会偏向未建模的牌
+        if effect.known and (effect.damage or effect.destroy):
             score += 0.8
         if effect.heal or effect.armor:
             score += 0.8

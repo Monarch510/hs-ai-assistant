@@ -130,6 +130,8 @@ class Side:
     hand_count: int = 0
     board: list[dict[str, Any]] = field(default_factory=list)
     deck_count: int = 0
+    # 牌库数是「30 − 手牌 − 场面」的粗估（对手整局没有抽牌标签），不是真值
+    deck_estimated: bool = False
     secrets: list[str] = field(default_factory=list)
     graveyard: list[dict[str, Any]] = field(default_factory=list)   # 已死的随从
     weapon: dict[str, Any] | None = None
@@ -147,6 +149,7 @@ class Side:
             "hand_count": self.hand_count,
             "board": self.board,
             "deck_count": self.deck_count,
+            "deck_estimated": self.deck_estimated,
             "secrets": self.secrets,
             "weapon": self.weapon,
             "hero_power": self.hero_power,
@@ -163,8 +166,6 @@ class GameState:
     # ------------------------------------------------------------ 生命周期
     def reset(self) -> None:
         # 局与局之间必须隔离：抽牌数、墓地、休眠/入场回合、克苏恩进度
-        self.cthun_by_source = {}
-        self._choice_source = {}
         self.entities: dict[int, Entity] = {}
         self.player_ids: dict[int, int] = {}  # player_id -> entity id
         self.player_entities: dict[int, Entity] = {}
@@ -172,6 +173,9 @@ class GameState:
         self.our_id: int = 1
         self.opp_id: int = 2
         self._our_id_locked = False
+        # 「按可见手牌翻面」只做一次：本局内有效，跨局必须清零，否则第二局
+        # 永远提前 return，而第一次启动永远是对的 —— 极难复现。
+        self._id_by_hand_done = False
         self.turn = 0
         self.turn_owner: int | None = None
         self.playstate = 0
@@ -185,8 +189,6 @@ class GameState:
         self.revealed_turns: dict[str, int] = {}
         self.our_hand_ids: list[str] = []
         self.our_played: list[str] = []
-        # 只记「从手牌打出」的牌（召唤、衍生物不算），被动技能计数要用
-        self.our_hand_played: list[str] = []
         self.our_deck_ids: list[str] = []
         self.log: deque[str] = deque(maxlen=60)
         # 出牌流水：谁、打了什么、引擎把它理解成了什么
@@ -206,11 +208,20 @@ class GameState:
         self.woke_turn: dict[int, int] = {}
         # 我方抽到的牌数（牌库→手牌），用来算牌库剩余：30 - 抽到
         self.our_drawn: int = 0
+        # 对手抽到的牌数。日志里这个计数器双方都有，只记我方会让
+        # 「对手牌库数 = 30 − 我方抽牌数」，而预判拿它当分母算概率。
+        self.opp_drawn: int = 0
         # 我方「从手牌打出」的随从数（被动技能按这个计数；召唤物不算）
         self.our_minions_played: int = 0
         self._counted_minions: set[int] = set()
-        # 日志里每回合有「本回合抽了几张」的计数器，按增量累计更准
-        self._draw_tag_last: int = 0
+        # 卡组张数，也是抽牌计数的物理上限；登记过卡组时由 advisor 同步。
+        self.deck_size: int = 30
+        # 日志里每回合有「本回合抽了几张」的计数器。按 方 → 回合 → 已见 value
+        # 记一份：两条管线会把同一次抽牌各打一遍，段间还会回落再涨，
+        # 只有「这个 (方, 回合, value) 没见过」才算一次，幂等不靠数值推断。
+        self._draw_seen: dict[str, dict[int, set[int]]] = {}
+        # 对手整局没有这条标签时 opp_drawn 是粗估；真标签一到就丢掉重算
+        self._opp_drawn_estimated: bool = False
         # 实体 -> (死亡回合, 死亡顺序)；顺序按发生先后递增
         self.attacked_this_turn: set[int] = set()
         # 每只克苏恩各自用过哪些技能（key = 触发源实体 id）
@@ -218,7 +229,6 @@ class GameState:
         self._choice_source: dict = {}
         self.grave_meta: dict[int, tuple[int, int]] = {}
         self._grave_seq: int = 0
-        self._draw_tag_turn: int = 0
         # 克苏恩的四个技能：整局里分别触发过没有（集齐四个后它的技能效果 ×3）
         self.cthun_used: set[str] = set()
         # 当前待做的选择（发现/抉择/弃牌等）：选项列表 + 来源牌
@@ -229,15 +239,14 @@ class GameState:
         self._last_cp_name: str | None = None     # 最近一条「轮到他」但还没认出的名字
         self._first_player_name: str | None = None
         self._choice_player_name: str | None = None
-        self.turn_events: list[str] = []
         # 每回合我方真正做了什么（局后对照建议用）
         self.turn_actions: dict[int, list[str]] = {}
         self._hero_entities: dict[int, int] = {}
         self._name_player: dict[str, int] = {}
-        self._first_player_id: int | None = None
         self._create_ts: str = ""
         self._block_depth = 0
         self._last_block: dict[str, Any] | None = None
+        self._last_attack_key: tuple[int, Any, Any] | None = None
 
     # ------------------------------------------------------------ 事件入口
     def apply_many(self, events: Iterable[pl.Event]) -> None:
@@ -270,7 +279,7 @@ class GameState:
             if r.get("controller") == self.our_id and r.get("name") and t.get("name"):
                 # 同一次攻击会被 GameState / PowerTaskList 各打一遍，按「回合+双方」去重
                 key = (self.turn, r.get("id"), t.get("id"))
-                if key != getattr(self, "_last_attack_key", None):
+                if key != self._last_attack_key:
                     self._last_attack_key = key
                     self.turn_actions.setdefault(self.turn, []).append(f"{r['name']} 攻击 {t['name']}")
             return
@@ -289,13 +298,6 @@ class GameState:
             self._on_block_start(ev)
         elif kind == "block_end":
             self._block_depth = max(0, self._block_depth - 1)
-        elif kind == "block_start":
-            # 出牌/攻击/英雄技能都会开 block；block 的实体引用里带 player=编号，
-            # 正好可以把「刚才 CURRENT_PLAYER=1 的那个名字」绑定到玩家上。
-            ref = ev.data.get("ref") or {}
-            ctrl = ref.get("controller")
-            if ctrl in (1, 2):
-                self._bind_by_action(int(ctrl))
         elif kind == "choices":
             self._on_choices(ev)
         elif kind == "chosen":
@@ -490,7 +492,6 @@ class GameState:
             # 含义不同（那个玩家的第几个回合），读错会把回合数搞乱。
             if eid == 1 and val != self.turn:
                 self.turn = val
-                self.turn_events = []
                 self._note(f"第 {val} 回合")
             elif self.turn == 0:
                 self.turn = val
@@ -538,15 +539,30 @@ class GameState:
                 val_i = int(val)
             except (TypeError, ValueError):
                 val_i = None
-            mine = (e.controller == self.our_id) or (e.id == self.player_ids.get(self.our_id))
-            if val_i is not None and mine:
-                # 这个计数器每回合归零，所以按「段内最大值」累加：
-                # 值变大 = 这回合又抽了一张；值变小 = 新回合，重新计
-                if val_i >= self._draw_tag_last:
-                    self.our_drawn += val_i - self._draw_tag_last
-                    self._draw_tag_last = val_i
-                else:
-                    self._draw_tag_last = val_i
+            # 双方都有这个计数器，必须分开记；controller 拿不到时不猜。
+            ctrl = e.controller if e.controller in (1, 2) else None
+            if val_i is not None and ctrl is not None:
+                mine = ctrl == self.our_id or eid == self.player_ids.get(self.our_id)
+                bucket = "our" if mine else "opp"
+                # GameState / PowerTaskList 会把同一次抽牌各打一遍，中间还夹
+                # 1 → 0 → 1 的回落。按 (方, 回合, value) 幂等：同一个 value
+                # 只累加一次，增量取本回合已见过的最大值，不靠回落判新段。
+                seen = self._draw_seen.setdefault(bucket, {}).setdefault(
+                    self.turn, set())
+                if val_i not in seen:
+                    seen_max = max(seen) if seen else 0
+                    seen.add(val_i)
+                    delta = max(0, val_i - seen_max)
+                    # 一副牌只有 deck_size 张：重复计数再怎么漏，也不能把
+                    # 抽牌数顶到超过卡组（疲劳为 0 时尤其明显）。
+                    if mine:
+                        self.our_drawn = min(self.deck_size, self.our_drawn + delta)
+                    else:
+                        # 真标签到了就丢掉粗估，不能拿假数当起点继续累加
+                        if self._opp_drawn_estimated:
+                            self.opp_drawn = 0
+                            self._opp_drawn_estimated = False
+                        self.opp_drawn = min(self.deck_size, self.opp_drawn + delta)
         elif tag == "EXHAUSTED" and eid:
             if e.zone == ZONE_PLAY and _int(val) == 1:
                 self.attacked_this_turn.add(eid)
@@ -779,7 +795,6 @@ class GameState:
                                 self.revealed_opp_order.append(e.card_id or "?")
                                 self.revealed_turns[e.card_id or "?"] = self.turn
                         self._note(f"对手打出 {name}")
-                        self.turn_events.append(f"对手打出 {name}")
             elif e.controller == self.our_id:
                 self._bind_by_action(e.controller)
                 name = self._name(e.card_id)
@@ -789,8 +804,6 @@ class GameState:
                         if e.card_id:
                             self.our_played.append(e.card_id)
                             self.turn_actions.setdefault(self.turn, []).append(f"打出 {name}")
-                            if prev == ZONE_HAND:
-                                self.our_hand_played.append(e.card_id)
         elif new == ZONE_GRAVE:
             if e.controller == self.opp_id:
                 self._track_visibility(e)
@@ -886,6 +899,11 @@ class GameState:
         self._block_depth += 1
         d = ev.data
         self._last_block = d
+        # 出牌/攻击/英雄技能都会开 block；block 的实体引用里带 controller，
+        # 正好可以把「刚才 CURRENT_PLAYER=1 的那个名字」绑定到玩家上。
+        ctrl = (d.get("ref") or {}).get("controller")
+        if ctrl in (1, 2):
+            self._bind_by_action(int(ctrl))
         eid = d.get("entity")
         e = self.entities.get(eid) if eid else None
         if d.get("type") == "PLAY" and not self.mulligan_done:
@@ -1034,8 +1052,19 @@ class GameState:
         s.hand = [self._card_view(e) for e in hand if e.card_id]
         s.hand_count = len(hand)
         s.board = [self._card_view(e) for e in board if self._is_minion(e)]
-        # 实体计数会漏掉部分牌（日志不全），改用「起始 30 - 已抽到」
-        s.deck_count = max(0, 30 - self.our_drawn)
+        # 实体计数会漏掉部分牌（日志不全），改用「起始 30 - 已抽到」。
+        # 抽牌数按方记：用我方的数去算对手牌库会得到「30 − 我抽了几张」，
+        # 而预判拿 opp.deck_count 当分母算 AOE/单解概率。
+        drawn = self.our_drawn if pid == self.our_id else self.opp_drawn
+        if pid != self.our_id and "opp" not in self._draw_seen:
+            # 对手玩家实体整局没有 NUM_CARDS_DRAWN_THIS_TURN：只能按
+            # 30 − 手牌 − 场面 粗估（墓地/奥秘/疲劳都没算），标成不可靠，
+            # 别让预判把恒 30 或这个粗估当成真实牌库。
+            drawn = min(self.deck_size, len(hand) + len(board))
+            self.opp_drawn = drawn
+            self._opp_drawn_estimated = True
+            s.deck_estimated = True
+        s.deck_count = max(0, self.deck_size - drawn)
         s.graveyard = [self._grave_view(e) for e in grave if e.card_id]
         s.secrets = [x["id"] for x in secrets if x.get("id")]
         s.weapon = weapon
@@ -1199,10 +1228,13 @@ class GameState:
 
     # ------------------------------------------------------------ 对外快照
     def snapshot(self) -> dict[str, Any]:
+        # 视图和 advisor 必须看到同一套身份：sides() 会校正，snapshot() 以前不会
+        self._fix_our_id_by_name()
         return {
             "phase": self.phase,
             "turn": self.turn,
-            "is_our_turn": self.turn_owner == self.our_id,
+            # 日志里 turn_owner 经常是 None，直接比它会把「我方回合」判成对方回合
+            "is_our_turn": self.effective_turn_owner() == self.our_id,
             "playstate": self.playstate,
             "our_id": self.our_id,
             "opp_id": self.opp_id,
@@ -1217,8 +1249,9 @@ class GameState:
     # ------------------------------------------------------------ 摘要
     def summary(self) -> str:
         ours, opp = self._side(self.our_id), self._side(self.opp_id)
+        mine = self.effective_turn_owner() == self.our_id
         return (
-            f"T{self.turn} {'我方' if self.turn_owner == self.our_id else '对方'}回合 | "
+            f"T{self.turn} {'我方' if mine else '对方'}回合 | "
             f"我方 {ours.class_cn} {ours.health}+{ours.armor} ({len(ours.board)}随从, {ours.hand_count}手牌) vs "
             f"对方 {opp.class_cn} {opp.health}+{opp.armor} ({len(opp.board)}随从, {opp.hand_count}手牌)"
         )

@@ -16,7 +16,8 @@ from .paths import LOG_FILE
 LOG_PATH = LOG_FILE
 from .infer import DeckPredictor
 from .logwatch import PowerLogWatcher, find_power_log
-from .meta import META_PATH, Archetype, MetaDB, import_archetypes
+from .meta import Archetype, MetaDB, import_archetypes, pick_key_cards
+from .paths import META_BACKUP_DIR, META_DIR
 from .state import replay_log_text
 
 
@@ -63,80 +64,116 @@ def cmd_cards(args: argparse.Namespace) -> int:
     return 0
 
 
+def _backup_meta() -> Path:
+    """把 data/meta/ 整份复制到 data/meta_backup/。
+
+    逐文件复制 + 清掉备份里多余的文件，不用 rmtree —— 备份目录是用户数据，
+    重建命令不该有「先删干净再写」这种动作。
+    """
+    META_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    keep: set[str] = set()
+    for f in META_DIR.glob("*.json"):
+        (META_BACKUP_DIR / f.name).write_bytes(f.read_bytes())
+        keep.add(f.name)
+    for f in META_BACKUP_DIR.glob("*.json"):
+        if f.name not in keep:
+            try:
+                f.unlink()
+            except OSError:
+                pass
+    return META_BACKUP_DIR
+
+
+def _print_calibrate_report(report: dict, meta_dir=None) -> None:
+    """把校准说清楚：读了多少、剔了什么、每个原型改前改后。
+
+    纯打印，不读 data/ —— 测试可以直接喂一份报告进来。
+    """
+    updated = report.get("updated") or []
+    skipped = report.get("skipped") or []
+    rows = report.get("rows", 0)
+    total_rows = report.get("total_rows", rows)
+    print(f"读入 {rows} 行：可信 {report.get('trusted', 0)} 行，"
+          f"无职业 {report.get('no_class', 0)} 行，"
+          f"真值不可信 {report.get('untrusted', 0)} 行")
+    if total_rows > rows:
+        print(f"另有 {total_rows - rows} 行解析失败，已跳过")
+    if meta_dir is not None:
+        print(f"原型库：{meta_dir}")
+
+    # 每个职业的可信局数：条目里的 samples 就是本职业样本，取最大值即可
+    by_class: dict[str, int] = {}
+    for item in updated + skipped:
+        cls = item.get("class") or "?"
+        by_class[cls] = max(by_class.get(cls, 0), item.get("samples", 0))
+    for cls in sorted(by_class):
+        print(f"{cls}：可信 {by_class[cls]} 局")
+    for item in updated:
+        print(f"  {item['id']}  {item['name']}  先验 "
+              f"{item['before']:.2f} -> {item['after']:.2f}"
+              f"（样本 {item['samples']}，权重 {item['weight']:.2f}）")
+    for item in skipped:
+        print(f"  {item['id']}  {item['name']}  跳过：{item['reason']}")
+
+    print(f"修正 {len(updated)} 个原型（共 {len(updated) + len(skipped)} 个）；"
+          "没有对局记录的职业保持先验不变")
+    if not rows:
+        print("没有对局记录，先验不变")
+    elif not updated:
+        print("本职业可信样本均不足 5 局，先验不变")
+
+
 def cmd_meta(args: argparse.Namespace) -> int:
     db = _db()
     if args.action == "list":
         meta = MetaDB.load(db)
         for a in meta:
-            top = "、".join(db.display_name(c) for c in list(a.cards)[:4])
-            print(f"{a.id:<18} {a.name:<10} {a.class_cn:<5} 先验 {a.prior:.2f}  标志牌：{top}")
-        print(f"共 {len(meta)} 个原型（{META_PATH}）")
-        return 0
-    if args.action == "build":
-        meta, n = learn.build_local_meta(db, min_games=args.min_games, threshold=args.threshold)
-        if n < args.min_games:
-            print(f"对局记录只有 {n} 条，样本太少（至少 {args.min_games} 条才聚类）")
-        meta.save()
-        print(f"已从 {n} 局记录里聚类出 {len(meta)} 个本地原型 -> {META_PATH}")
-        for a in meta:
-            print(f"  {a.name}  ({a.note})")
+            # 按「关键牌」顺序显示，不是按费用/插入顺序 —— 名字就是用第一张取的，
+            # 列表里却显示四张便宜牌的话，名字和依据对不上，没法核对。
+            keys = pick_key_cards(a.cards, db, limit=4)
+            top = "、".join(db.display_name(c) for c in keys)
+            print(f"{a.id:<20} {a.name:<16} {a.class_cn:<5} 先验 {a.prior:.2f}  关键牌：{top}")
+        print(f"共 {len(meta)} 个原型（{META_DIR}）")
         return 0
     if args.action == "import":
         payload = json.loads(Path(args.file).read_text(encoding="utf-8"))
         meta = MetaDB.load(db)
         meta = import_archetypes(payload, db, meta)
         meta.save()
-        print(f"已导入，共 {len(meta)} 个原型")
+        print(f"已导入，共 {len(meta)} 个原型 -> {META_DIR}")
         return 0
-    if args.action == "prune":
-        meta = MetaDB.load(db)
-        backup = META_PATH.with_suffix(".backup.json")
-        backup.write_text(META_PATH.read_text(encoding="utf-8"), encoding="utf-8")
-        covered = {a.card_class for a in meta if a.source != "seed"}
-        removed = [a for a in meta.archetypes
-                   if a.source == "seed" and (args.all or a.card_class in covered)]
-        for a in removed:
-            meta.archetypes.remove(a)
-        meta.normalize_priors()
-        meta.save()
-        print(f"已删除 {len(removed)} 个种子原型（备份: {backup.name}）")
-        for a in removed:
-            print(f"  - {a.class_cn} {a.name}")
-        from collections import Counter
-
-        print("剩余:", Counter(a.source for a in meta))
-        return 0
-
-    if args.action == "rebuild":
-        meta = MetaDB.load(db)
-        before = [a for a in meta if a.source == "learned"]
-        if args.dry_run:
-            print("演练模式，不写盘。")
-        else:
-            backup = META_PATH.with_suffix(".backup.json")
-            backup.write_text(META_PATH.read_text(encoding="utf-8"), encoding="utf-8")
-        report = learn.rebuild_learned(db, meta, min_games=args.min_games)
-        if not args.dry_run:
-            meta.save()
-        print(f"删除 {len(report['removed'])} 个学出来的原型：")
-        for aid, name, total in report["removed"]:
-            print(f"  - {aid:<24} {name:<12} {total:3d} 张")
-        fresh = [a for a in meta if a.source == "learned"]
-        print(f"重新聚类：新增 {report['added']} 个")
-        for a in fresh:
-            print(f"  + {a.id:<24} {a.name:<12} {a.total():3d} 张（{len(a.cards)} 种）")
-        if not args.dry_run:
-            print(f"备份: {META_PATH.with_suffix('.backup.json').name}")
-        print(f"原型总数 {len(meta)}（学出来的 {len(before)} -> {len(fresh)}）")
-        return 0
-
     if args.action == "calibrate":
         meta = MetaDB.load(db)
-        n = learn.calibrate_priors(meta, db)
+        report = learn.calibrate_priors(meta, db)
         meta.save()
-        print(f"已按本地对局修正 {n} 个原型的先验")
+        _print_calibrate_report(report, META_DIR)
         return 0
+    if args.action in ("rebuild", "build"):
+        # build 就是 rebuild 的旧名字：以前它整份覆盖 meta.json，会把导入的
+        # 卡组一起冲掉。现在两者都只重建学出来的原型。
+        return _rebuild(db, args)
     return 1
+
+
+def _rebuild(db, args) -> int:
+    meta = MetaDB.load(db)
+    before = [a for a in meta if a.source == "learned"]
+    backup = None if args.dry_run else _backup_meta()
+    report = learn.rebuild_learned(db, meta, min_games=args.min_games)
+    if not args.dry_run:
+        meta.save()
+    print(f"删除 {len(report['removed'])} 个学出来的原型：")
+    for aid, name, total in report["removed"]:
+        print(f"  - {aid:<24} {name:<12} {total:3d} 张")
+    print(f"聚类样本 {report.get('observations', 0)} 行")
+    fresh = [a for a in meta if a.source == "learned"]
+    print(f"重新聚类：新增 {report['added']} 个")
+    for a in fresh:
+        print(f"  + {a.id:<24} {a.name:<12} {a.total():3d} 张（{len(a.cards)} 种）")
+    if backup is not None:
+        print(f"备份: {backup}")
+    print(f"原型总数 {len(meta)}（学出来的 {len(before)} -> {len(fresh)}）")
+    return 0
 
 
 def _deck_from_code(db: CardDB, code: str, name: str = ""):
@@ -363,6 +400,24 @@ def cmd_sim(args: argparse.Namespace) -> int:
 def cmd_learn(args: argparse.Namespace) -> int:
     db = _db()
     meta = MetaDB.load(db)
+    if args.backfill:
+        # 一次性迁移：老行没有 truth，先验校准会把它们全跳过（而且不报错）
+        report = learn.backfill_truth(db, meta, dry_run=args.dry_run)
+        if not report["total"]:
+            print("没有对局记录，不用回填。")
+            return 2
+        verb = "将回填" if args.dry_run else "已回填"
+        print(f"{verb} {report['total']} 局：新补上真值 {report['filled']} 局，"
+              f"其中可信 {report['trusted']} 局")
+        if args.dry_run:
+            print("（--dry-run：没有写盘）")
+        elif not report["written"]:
+            print("写盘失败，原文件未改动。")
+            return 1
+        else:
+            print(f"备份：{learn.OBSERVATIONS_PATH}.bak")
+            print("接着跑 `python -m hsai meta calibrate` 让先验真正吃到这批数据。")
+        return 0
     if args.mulligan:
         w, report = learn.optimize_mulligan(db, meta, games=args.games, rounds=args.rounds, seed=args.seed,
                                             progress=print)
@@ -496,11 +551,10 @@ def main(argv: list[str] | None = None) -> int:
     c.set_defaults(func=cmd_cards)
 
     m = sub.add_parser("meta", help="卡组原型库")
-    m.add_argument("action", choices=["list", "build", "import", "calibrate", "prune", "rebuild"])
-    m.add_argument("--all", action="store_true", help="连没被导入覆盖的职业的种子也删掉")
+    m.add_argument("action", choices=["list", "build", "rebuild", "import", "calibrate"],
+                   help="list 看全部 / rebuild 重建学出来的 / import 导入外部卡组表 / calibrate 修正先验")
     m.add_argument("--file", default="")
     m.add_argument("--min-games", type=int, default=3)
-    m.add_argument("--threshold", type=float, default=0.34)
     m.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="rebuild 时只演练，不写盘")
     m.set_defaults(func=cmd_meta)
@@ -546,6 +600,10 @@ def main(argv: list[str] | None = None) -> int:
     ln.add_argument("--seed", type=int, default=0)
     ln.add_argument("--mulligan", action="store_true", help="只优化留牌权重")
     ln.add_argument("--force", action="store_true", help="验证没通过也写入权重")
+    ln.add_argument("--backfill", action="store_true",
+                    help="把历史对局的真值按当前原型库补一遍（一次性迁移）")
+    ln.add_argument("--dry-run", action="store_true", dest="dry_run",
+                    help="配合 --backfill：只统计，不写盘")
     ln.set_defaults(func=cmd_learn)
 
     rv = sub.add_parser("review", help="实战复盘：斩杀/空过法力检查")
