@@ -580,6 +580,10 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
     for u in me.board:
         if not u.alive or u.atk <= 0 or u.frozen or u.attacks_left <= 0 or u.dormant:
             continue
+        # 突袭刚入场的这只本回合只能打随从，别把它的攻击算成打脸伤害，
+        # 否则「能斩杀」会虚报；这里和 legal_actions 的口径必须一致
+        if u.rush_only:
+            continue
         hits = 2 if (u.windfury and u.attacks_left >= 2) else 1
         swings.extend([u.atk] * hits)
     # 英雄自己也是攻击者：有武器时 hero_atk 通常已经等于武器攻击力，
@@ -1218,23 +1222,6 @@ def pick_choice(options: list, board: Board, cards, side: int, mana: int,
 
 
 # ---------------------------------------------------------------- 抢血 / 解场
-def aggression_coefficient(deck_cards, db) -> tuple[float, str]:
-    """从卡组组成判断对手有多快，返回 (每张手牌折合的伤害, 形态名)。
-
-    用「低费牌占比 + 平均费用」，而不是手填表 —— 换卡组、遇到新卡组都能自动覆盖。
-    """
-    costs = [c.cost for c in deck_cards if c is not None and c.cost is not None]
-    if not costs:
-        return 1.5, "未知"
-    low = sum(1 for c in costs if c <= 3) / len(costs)
-    avg = sum(costs) / len(costs)
-    if low >= 0.6 or avg <= 2.6:
-        return 3.0, "快攻"
-    if avg <= 3.6:
-        return 1.5, "中速"
-    return 0.8, "控制"
-
-
 def _hand_burst(board: Board, side: int, cards) -> float:
     """手里能直接打脸的伤害（斩杀时能一次性砸出去的量）。"""
     me = board.sides[side]

@@ -80,6 +80,37 @@ def _save_state(data: dict[str, Any]) -> None:
         pass
 
 
+def hud_row(side: dict[str, Any], label: str) -> str:
+    """面板上那一行「对手 27 血 · 手牌 5 · 牌库 18 · 场攻 3 · 墓地 25」。
+
+    抽成模块级函数是为了能直接测：以前它是 _render 里的闭包，只能靠截图看。
+    """
+    hp = side.get("health") or 0
+    armor = side.get("armor") or 0
+    live = f"{hp + armor} 血"
+    if armor:
+        live += f"（{hp}+{armor}甲）"
+    board = [m for m in (side.get("board") or []) if m.get("atk")]
+    atk = sum(int(m.get("atk") or 0) for m in board)
+    weapon = side.get("weapon") or {}
+    weapon_atk = weapon.get("atk") or 0
+    # 对手没有抽牌标签时牌库是粗估，界面上要看得出来，别当成实测值
+    deck = side.get("deck_count")
+    deck_text = f"约{deck}" if side.get("deck_estimated") else str(deck)
+    parts = [f"{label} {live}", f"手牌 {side.get('hand_count')}",
+             f"牌库 {deck_text}", f"场攻 {atk + weapon_atk}"]
+    gy = side.get("graveyard_count")
+    if isinstance(gy, int):
+        parts.append(f"墓地 {gy}")
+    secrets = side.get("secrets") or []
+    if secrets:
+        parts.append(f"奥秘 {len(secrets)}")
+    if weapon_atk:
+        dur = weapon.get("durability")
+        parts.append(f"武器 {weapon_atk}/{dur if isinstance(dur, int) else 1}")
+    return " · ".join(parts)
+
+
 class Overlay:
     def __init__(self, cards: CardDB, *, demo: bool = False, log_path: Path | None = None) -> None:
         self.cards = cards
@@ -1102,21 +1133,9 @@ class Overlay:
 
         self._render_prediction(snap.get("prediction") or {})
 
-        # 对战信息：对手在上，双方血量/手牌/牌库/场攻
+        # 对战信息：对手在上，双方血量/手牌/牌库/场攻/墓地/奥秘/武器
         def _row(side, label):
-            hp = side.get("health")
-            armor = side.get("armor") or 0
-            live = f"{hp + armor} 血"
-            if armor:
-                live += f"（{hp}+{armor}甲）"
-            board = [m for m in (side.get("board") or []) if m.get("atk")]
-            atk = sum(int(m.get("atk") or 0) for m in board)
-            weapon = (side.get("weapon") or {}).get("atk") or 0
-            # 对手没有抽牌标签时牌库是粗估，界面上要看得出来，别当成实测值
-            deck = side.get("deck_count")
-            deck_text = f"约{deck}" if side.get("deck_estimated") else str(deck)
-            return (f"{label} {live} · 手牌 {side.get('hand_count')} · "
-                    f"牌库 {deck_text} · 场攻 {atk + weapon}")
+            return hud_row(side, label)
 
         inner_b = self._section("对战信息")
         for side, label in ((snap.get("opp") or {}, "对手"), (snap.get("our") or {}, "我方")):

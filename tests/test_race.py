@@ -39,15 +39,5 @@ class RacePlanTest(unittest.TestCase):
         plan = policy.race_plan(b, 0, self.db, 1.5)
         self.assertEqual(plan["mode"], "trade")
 
-    def test_aggression_coefficient(self) -> None:
-        aggro = [self.db.by_name_or_id("火羽精灵")] * 10
-        slow = [self.db.by_name_or_id("克苏恩，帝国之眼")] * 10
-        fast, name_fast = policy.aggression_coefficient(aggro, self.db)
-        slowc, name_slow = policy.aggression_coefficient(slow, self.db)
-        self.assertGreater(fast, slowc)
-        self.assertEqual(name_fast, "快攻")
-        self.assertEqual(name_slow, "控制")
-
-
 if __name__ == "__main__":
     unittest.main()

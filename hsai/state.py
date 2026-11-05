@@ -153,6 +153,9 @@ class Side:
             "secrets": self.secrets,
             "weapon": self.weapon,
             "hero_power": self.hero_power,
+            # 只给数量：墓地内容在 advisor 里按需查（复活推荐/亡语池），
+            # 面板上只关心「死了几个」，整份列表塞进快照没必要
+            "graveyard_count": len(self.graveyard),
         }
 
 

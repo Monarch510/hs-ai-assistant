@@ -22,10 +22,9 @@ import urllib.request
 from typing import Any
 
 from . import memory
-from .paths import AI_CONFIG_JSON, EFFECTS_JSON, LESSONS_JSONL
+from .paths import AI_CONFIG_JSON, EFFECTS_JSON
 
 CONFIG_PATH = AI_CONFIG_JSON
-LESSONS_PATH = LESSONS_JSONL
 TIMEOUT = 12.0
 
 DEFAULT_CONFIG: dict[str, Any] = {
@@ -169,51 +168,6 @@ def build_prompt(snap: dict[str, Any]) -> str:
     )
 
     return "\n".join(lines)
-
-
-def recent_lessons(limit: int = 3) -> list[str]:
-    """最近几条教训，用于注入 prompt。"""
-    if not LESSONS_PATH.exists():
-        return []
-    rows: list[str] = []
-    try:
-        for line in LESSONS_PATH.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                row = json.loads(line)
-            except ValueError:
-                continue
-            if isinstance(row, dict) and row.get("lesson"):
-                rows.append(str(row["lesson"]))
-    except OSError:
-        return []
-    return rows[-limit:]
-
-
-def append_lessons(lessons: list[str], *, result: str = "") -> int:
-    """追加教训到本地文件（不进仓库）。返回写入条数。"""
-    lessons = [x.strip() for x in lessons if x and x.strip()][:3]
-    if not lessons:
-        return 0
-    try:
-        LESSONS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with LESSONS_PATH.open("a", encoding="utf-8") as fh:
-            for text in lessons:
-                fh.write(json.dumps({"ts": "", "result": result, "lesson": text},
-                                    ensure_ascii=False) + "\n")
-    except OSError:
-        return 0
-    # 只保留最近 200 条：这个文件每局都追加，不截断会越长越大，
-    # 每次构建 prompt 都要全读一遍
-    try:
-        rows = LESSONS_PATH.read_text(encoding="utf-8").splitlines()
-        if len(rows) > 200:
-            LESSONS_PATH.write_text("\n".join(rows[-200:]) + "\n", encoding="utf-8")
-    except OSError:
-        pass
-    return len(lessons)
 
 
 def build_decision_prompt(snap: dict[str, Any], actions: list[str]) -> str:
