@@ -1,4 +1,4 @@
-"""收件箱哨兵：秒级轮询 docs/plan/inbox/，发现「写完的」新任务文件就报一行事件。
+"""收件箱哨兵：秒级轮询 auto-task/，发现「写完的」新任务文件就报一行事件。
 
 边界（很重要）：
 - 只做「发现」：不读任务内容去执行、不移动/删除任何文件、不联网。
@@ -16,8 +16,7 @@ import json
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-INBOX = ROOT / "docs" / "plan" / "inbox"
+INBOX = Path(__file__).resolve().parent
 SUFFIXES = {".md", ".txt"}
 
 

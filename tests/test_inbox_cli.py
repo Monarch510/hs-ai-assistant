@@ -6,13 +6,18 @@
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import tempfile
 import time
 import unittest
 from pathlib import Path
 
-from scripts import inbox
+# 目录名带连字符，不能 from auto-task import；直接按文件路径加载
+_SPEC = importlib.util.spec_from_file_location(
+    "inbox", Path(__file__).resolve().parents[1] / "auto-task" / "inbox.py")
+inbox = importlib.util.module_from_spec(_SPEC)
+_SPEC.loader.exec_module(inbox)
 
 
 class InboxClaimTest(unittest.TestCase):

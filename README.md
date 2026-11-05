@@ -148,16 +148,16 @@ python -m hsai stats                      # 对局统计
 
 ## 多 AI 并行：任务投递收件箱
 
-想让几个 AI 同时改互不重叠的任务时，用 `docs/plan/inbox/` 这个本地队列
-（`docs/` 不入库，完整规则见根目录 `AGENTS.md`）。脚本只做认领和状态，任务内容由领到的 AI 自己执行：
+想让几个 AI 同时改互不重叠的任务时，用根目录 `auto-task/` 这个本地队列
+（完整规则见 `auto-task/_README.md` 与根目录 `AGENTS.md`）。脚本只做认领和状态，任务内容由领到的 AI 自己执行：
 
 ```powershell
-python scripts/inbox.py list
-python scripts/inbox.py claim 01-xxx --as worker-a      # 原子抢；退出码 3 表示被抢，换下一个
-python scripts/inbox.py finish 01-xxx --as worker-a --status ok --note "验收 OK"
+python auto-task/inbox.py list
+python auto-task/inbox.py claim 01-xxx --as worker-a      # 原子抢；退出码 3 表示被抢，换下一个
+python auto-task/inbox.py finish 01-xxx --as worker-a --status ok --note "验收 OK"
 ```
 
-（脚本在仓库里；队列数据在 `docs/plan/inbox/`，`docs/` 不入库。）
+脚本和说明入库；投递的任务书与 `.claims/`、`done/`、`archive/` 是运行数据，不入库。
 
 `finish` 会写 `done/`、把原任务移进 `archive/`、清掉 `.claims/` 凭据，所以不会重复执行。
 失败想留给别人重试用 `release`，worker 崩了用 `reap --ttl 3600` 回收超时凭据。
@@ -176,6 +176,7 @@ python scripts/inbox.py finish 01-xxx --as worker-a --status ok --note "验收 O
 | `start.bat` | 旧名字的兼容壳，等价于 `启动AI助手.bat` |
 | `pyproject.toml` | 打包与工具配置：`pip install -e .` 后可直接敲 `hsai`（等价 `python -m hsai`），并统一放 ruff / pytest 配置 |
 | `.gitignore` | 挡掉 `data/` 下的运行产物与 `__pycache__`，仓库里只留代码和规则表。与 `hsai/paths.py` 一一对应 |
+| `auto-task/` | 多 AI 并行任务队列：`inbox.py` 认领/收尾、`inbox_watch.py` 哨兵、`_README.md` 协议说明；投递的任务书与运行数据不入库 |
 
 ### hsai/ —— 主程序
 

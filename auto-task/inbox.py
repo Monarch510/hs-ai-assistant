@@ -1,18 +1,18 @@
 """任务收件箱：投递、认领、完成、回收。
 
-设计约束（照抄 docs/plan/inbox/_README.md 的约定）：
-- 只碰 `docs/plan/inbox/` 下的文件；不执行任务内容、不联网、不改代码。
+设计约束（照抄 auto-task/_README.md 的约定）：
+- 只碰 `auto-task/` 下的文件；不执行任务内容、不联网、不改代码。
 - 认领是**文件系统原子操作**（O_CREAT|O_EXCL），所以两个 AI 同时抢同一个任务，
   只有一个能成功 —— 这是「互不干扰」的地基。
 - 认领凭据里记 worker 和开始时间：超时的凭据可以用 `reap` 回收，
   否则一个崩溃的 worker 会让任务永远卡在「已领取」。
 
 用法：
-    python scripts/inbox.py list
-    python scripts/inbox.py claim 01-foo --as worker-a
-    python scripts/inbox.py release 01-foo --as worker-a
-    python scripts/inbox.py finish 01-foo --as worker-a --status ok --note "..."
-    python scripts/inbox.py reap --ttl 3600
+    python auto-task/inbox.py list
+    python auto-task/inbox.py claim 01-foo --as worker-a
+    python auto-task/inbox.py release 01-foo --as worker-a
+    python auto-task/inbox.py finish 01-foo --as worker-a --status ok --note "..."
+    python auto-task/inbox.py reap --ttl 3600
 """
 
 from __future__ import annotations
@@ -27,7 +27,8 @@ from pathlib import Path
 
 # 测试可以指到临时目录：HSAI_INBOX_ROOT=<tmp>
 _ROOT_ENV = "HSAI_INBOX_ROOT"
-DEFAULT_ROOT = Path(__file__).resolve().parents[1] / "docs" / "plan" / "inbox"
+# 脚本和投递区同一个目录，别再维护两份路径
+DEFAULT_ROOT = Path(__file__).resolve().parent
 TASK_SUFFIXES = {".md", ".txt"}
 
 

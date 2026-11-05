@@ -71,3 +71,11 @@ docs/plan/_*.txt
 
 # docs/ 只作本地记录，不入库
 docs/
+
+# auto-task/：脚本与说明入库，队列运行数据只在本地
+auto-task/*.md
+auto-task/*.txt
+!auto-task/_README.md
+auto-task/.claims/
+auto-task/done/
+auto-task/archive/
