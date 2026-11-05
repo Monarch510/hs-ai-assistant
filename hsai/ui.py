@@ -1126,7 +1126,7 @@ class Overlay:
 
         cthun = snap.get("cthun") or {}
         if cthun.get("count"):
-            mark = "（强化已解锁 ×3）" if cthun.get("tripled") else ""
+            mark = "（强化已解锁 ×4）" if cthun.get("tripled") else ""
             tk.Label(self.body, text=f"克苏恩技能 {cthun.get('count')}/{cthun.get('total')}{mark}",
                      bg=BG, fg=GOLD if cthun.get("tripled") else MUTED,
                      font=(FONT, self.font_size - 3), anchor="w").pack(fill="x")
