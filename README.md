@@ -152,10 +152,12 @@ python -m hsai stats                      # 对局统计
 （`docs/` 不入库，完整规则见根目录 `AGENTS.md`）。脚本只做认领和状态，任务内容由领到的 AI 自己执行：
 
 ```powershell
-python scripts/inbox.py list
-python scripts/inbox.py claim 01-xxx --as worker-a      # 原子抢；退出码 3 表示被抢，换下一个
-python scripts/inbox.py finish 01-xxx --as worker-a --status ok --note "验收 OK"
+python docs/plan/inbox/tools/inbox.py list
+python docs/plan/inbox/tools/inbox.py claim 01-xxx --as worker-a      # 原子抢；退出码 3 表示被抢，换下一个
+python docs/plan/inbox/tools/inbox.py finish 01-xxx --as worker-a --status ok --note "验收 OK"
 ```
+
+（这套工具和队列都在 `docs/` 下，`docs/` 不入库，所以 clone 出来的仓库里没有它。）
 
 `finish` 会写 `done/`、把原任务移进 `archive/`、清掉 `.claims/` 凭据，所以不会重复执行。
 失败想留给别人重试用 `release`，worker 崩了用 `reap --ttl 3600` 回收超时凭据。
@@ -251,7 +253,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 | `sim/__init__.py` | 导出 `match / run_game / greedy_agent / random_agent` 等接口 |
 | `learn.py` | 自主学习三件事：记录对局到 `observations.jsonl`、从自己的对局里聚类出本地环境（自举 meta）、用自对弈坐标轮换爬山优化权重。`rebuild_learned()` 丢掉学出来的原型按当前口径重聚类，只动 `source=learned`，不碰导入的卡组。`backfill_truth()` 给 schema 2 之前的老行补真值（写盘前留 `.bak`）；`calibrate_priors()` 按当前原型库**重算**每局真值，所以重建原型之后不用回填也不会串味 |
 
-### tests/ —— 226 个用例
+### tests/ —— 233 个用例
 
 `python -m unittest discover tests` 跑全部。`fixtures/` 里两份日志：`sample_game.log`（构造的示例局）和 `real_client_excerpt.log`（真实客户端片段，用来锁解析行为）。
 

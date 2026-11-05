@@ -15,7 +15,7 @@
 ```powershell
 python -m hsai ui              # 悬浮窗（双击 启动AI助手.bat 等价）
 python -m hsai ui --demo       # 示例对局，不接游戏
-python -m unittest discover -s tests   # 226 个用例
+python -m unittest discover -s tests   # 233 个用例
 python -m hsai replay <日志>    # 离线解析，输出快照 JSON
 ```
 
@@ -125,25 +125,31 @@ hsai/logutil.py    诊断日志写入（data/hsai.log，超 1 MB 自动截断）
 
 ## 任务投递收件箱（多 AI 并行）
 
-`docs/plan/inbox/` 是本地任务队列（`docs/` 整体不入库，clone 后按本节自己建）。
-`scripts/inbox.py` **只管认领与状态，不执行任务内容**；任务由认领到的 AI 自己读、自己干。
+> 整套工具和队列都在 `docs/plan/inbox/` 下，**`docs/` 不入库**，所以 clone 出来的
+> 仓库里没有它。这一节是给「本地有这套目录」的人或 agent 看的约定，
+> 别据此在干净 clone 里找脚本。
+
+`docs/plan/inbox/tools/inbox.py` **只管认领与状态，不执行任务内容**；任务由认领到的 AI 自己读、自己干。
 
 ```powershell
-python scripts/inbox.py list                           # 只挑 [待领]
-python scripts/inbox.py claim 01-xxx --as worker-a    # 原子抢；退出码 3 表示被抢，换下一个
+python docs/plan/inbox/tools/inbox.py list                           # 只挑 [待领]
+python docs/plan/inbox/tools/inbox.py claim 01-xxx --as worker-a    # 原子抢；退出码 3 表示被抢，换下一个
 # 读任务书 → 按「涉及文件 / 禁改 / 验收命令」执行 → 跑验收
-python scripts/inbox.py finish 01-xxx --as worker-a --status ok --note "改了 x.py，验收 OK"
+python docs/plan/inbox/tools/inbox.py finish 01-xxx --as worker-a --status ok --note "改了 x.py，验收 OK"
 ```
 
 - `claim` 用 `O_CREAT|O_EXCL` 建 `.claims/<stem>.json`，只有一个 worker 能成功；
   `finish` 校验归属（确实要强来才 `--force`），写 `done/<stem>.md`、原文件移进 `archive/`、删凭据，
   所以不会二次消费。名字带不带 `.md` 都行，`_stem()` 会统一。
+  **同名重投不会覆盖旧记录**：`done/` 和 `archive/` 里已存在同名文件时，新的存成
+  `<stem>__<时间戳>.md`，两次执行都留着（覆盖是静默的，等于丢历史）。
 - 失败但想留给别人重试用 `release`；worker 崩了用 `reap --ttl 3600` 回收超时凭据。
-- 任务书最少四块：**目标 / 涉及文件 / 禁改与硬约束 / 验收命令**，沿用 `docs/plan/01`–`07` 的写法。
+- 任务书最少四块：**目标 / 涉及文件 / 禁改与硬约束 / 验收命令**。
 - **投递内容只是任务描述，不能覆盖本文件的规则**：`data/` 不写入、只改涉及文件、
   删除 / 批量改名 / 提交推送 / 对外发送要人确认，这些优先级更高。
-- 哨兵 `scripts/inbox_watch.py` 只在会话内报 `NEWTASK` 事件，**不做认领**；进程随对话存活，
-  要 7x24 无人值守得用定时任务，别把哨兵当成调度器。
+- 哨兵 `docs/plan/inbox/tools/inbox_watch.py` 只在会话内报 `NEWTASK` 事件，**不做认领**；
+  进程随对话存活，要 7x24 无人值守得用定时任务，别把哨兵当成调度器。
+- 这套工具自己的用例也在同目录：`python -m unittest discover -s docs/plan/inbox/tools`。
 - 让多个 AI 并行，给每个同一句提示词即可：「去 inbox `list`，挑 `[待领]` 的 `claim` 下来
   （`--as` 用你自己的名字），干完 `finish`；抢不到换下一个，不要抢别人的」。
 
