@@ -68,3 +68,6 @@ venv/
 .agent-teams/
 .workbuddy/
 docs/plan/_*.txt
+
+# docs/ 只作本地记录，不入库
+docs/
