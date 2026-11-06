@@ -130,7 +130,8 @@ class Side:
     hand_count: int = 0
     board: list[dict[str, Any]] = field(default_factory=list)
     deck_count: int = 0
-    # 牌库数是「30 − 手牌 − 场面」的粗估（对手整局没有抽牌标签），不是真值
+    # True 表示牌库数是「卡组张数 − 手牌 − 场面」的粗估（没赶上 CREATE_GAME，
+    # 拿不到初始牌库实体），不是真值
     deck_estimated: bool = False
     secrets: list[str] = field(default_factory=list)
     graveyard: list[dict[str, Any]] = field(default_factory=list)   # 已死的随从
@@ -225,6 +226,13 @@ class GameState:
         self._draw_seen: dict[str, dict[int, set[int]]] = {}
         # 对手整局没有这条标签时 opp_drawn 是粗估；真标签一到就丢掉重算
         self._opp_drawn_estimated: bool = False
+        # 初始牌库实体集合：CREATE_GAME 时「凭空出现在 DECK」的那批牌。
+        # 牌库数 = 集合里 zone 还是 DECK 的实体数，不再用「30 − 抽牌数」去估。
+        self._deck_ids: dict[int, set[int]] = {}
+        # SHOW_ENTITY 块的裸 tag 行没有自己的实体引用，解析层会把它们挂在
+        # 最近一个带 id 的实体上（实测经常是 GameEntity）。记下最后一次
+        # SHOW_ENTITY 的目标，zone 挂到 GameEntity 头上时归还给真身。
+        self._show_pending: int | None = None
         # 实体 -> (死亡回合, 死亡顺序)；顺序按发生先后递增
         self.attacked_this_turn: set[int] = set()
         # 每只克苏恩各自用过哪些技能（key = 触发源实体 id）
@@ -310,8 +318,12 @@ class GameState:
                 self._sync_ref(ref)
         elif kind == "hide_entity":
             eid = ev.data.get("entity")
-            if eid in self.entities:
-                del self.entities[eid]
+            e = self.entities.get(eid)
+            if e is not None:
+                # HIDE_ENTITY 是「把这张牌重新藏起来」（换牌回库、开局触发结束），
+                # 实体本身还活着：只抹掉身份。整个删掉会把 zone/controller 一起丢，
+                # 牌库计数和归属都会少一块。
+                e.card_id = None
 
     # ------------------------------------------------------------ 事件处理
     def _entity(self, eid: int) -> Entity:
@@ -347,6 +359,8 @@ class GameState:
         if ref.get("zone") is not None:
             e.zone = _int(ref["zone"])
             e.tags[T_ZONE] = e.zone
+            if e.zone == ZONE_DECK:
+                self._deck_collect(e, 0)
         if ref.get("zone_pos") is not None:
             e.zone_pos = _int(ref["zone_pos"])
         # 完整实体块里带着 ZONE_POSITION 标签，这才是场面从左到右的顺序
@@ -371,10 +385,14 @@ class GameState:
         if d.get("card_id"):
             e.card_id = d["card_id"]
         ref = d.get("ref") or {}
-        if ref.get("zone") is not None:
+        # show_entity 是「让你看一眼这张牌」，头部引用带的是旧快照：
+        # 实体已经有 zone 时绝不能被它盖回去（否则刚抽到手的牌会被打回牌库）。
+        if ref.get("zone") is not None and e.zone in (0, None):
             e.zone = _int(ref["zone"])
         if ref.get("controller") is not None:
             e.controller = _int(ref["controller"])
+        # 后面跟的裸 tag 行描述的就是这个实体，zone 挂错了归属时靠它归还
+        self._show_pending = eid
         self._track_visibility(e)
 
     def _on_tag_change(self, ev: pl.Event) -> None:
@@ -387,18 +405,32 @@ class GameState:
         name = ref.get("name")
         eid = d.get("entity")
 
+        # SHOW_ENTITY 块的裸 tag 行被解析层挂到了 GameEntity 上（它自己没有
+        # zone 的概念），块里的 zone 写的是真身的新位置：归还给真身。
+        if tag == T_ZONE and eid == 1 and self._show_pending is not None:
+            eid = self._show_pending
+
+        # CURRENT_PLAYER=1 表示「现在轮到这个人」：上一条没绑上的名字只属于
+        # 上一回合，必须作废。不清的话，对手上一回合没出牌时，这个名字会被
+        # 我方下一回合的第一个动作绑给我方（实测两个名字都指向玩家 1，
+        # 之后对手回合全被判成「我方回合」）。
+        if tag == T_CURRENT_PLAYER and val == 1:
+            self._last_cp_name = None
+
         # 玩家实体在日志里只按名字引用（`Entity=Player#1234`），没有实体 id。
         # CURRENT_PLAYER=1 出现时说明轮到这个人了 —— 这是唯一可靠的「名字 → 玩家」时机。
         pid_from_name: int | None = None
         if eid is None:
             if not name:
                 return
+            # FIRST_PLAYER 是按名字给的：不管这个名字认没认出来，先抓住它。
+            # 名字已经绑定时也不能漏（否则轮到我们先手时永远推不出先手是谁）。
+            if tag == "FIRST_PLAYER" and isinstance(val, int) and val == 1:
+                self._first_player_name = name
+                self._infer_first_from_name()
+                return
             pid_from_name = self._name_player.get(name)
             if pid_from_name is None:
-                # FIRST_PLAYER 是按名字给的，要在这条早退之前抓住它
-                if tag == "FIRST_PLAYER" and isinstance(val, int) and val == 1:
-                    self._first_player_name = name
-                    return
                 if tag != T_CURRENT_PLAYER or val != 1:
                     return
                 bound = set(self._name_player.values())
@@ -426,6 +458,7 @@ class GameState:
                                            else 3 - self.first_player)
                     return
                 self._name_player[name] = pid_from_name
+                self._infer_first_from_name()
                 self._note(f"识别玩家：{name} = 玩家{pid_from_name}")
             eid = self.player_ids.get(pid_from_name)
             if eid is None:
@@ -469,6 +502,8 @@ class GameState:
                     # 往牌库里塞牌（洗入、置于牌库顶等）：牌库变多
                     self.our_drawn = max(0, self.our_drawn - 1)
                 # 抽牌不再按区域变化计（会重复），统一走 NUM_CARDS_DRAWN_THIS_TURN
+            if val == ZONE_DECK:
+                self._deck_collect(e, prev_zone)
             self._on_zone_change(e, prev_zone, val)
         elif tag == T_PLAYER_ID and isinstance(val, int):
             self.player_ids[val] = eid
@@ -592,12 +627,36 @@ class GameState:
         elif tag == "FIRST_PLAYER" and isinstance(val, int) and name:
             # 客户端明确告诉我们谁先手（按名字），等这个名字绑上玩家后即可确定
             self._first_player_name = name
+            self._infer_first_from_name()
         elif tag == T_CONTROLLER and isinstance(val, int):
             e.controller = val
+            # controller 是后到的（裸 tag 里 ZONE 常排在 CONTROLLER 前面），
+            # 补上这时才能归属的牌库实体
+            if e.zone == ZONE_DECK:
+                self._deck_collect(e, e.zone)
             self._track_visibility(e)
         elif tag == T_HERO_ENTITY and isinstance(val, int):
             if e.controller:
                 self._hero_entities[e.controller] = val
+
+    def _deck_collect(self, e: Entity, prev_zone: int) -> None:
+        """把实体记进「初始牌库」集合（牌库数 = 集合里 zone 还是 DECK 的个数）。
+
+        - 封口（留牌结束/第 1 回合开始）前，「凭空出现在 DECK」的都是卡组里的牌；
+        - 封口后再创建、自带 zone=DECK 的实体是对局中生成的牌，不在卡组里
+          （修 bug 前实测会虚高到 31/34）；
+        - 从真实区域（手牌/场面/备用区）TAG_CHANGE 进 DECK 的照收：那是真·洗入牌库。
+        """
+        ctrl = e.controller
+        if ctrl not in (1, 2):
+            return
+        ids = self._deck_ids.setdefault(ctrl, set())
+        if e.id in ids:
+            return
+        sealed = self.mulligan_done or self.turn >= 1
+        if sealed and prev_zone in (0, ZONE_DECK):
+            return
+        ids.add(e.id)
 
     def _effect_text(self, card_id: str | None) -> tuple[str, bool]:
         """把一张牌的效果说成人话；known=False 表示引擎看不懂。"""
@@ -658,6 +717,19 @@ class GameState:
             return
         self.first_player = 3 - self.our_id          # 后手才有幸运币
         self._bind_pending_names()
+
+    def _infer_first_from_name(self) -> None:
+        """FIRST_PLAYER 给了名字：自己的名字绑好后，先手是不是我就确定了。
+
+        比数水晶可靠得多：水晶法要等到第 3 回合，而且算错会把整局回合反过来。
+        """
+        if self.first_player is not None or not self._first_player_name:
+            return
+        mine = [n for n, pid in self._name_player.items() if pid == self.our_id]
+        if not mine:
+            return
+        self.first_player = (self.our_id if self._first_player_name in mine
+                             else self.opp_id)
 
     def _bind_by_action(self, pid: int) -> None:
         """用「刚刚轮到的人打出了一张牌」反推名字 → 玩家。
@@ -832,7 +904,11 @@ class GameState:
         if pname:
             self._choice_player_name = pname      # 选项行本身没有 Player=，要沿用上一行
         refs = d.get("refs") or []
-        if refs and self._choice_player_name and self._choice_player_name not in self._name_player:
+        # 「UNKNOWN HUMAN PLAYER」这类占位名不是玩家，绑上去会占掉另一个编号，
+        # 让「新名字只能是另一个人」的推断失效，后面真正的名字只能靠猜
+        # （实测两个名字都指向玩家 1，整局我方/对方回合判反）。真战网 ID 一定带 #。
+        if (refs and self._choice_player_name and "#" in self._choice_player_name
+                and self._choice_player_name not in self._name_player):
             ctrls = [r.get("controller") for r in refs if r.get("controller") in (1, 2)]
             if ctrls and len(set(ctrls)) == 1:
                 pid = ctrls[0]
@@ -1054,19 +1130,27 @@ class GameState:
         s.hand = [self._card_view(e) for e in hand if e.card_id]
         s.hand_count = len(hand)
         s.board = [self._card_view(e) for e in board if self._is_minion(e)]
-        # 实体计数会漏掉部分牌（日志不全），改用「起始 30 - 已抽到」。
-        # 抽牌数按方记：用我方的数去算对手牌库会得到「30 − 我抽了几张」，
-        # 而预判拿 opp.deck_count 当分母算 AOE/单解概率。
-        drawn = self.our_drawn if pid == self.our_id else self.opp_drawn
-        if pid != self.our_id and "opp" not in self._draw_seen:
-            # 对手玩家实体整局没有 NUM_CARDS_DRAWN_THIS_TURN：只能按
-            # 30 − 手牌 − 场面 粗估（墓地/奥秘/疲劳都没算），标成不可靠，
-            # 别让预判把恒 30 或这个粗估当成真实牌库。
-            drawn = min(self.deck_size, len(hand) + len(board))
-            self.opp_drawn = drawn
-            self._opp_drawn_estimated = True
-            s.deck_estimated = True
-        s.deck_count = max(0, self.deck_size - drawn)
+        # 牌库数首选实体计数：初始牌库实体集合里 zone 还是 DECK 的个数，
+        # 起手 3/4 张在换牌阶段就离开了 DECK，天然计入。
+        # 没赶上 CREATE_GAME（中途启动/日志片段）才退回「卡组张数 − 已抽到」估算。
+        deck_ids = self._deck_ids.get(pid)
+        if deck_ids:
+            s.deck_count = sum(
+                1 for eid in deck_ids
+                if self.entities.get(eid) is not None
+                and self.entities[eid].zone == ZONE_DECK
+            )
+        else:
+            drawn = self.our_drawn if pid == self.our_id else self.opp_drawn
+            if pid != self.our_id and "opp" not in self._draw_seen:
+                # 对手玩家实体整局没有 NUM_CARDS_DRAWN_THIS_TURN：只能按
+                # 30 − 手牌 − 场面 粗估（墓地/奥秘/疲劳都没算），标成不可靠，
+                # 别让预判把恒 30 或这个粗估当成真实牌库。
+                drawn = min(self.deck_size, len(hand) + len(board))
+                self.opp_drawn = drawn
+                self._opp_drawn_estimated = True
+                s.deck_estimated = True
+            s.deck_count = max(0, self.deck_size - drawn)
         s.graveyard = [self._grave_view(e) for e in grave if e.card_id]
         s.secrets = [x["id"] for x in secrets if x.get("id")]
         s.weapon = weapon

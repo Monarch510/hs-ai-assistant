@@ -510,6 +510,11 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         eff = parse_effect(card)
         if eff.mana:
             me.mana += eff.mana          # 幸运币这类：打出来本回合多 1 费
+        # 费用修改作用于后续回合，Board 只模拟本回合：记下来，不凭空加费
+        if eff.cost_delta_self:
+            nb.note(f"{card.name}：我方手牌费用 {eff.cost_delta_self:+d}")
+        if eff.cost_delta_opp:
+            nb.note(f"{card.name}：敌方手牌费用 {eff.cost_delta_opp:+d}")
         tgt = _find_unit(nb, side, action.target)
         if eff.damage and eff.scope == "target" and tgt is None:
             # 没有目标：直伤打脸

@@ -219,11 +219,11 @@ def board_from_state(st: GameState) -> Board:
         me.minions_played = int(getattr(st, "our_minions_played", 0) or 0)
 
     # 牌库内容我们看不到，但「还剩几张」影响摸牌与疲劳，用占位牌补齐。
-    # 0 张（疲劳期）是合法值，不能拿 `or` 当「没数据」；只有 None 才回退到估算。
+    # 0 张（疲劳期）是合法值，不能拿 `or` 当「没数据」；只有 None 才回退到卡组张数。
     me.deck = _unknown_cards(ours.deck_count if ours.deck_count is not None
-                             else max(0, st.deck_size - len(me.hand) - len(me.board)))
+                             else st.deck_size)
     them.deck = _unknown_cards(opp.deck_count if opp.deck_count is not None
-                               else max(0, st.deck_size - opp.hand_count - len(them.board)))
+                               else st.deck_size)
     them.hand = _unknown_cards(opp.hand_count)
     hp_view = ours.hero_power or {}
     _hero = st.hero(st.our_id) if hasattr(st, "hero") else None
@@ -288,6 +288,7 @@ class Advisor:
         self._recorded = False
         self._mulligan_shown = False
         self._turn_rec: review_mod.TurnRecord | None = None
+        self._last_advice: dict[str, Any] | None = None
         self._game_turns: list[dict] = []
         # 每回合的预测轨迹。局末只剩一个终局置信度，而它天然接近 1、
         # 没有信息量；要判断「70% 置信度时实际对了多少次」只能靠这条轨迹。
@@ -314,8 +315,7 @@ class Advisor:
         pred = self._predict(st, opp)
         collected.prediction = pred
 
-        # 牌库张数：日志里没有「剩余牌库」字段，只能 卡组张数 - 已抽到。
-        # 只在这里算一次，不放进快照 —— 界面和 AI 都只关心算好的 deck_count。
+        # 牌库张数：state 层按初始牌库实体计数给出真实读数，这里不再重算。
         snap: dict[str, Any] = {
             "type": "snapshot",
             "ts": datetime.now().strftime("%H:%M:%S"),
@@ -342,8 +342,9 @@ class Advisor:
         }
 
         if snap.get("our"):
-            drawn = int(getattr(st, "our_drawn", 0) or 0)
-            snap["our"]["deck_count"] = max(0, deck_total - drawn)
+            # deck_count 已是实体计数的真实读数（起手 3/4 张已计入），
+            # 不再用「卡组张数 − 已抽到」覆盖它
+            snap["our"]["deck_count"] = ours.deck_count
 
         # 有些客户端在留牌阶段不给我方手牌的 cardId，等它揭示出来时已经进入对局了。
         # 所以兜底：第一回合开始、还没出牌、手牌 >=3 张时，补一次留牌建议。
@@ -371,8 +372,19 @@ class Advisor:
 
         self._ensure_deck(st)
         snap["deck"] = self._deck_context(st)
-        if st.phase in ("playing", "game_over"):
-            snap["advice"] = self._advice(st, pred)
+        if st.phase == "playing":
+            if opp.health > 0:
+                snap["advice"] = self._advice(st, pred)
+                self._last_advice = snap["advice"]
+            else:
+                # 伤害已经结算完、PLAYSTATE 还没到的那一帧：对面已经死了，
+                # 再算一遍只会把斩杀提示换成废话。
+                snap["advice"] = self._last_advice or {
+                    "lethal": False, "lethal_damage": 0, "lines": []}
+        elif st.phase == "game_over":
+            # 结算帧同理：留最后一帧的建议，窗口收起前看到的就是刚才那手。
+            snap["advice"] = self._last_advice or {
+                "lethal": False, "lethal_damage": 0, "lines": []}
         else:
             snap["advice"] = {"lethal": False, "lethal_damage": 0, "lines": []}
 
@@ -396,6 +408,7 @@ class Advisor:
             self._recorded = False
             self._mulligan_shown = False
             self._turn_rec = None
+            self._last_advice = None
             self._game_turns = []
             self._trace = []
             self.last_findings = []
@@ -605,9 +618,15 @@ class Advisor:
 
     # ------------------------------------------------------------ 回合追踪（复盘用）
     def _track_turn(self, st: GameState, advice: dict[str, Any], pred: Prediction) -> None:
-        if st.phase != "playing":
+        if st.phase not in ("playing", "game_over"):
             return
         if st.effective_turn_owner() != st.our_id:
+            return
+        if st.phase == "game_over":
+            # 击杀和 PLAYSTATE=WON 常在同一批日志里到达：这一帧已经是 game_over，
+            # 只补 killed，不新建回合记录。不补的话「赢的那回合」会被复盘冤枉成漏斩。
+            if self._turn_rec is not None:
+                self._turn_rec.killed = self._turn_rec.killed or st.sides()[1].health <= 0
             return
         road = (advice.get("lines") or [{}])[0].get("title") or ""
         if self._turn_rec is None or self._turn_rec.turn != st.turn:

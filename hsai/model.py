@@ -49,6 +49,7 @@ def _pattern_effect(text: str) -> "Effect | None":
     """按表里的顺序匹配；更具体的规则排在前面，命中的字段不会被后面的覆盖。"""
     table = effect_table().get("patterns") or []
     hit = None
+    written: set[str] = set()      # 已经由更靠前的规则写过的字段
     for pat in table:
         m = re.search(pat.get("regex", ""), text or "")
         if not m:
@@ -56,19 +57,26 @@ def _pattern_effect(text: str) -> "Effect | None":
         eff = hit or Effect()
         for field_name, raw in (pat.get("effect") or {}).items():
             value: Any = raw
-            if isinstance(raw, str) and raw.startswith("$"):
-                key = raw[1:]
+            # -$1 表示「取捕获值再取负」：减费规则要用，否则负号会被 _as_int 吃掉
+            if isinstance(raw, str) and raw.lstrip("-").startswith("$"):
+                neg = raw.startswith("-")
+                key = raw.lstrip("-")[1:]
                 if key.startswith("cn"):
                     token = m.group(int(key[2:]))
                     value = _CN_NUM_EXTRA.get(token, 1)
                 else:
                     value = int(m.group(int(key)))
+                if neg:
+                    value = -value
             if field_name in ("scope",):
                 eff.scope = str(value)
             elif field_name == "aoe":
                 eff.aoe = bool(value)
-            elif getattr(eff, field_name, 0) in (0, False):
+            # 按「谁写过」判断，不看字段默认值：summon_count 默认 1、summon_self 默认 True，
+            # 用真值判断会让这些字段永远写不进去
+            elif field_name not in written:
                 setattr(eff, field_name, value)
+                written.add(field_name)
         hit = eff
     return hit
 
@@ -111,8 +119,10 @@ class Effect:
     summon_hp: int = 0
     summon_count: int = 1   # 一次召唤几个
     mana: int = 0            # 本回合获得的法力（例如幸运币）
+    cost_delta_self: int = 0  # 我方手牌费用变化（负数=变便宜）
+    cost_delta_opp: int = 0   # 敌方手牌费用变化（正数=变贵）
     armor: int = 0           # 获得护甲（战士/德鲁伊英雄技能）
-    discover: bool = False   # 发现：从三张里选一张
+    discover: int = 0        # 发现/获取几张：0 没有，1 一张，2 拿两张（表里也写数字）
     aoe: bool = False
     known: bool = True
     note: str = ""
@@ -236,7 +246,7 @@ def parse_effect(card: Card) -> Effect:
         return eff
     if "拼装" in text:
         # 拼装：从卡池里取一张牌（等价于「发现/生成」这类资源）
-        eff.discover = True
+        eff.discover = 1
     if "夺取" in text and "控制权" in text:
         eff.steal = True
     if "双倍" in text and "法力值消耗" in text:
@@ -261,17 +271,41 @@ def parse_effect(card: Card) -> Effect:
             eff.draw = _as_int(extra.draw)
         if extra.buff_atk and not eff.buff_atk:
             eff.buff_atk, eff.buff_hp = extra.buff_atk, extra.buff_hp
+        if extra.buff_hp and not eff.buff_hp:
+            # 只加血不加攻的规则（真言术：障）走不到上面那条
+            eff.buff_hp = _as_int(extra.buff_hp)
         if extra.destroy and not eff.destroy:
             eff.destroy, eff.scope, eff.aoe = True, extra.scope, extra.aoe
         if extra.summon_atk and not eff.summon_atk:
             eff.summon_atk, eff.summon_hp = extra.summon_atk, extra.summon_hp
         if extra.freeze:
             eff.freeze = True
+        # 这几项以前漏拷了，规则进了表却一点作用都没有（21 条规则白写）：
+        # 表里写了、这里不搬，等于静默丢弃
+        if extra.mana and not eff.mana:
+            eff.mana = _as_int(extra.mana)
+        if extra.cost_delta_self and not eff.cost_delta_self:
+            eff.cost_delta_self = _as_int(extra.cost_delta_self)
+        if extra.cost_delta_opp and not eff.cost_delta_opp:
+            eff.cost_delta_opp = _as_int(extra.cost_delta_opp)
+        if extra.armor and not eff.armor:
+            eff.armor = _as_int(extra.armor)
+        if extra.discover and not eff.discover:
+            # discover 是 int（1 张 / 2 张…），别压成 True 丢掉张数
+            eff.discover = _as_int(extra.discover)
+        if extra.summon_hp and not eff.summon_hp:
+            eff.summon_hp = _as_int(extra.summon_hp)
+        if extra.steal:
+            eff.steal = True
+        if extra.set_hp and not eff.set_hp:
+            eff.set_hp = _as_int(extra.set_hp)
+        if extra.min_atk and not eff.min_atk:
+            eff.min_atk = _as_int(extra.min_atk)
 
     if re.search(r"获得\s*(?:一|1)?\s*个?\s*(?:空的)?\s*法力水晶", text):
         eff.mana = 1
     if "发现" in text:
-        eff.discover = True
+        eff.discover = 1
     # 护甲的写法很杂：「获得2点护甲」「+2护甲」「本回合+2护甲」
     if m := re.search(r"(\d+)\s*点?护甲", text):
         eff.armor = int(m.group(1))
@@ -287,6 +321,12 @@ def parse_effect(card: Card) -> Effect:
         cap = re.search(r"最多\s*(\d+)\s*份", text)
         eff.summon_count = min(int(cap.group(1)), 7) if cap else 1
         eff.summon_atk, eff.summon_hp = int(m.group(1)), int(m.group(2))
+    # 表里写了明确数量就以表为准，放在内置正则之后：内置的「召唤一只5/5」
+    # 会被卡面里引用的亡语文本带偏（死亡绽放），表里那条才是这张牌的召唤
+    if extra is not None and _as_int(extra.summon_count) > 1:
+        eff.summon_count = _as_int(extra.summon_count)
+        if extra.summon_atk or extra.summon_hp:
+            eff.summon_atk, eff.summon_hp = _as_int(extra.summon_atk), _as_int(extra.summon_hp)
     # 本回合加攻击力（盗贼/恶魔猎手英雄技能）
     if m := re.search(r"本回合\s*\+?\s*(?:\w\d+)?\s*(\d+)\s*攻击力", text):
         eff.buff_atk = int(m.group(1))
@@ -313,6 +353,7 @@ def parse_effect(card: Card) -> Effect:
         eff.damage or eff.heal or eff.draw or eff.buff_atk or eff.buff_hp
         or eff.destroy or eff.summon_atk or eff.summon_hp or eff.summon_count > 1
         or eff.freeze or eff.mana or eff.armor
+        or eff.cost_delta_self or eff.cost_delta_opp
         or eff.discover or eff.steal or eff.set_hp
     ) or card.type in ("MINION", "WEAPON", "HERO")
     if not eff.known:
@@ -711,6 +752,11 @@ def resource_score(side_state, cards=None) -> float:
             score += 1.0
         if eff.mana:
             score += 1.0
+        # 费用变化的收益不在本回合兑现，只给保守分；调参留给下一批
+        if eff.cost_delta_self < 0:
+            score += 0.5 * abs(eff.cost_delta_self)
+        if eff.cost_delta_opp > 0:
+            score += 1.0 * eff.cost_delta_opp
 
     hp = getattr(side_state, "hero_power", None)
     if hp is not None and not is_passive_hero_power(hp):

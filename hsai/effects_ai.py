@@ -16,10 +16,11 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import fields as dataclass_fields
 from pathlib import Path
 from typing import Any
 
-from .model import parse_effect
+from .model import Effect, parse_effect
 from .paths import EFFECTS_BACKUP, EFFECTS_JSON
 
 EFFECTS_PATH = EFFECTS_JSON
@@ -29,6 +30,7 @@ MAX_HITS = 12
 NUMERIC_FIELDS = {
     "damage", "draw", "heal", "armor", "buff_atk", "buff_hp",
     "summon_atk", "summon_hp", "summon_count", "mana", "min_atk",
+    "cost_delta_self", "cost_delta_opp",
 }              # 一条规则最多能命中几张牌（防「造成X点伤害」这种万能规则）
 
 
@@ -75,8 +77,9 @@ def _apply_one(card, rule: dict[str, Any]) -> dict[str, Any] | None:
     out: dict[str, Any] = {}
     for field, raw in effect.items():
         value: Any = raw
-        if isinstance(raw, str) and raw.startswith("$"):
-            key = raw[1:]
+        if isinstance(raw, str) and raw.lstrip("-").startswith("$"):
+            neg = raw.startswith("-")
+            key = raw.lstrip("-")[1:]
             if key.startswith("cn"):
                 token = m.group(int(key[2:]))
                 value = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4,
@@ -86,6 +89,8 @@ def _apply_one(card, rule: dict[str, Any]) -> dict[str, Any] | None:
                     value = int(m.group(int(key)))
                 except (IndexError, ValueError):
                     continue
+            if neg:
+                value = -value
         out[field] = value
     return out
 
@@ -97,19 +102,32 @@ def validate_rule(cards, rule: dict[str, Any], target_ids: list[str]) -> tuple[b
 
     # 数值字段必须是整数或 "" 引用 —— 字符串会让解析结果变成脏数据
     effect = rule.get("effect") or {}
+    # 闸门⑤：字段必须是 Effect 真有的。写个没人认的字段（如 adjacent_targets）
+    # 会被 parse_effect 用 setattr 静默挂上去 —— 看起来「规则生效了、校验也过了」，
+    # 实际没有任何结算。
+    known_fields = {f.name for f in dataclass_fields(Effect)}
+    unknown = sorted(set(effect) - known_fields)
+    if unknown:
+        return False, f"字段 {unknown} 不是 Effect 的字段，引擎不会结算"
     for field, value in effect.items():
         if field not in NUMERIC_FIELDS:
             continue
         if isinstance(value, int):
             continue
         if isinstance(value, str):
-            if value.startswith("$"):
+            if value.lstrip("-").startswith("$"):
                 continue
             # AI 常把数字写成字符串（"2"）：转成整数就行，没必要拒绝
             if value.strip().lstrip("+-").isdigit():
                 effect[field] = int(value.strip())
                 continue
         return False, f"字段 {field} 不是数字：{value!r}"
+
+    # 闸门④：费用变化写进 mana 会被引擎当成「白送法力」，必须用新字段
+    regex_text = str(rule.get("regex") or "")
+    if ("mana" in effect and ("法力值消耗" in regex_text or "费用" in regex_text)
+            and not ("获得" in regex_text or "水晶" in regex_text)):
+        return False, "费用变化请用 cost_delta_self / cost_delta_opp，不要写 mana"
 
     # 闸门②：先记录全库现状
     before = {cid: _effect_signature(c) for cid, c in cards.by_id.items()}

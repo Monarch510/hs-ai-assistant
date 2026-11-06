@@ -45,7 +45,7 @@ def main() -> None:
 
     bar = tk.Frame(root, bg=PANEL, height=30)
     bar.pack(fill="x")
-    tk.Label(bar, text="T7 · 我方回合 · 手牌 6:4    对局中", bg=PANEL, fg=TEXT,
+    tk.Label(bar, text="T7 · 我方 · 手牌 6:4    对局中", bg=PANEL, fg=TEXT,
              font=(FONT, 9, "bold"), anchor="w", padx=8).pack(fill="x", pady=5)
 
     body = tk.Frame(root, bg=BG)

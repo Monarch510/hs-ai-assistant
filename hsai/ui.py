@@ -1089,7 +1089,7 @@ class Overlay:
         if not snap.get("turn_known", True):
             owner = "回合判断中"
         else:
-            owner = "我方回合" if ours else "对方回合"
+            owner = "我方" if ours else "对方"
         self.header_label.config(
             text=f"T{turn} · {owner} · vs {opp}    {phase_text}" if turn else f"vs {opp}    {phase_text}"
         )
@@ -1196,16 +1196,16 @@ class Overlay:
             tk.Label(self.body, text=f"{passive.get('name') or '被动'} · 已 {played} 只 · {tip}",
                      bg=BG, fg=MUTED, font=(FONT, self.font_size - 3), anchor="w").pack(fill="x")
 
-        self._render_advice(snap.get("advice") or {})
+        inner_advice = self._render_advice(snap.get("advice") or {})
 
         defense = (snap.get("advice") or {}).get("defense") or []
         # 只有「本回合建议」这张卡片真的画出来了，才往里加内容
-        if defense and "inner" in locals():
-            tk.Frame(inner, bg="#30363d", height=1).pack(fill="x", pady=(7, 4))
-            tk.Label(inner, text="防对面的牌", bg=PANEL, fg="#8b949e",
+        if defense and inner_advice is not None:
+            tk.Frame(inner_advice, bg="#30363d", height=1).pack(fill="x", pady=(7, 4))
+            tk.Label(inner_advice, text="防对面的牌", bg=PANEL, fg="#8b949e",
                      font=(FONT, self.font_size - 3), anchor="w").pack(fill="x")
             for line in defense:
-                tk.Label(inner, text=line, bg=PANEL, fg="#e3b341",
+                tk.Label(inner_advice, text=line, bg=PANEL, fg="#e3b341",
                          font=(FONT, self.font_size - 2), anchor="w", justify="left",
                          wraplength=self.width - 46).pack(fill="x", pady=1)
 
@@ -1377,10 +1377,10 @@ class Overlay:
             self._disagree_turns.add(turn)
         self._last_sig = None      # 下一帧会重画
 
-    def _render_advice(self, advice: dict[str, Any]) -> None:
+    def _render_advice(self, advice: dict[str, Any]) -> Any:
         lines = advice.get("lines") or []
         if not lines and not advice.get("lethal"):
-            return
+            return None
         # 注意：这个方法只拿到 advice，没有 snap
         lethal_on = bool((advice or {}).get("lethal"))
         ref_mode = bool(getattr(self, "_ai_pick", None)) and not lethal_on
@@ -1422,6 +1422,7 @@ class Overlay:
             if first and line.get("reason"):
                 tk.Label(inner, text=line["reason"], bg=PANEL, fg="#8b949e", font=(FONT, self.font_size - 2),
                          anchor="w", justify="left", wraplength=self.width - 46).pack(fill="x", padx=(24, 0), pady=(2, 0))
+        return inner
 
     # ------------------------------------------------------------ 收尾
     def _log(self, text: str) -> None:

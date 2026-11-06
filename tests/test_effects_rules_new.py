@@ -28,10 +28,9 @@ CASES = [
      {"destroy": True, "scope": "target", "aoe": False}),
     ("战争储备箱", "随机将一张战士随从牌，法术牌和武器牌分别置入你的\n手牌。",
      {"draw": 3}),
-    # summon_count 受引擎限制停在默认值 1（_pattern_effect 跳过非零默认字段），
-    # 实际召唤两个 1/1；哪天引擎修了这里会跟着变红，属于期望的提醒
+    # 召唤两个 1/1；任务 05 修好拷贝链路后 summon_count 能真的落到 2
     ("休养", "召唤两个{0}并具有<b>圣盾</b>的白银之手新兵。",
-     {"summon_atk": 1, "summon_hp": 1, "summon_count": 1}),
+     {"summon_atk": 1, "summon_hp": 1, "summon_count": 2}),
     ("妖术", "使一个随从变形成为一只0/1并具有<b>嘲讽</b>的青蛙。",
      {"destroy": True, "scope": "target"}),
 ]

@@ -84,6 +84,16 @@ class RenderSmokeTest(unittest.TestCase):
     def test_renders_normal(self) -> None:
         self._render(self.snap)
 
+    def test_header_turn_owner_is_short(self) -> None:
+        """标题栏回合归属用两字简写：窄条上「我方回合 / 对方回合」太占地方。"""
+        for ours, expected in ((True, "我方"), (False, "对方")):
+            snap = copy.deepcopy(self.snap)
+            snap.update(phase="playing", turn=7, turn_known=True, is_our_turn=ours)
+            self.ov._render(snap)             # 不调 root.update()，免得排队的 _tick 重画
+            text = str(self.ov.header_label.cget("text"))
+            self.assertIn(f"T7 · {expected} ·", text)
+            self.assertNotIn("回合", text)
+
     def test_renders_lethal(self) -> None:
         """斩杀分支：标题会变成「斩杀」，曾经在这里引用过不存在的 snap。"""
         snap = copy.deepcopy(self.snap)
@@ -99,6 +109,21 @@ class RenderSmokeTest(unittest.TestCase):
         snap = copy.deepcopy(self.snap)
         snap["advice"] = {"lines": [], "lethal": False, "defense": ["提防 绝命乱斗（62%）"]}
         self._render(snap)
+
+    def test_defense_lines_are_rendered(self) -> None:
+        """有建议行时，defense 的每一行都必须画到面板上。"""
+        snap = copy.deepcopy(self.snap)
+        snap["advice"] = {
+            "lines": [{"rank": 1, "title": "寒冰箭 打对面随从", "score": 88, "reason": "先解场"}],
+            "lethal": False,
+            "defense": ["提防 绝命乱斗（62%）"],
+        }
+        # root.update() 会跑 __init__ 里排好的 _tick，它拿真实对局状态重画一帧，
+        # 把上面注入的 defense 覆盖掉 —— 这是测试脚手架的问题，不是渲染没画。
+        self.ov._update = lambda *a, **k: None
+        self._render(snap)
+        self.assertTrue(any("提防" in t for t in _texts(self.ov.root)),
+                        "defense 内容没渲染出来")
 
     def test_renders_game_over_with_review(self) -> None:
         snap = copy.deepcopy(self.snap)

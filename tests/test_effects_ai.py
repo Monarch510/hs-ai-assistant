@@ -42,6 +42,18 @@ class ValidateRuleTest(unittest.TestCase):
         ok, why = effects_ai.validate_rule(self.db, {}, ["CS2_029"])
         self.assertFalse(ok)
 
+    def test_rejects_unknown_effect_field(self) -> None:
+        """表里写了 Effect 没有的字段：parse_effect 会 setattr 挂上去骗过校验，
+        但引擎根本不会结算，必须当场拒掉（实测 AI 补规则写出过 adjacent_targets）。"""
+        rule = {
+            "regex": r"召唤五个(\d+)/(\d+)的",
+            "effect": {"summon_count": 5, "adjacent_targets": "true"},
+            "note": "占位符写错的例子",
+        }
+        ok, why = effects_ai.validate_rule(self.db, rule, ["TUTR_RLK_060"])
+        self.assertFalse(ok)
+        self.assertIn("adjacent_targets", why)
+
 
 if __name__ == "__main__":
     unittest.main()

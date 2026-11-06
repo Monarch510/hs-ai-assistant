@@ -68,6 +68,8 @@ venv/
 .agent-teams/
 .workbuddy/
 docs/plan/_*.txt
+# 各 AI 干活时的临时调试脚本/输出（_dbg_*.py、_dbg_out/），用完就该删
+_dbg_*
 
 # docs/ 只作本地记录，不入库
 docs/
@@ -79,3 +81,6 @@ auto-task/*.txt
 auto-task/.claims/
 auto-task/done/
 auto-task/archive/
+
+# 沙箱里跑测试的本地包装（DSH Windows 临时目录权限绕过），不入库
+data/run_tests.py

@@ -36,7 +36,7 @@ python -m hsai ui --demo   # 用示例对局演示，不接游戏
 ## 面板上是什么
 
 ```
-T7 · 我方回合 · vs 死亡骑士            对局中
+T7 · 我方 · vs 死亡骑士            对局中
 ┌ 对手预判 ─────────────────── 核心 ┐
 │ 死亡骑士·掘骨恶鬼                82% │
 │ 清场 45% · 单解 38%                │
@@ -265,7 +265,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 | `sim/__init__.py` | 导出 `match / run_game / greedy_agent / random_agent` 等接口 |
 | `learn.py` | 自主学习三件事：记录对局到 `observations.jsonl`、从自己的对局里聚类出本地环境（自举 meta）、用自对弈坐标轮换爬山优化权重。`rebuild_learned()` 丢掉学出来的原型按当前口径重聚类，只动 `source=learned`，不碰导入的卡组。`backfill_truth()` 给 schema 2 之前的老行补真值（写盘前留 `.bak`）；`calibrate_priors()` 按当前原型库**重算**每局真值，所以重建原型之后不用回填也不会串味 |
 
-### tests/ —— 258 个用例
+### tests/ —— 266 个用例
 
 `python -m unittest discover tests` 跑全部。`fixtures/` 里两份日志：`sample_game.log`（构造的示例局）和 `real_client_excerpt.log`（真实客户端片段，用来锁解析行为）。
 
