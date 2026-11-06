@@ -17,6 +17,10 @@ dynamic = ["version"]
 # 装完可以直接敲 hsai，等价于 python -m hsai
 hsai = "hsai.cli:main"
 
+# 开发工具（CI / 本地 lint 用），不算运行时依赖
+[project.optional-dependencies]
+dev = ["ruff==0.6.*"]
+
 [tool.setuptools.dynamic]
 version = { attr = "hsai.__version__" }
 

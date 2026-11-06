@@ -20,6 +20,7 @@ from typing import Any
 from . import mulligan, policy
 from collections import Counter
 
+from . import cards as cards_mod
 from . import decks as decks_mod
 from . import model as model_mod
 from . import logutil
@@ -220,9 +221,9 @@ def board_from_state(st: GameState) -> Board:
     # 牌库内容我们看不到，但「还剩几张」影响摸牌与疲劳，用占位牌补齐。
     # 0 张（疲劳期）是合法值，不能拿 `or` 当「没数据」；只有 None 才回退到估算。
     me.deck = _unknown_cards(ours.deck_count if ours.deck_count is not None
-                             else max(0, 30 - len(me.hand) - len(me.board)))
+                             else max(0, st.deck_size - len(me.hand) - len(me.board)))
     them.deck = _unknown_cards(opp.deck_count if opp.deck_count is not None
-                               else max(0, 30 - opp.hand_count - len(them.board)))
+                               else max(0, st.deck_size - opp.hand_count - len(them.board)))
     them.hand = _unknown_cards(opp.hand_count)
     hp_view = ours.hero_power or {}
     _hero = st.hero(st.our_id) if hasattr(st, "hero") else None
@@ -269,7 +270,7 @@ class Collected:
 
 class Advisor:
     def __init__(self, cards: CardDB | None = None, *, meta_path: Path = META_DIR) -> None:
-        self.cards = cards if cards is not None else CardDB.load()
+        self.cards = cards if cards is not None else cards_mod.load()
         self.meta = MetaDB.load(self.cards, meta_path)
         self.predictor = DeckPredictor(self.meta, self.cards)
         self.policy_weights = _load_json(WEIGHTS_PATH).get("weights", {})
@@ -433,7 +434,7 @@ class Advisor:
             observed,
             turn=st.turn,
             hand_count=opp.hand_count,
-            deck_count=opp.deck_count if opp.deck_count else max(1, 30 - st.turn),
+            deck_count=opp.deck_count if opp.deck_count is not None else max(1, st.deck_size - st.turn),
             opp_mana=opp.max_mana,
         )
         return pred

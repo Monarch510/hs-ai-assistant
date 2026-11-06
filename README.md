@@ -146,6 +146,17 @@ python -m hsai review [-n 3]              # 复盘最近几局的斩杀/空过�
 python -m hsai stats                      # 对局统计
 ```
 
+## CI（GitHub Actions）
+
+push / PR 会自动跑两个 job：`test`（Python 3.10 + 3.12，unittest 必须绿，卡牌库联网预热）
+和 `lint`（ruff 只报不拦）。本地复现同一套检查：
+
+```powershell
+python -m unittest discover -s tests      # 测试必须绿
+pip install -e ".[dev]"                   # 装钉死版本的 ruff（可选）
+ruff check hsai tests                     # lint，目前只看不修
+```
+
 ## 多 AI 并行：任务投递收件箱
 
 想让几个 AI 同时改互不重叠的任务时，用根目录 `auto-task/` 这个本地队列
@@ -254,7 +265,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 | `sim/__init__.py` | 导出 `match / run_game / greedy_agent / random_agent` 等接口 |
 | `learn.py` | 自主学习三件事：记录对局到 `observations.jsonl`、从自己的对局里聚类出本地环境（自举 meta）、用自对弈坐标轮换爬山优化权重。`rebuild_learned()` 丢掉学出来的原型按当前口径重聚类，只动 `source=learned`，不碰导入的卡组。`backfill_truth()` 给 schema 2 之前的老行补真值（写盘前留 `.bak`）；`calibrate_priors()` 按当前原型库**重算**每局真值，所以重建原型之后不用回填也不会串味 |
 
-### tests/ —— 246 个用例
+### tests/ —— 258 个用例
 
 `python -m unittest discover tests` 跑全部。`fixtures/` 里两份日志：`sample_game.log`（构造的示例局）和 `real_client_excerpt.log`（真实客户端片段，用来锁解析行为）。
 

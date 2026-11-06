@@ -183,6 +183,8 @@ class Overlay:
         self._ai_turn: tuple[int, bool] | None = None
         self._fail_streak = 0         # 连续渲染失败次数
         self._render_broken = False   # 是否已切到错误提示
+        self._soft_failures: int = 0          # 被兜住的异常次数（不致命但说明有东西坏了）
+        self._soft_failure_kinds: dict[str, int] = {}
         self._render_collapsed()      # 必须有这一步：panel 才会真正 pack 上去
         self._show_placeholder()
         self._apply_geometry()
@@ -446,6 +448,8 @@ class Overlay:
                 # F8 当作「重载」：清掉失败计数，强制下一帧重画
                 self._render_broken = False
                 self._fail_streak = 0
+                self._soft_failures = 0
+                self._soft_failure_kinds.clear()
                 self._last_sig = None
                 self.bar_label.config(text="等待对局", fg=MUTED)
             elif self.root.state() == "withdrawn":
@@ -491,6 +495,7 @@ class Overlay:
         idle = phase in (None, "idle") or (
             phase == "game_over" and self._game_over_since and time.time() - self._game_over_since > 8
         )
+        self._sync_bar("等待对局" if idle else "对局中")
         if idle:
             if self._last_review:
                 if not self._last_review_shown:
@@ -506,7 +511,7 @@ class Overlay:
             self._render_collapsed()      # 必须重排：否则细条不下架、面板不 pack
             self._last_sig = None
         if self.collapsed:
-            self.bar_label.config(text="等待对局" if idle else "对局中")
+            self._sync_bar("等待对局" if idle else "对局中")
             return
 
         sig = self._signature(snap)
@@ -778,8 +783,8 @@ class Overlay:
                 self._ai_text = ""
                 self._ai_turn = (int(snap.get("turn") or 0), True, choice_sig, None)
                 return
-            except Exception:
-                pass
+            except Exception as exc:
+                self._note_soft_failure("choice", exc)
 
         # 逐回合的 AI 路线默认关闭：一局要调 20 多次，性价比低。
         # 想开就在 data/ai.json 里设 turn_advice=true
@@ -859,8 +864,8 @@ class Overlay:
                     self._log("decide_and_explain 也失败，本次无 AI 建议")
                     self._ai_result = ("", None, None)
                 return
-        except Exception:
-            pass
+        except Exception as exc:
+            self._note_soft_failure("advice", exc)
         text = ""
         self._ai_result = (text, pick, None)
 
@@ -974,8 +979,8 @@ class Overlay:
                     "archetype": str((snap.get("prediction") or {}).get("name") or ""),
                     "result": str(snap.get("result") or ""),
                 })
-        except Exception:
-            pass
+        except Exception as exc:
+            self._note_soft_failure("review", exc)
 
     def _ai_done(self, text: str, pick: tuple[str, str] | None = None,
                  steps: list[dict] | None = None) -> None:
@@ -1089,7 +1094,7 @@ class Overlay:
             text=f"T{turn} · {owner} · vs {opp}    {phase_text}" if turn else f"vs {opp}    {phase_text}"
         )
         self.source_label.config(text="示例" if snap.get("demo") else "", fg=YELLOW if snap.get("demo") else MUTED)
-        self.bar_label.config(text="等待对局")
+        self._sync_bar("等待对局")
 
         # 顶部「我方卡组 / 关键牌」条已按需求移除
         # 只在「我方回合且对局进行中」展示 AI 决策；否则上一回合的建议会一直挂着，
@@ -1421,6 +1426,21 @@ class Overlay:
     # ------------------------------------------------------------ 收尾
     def _log(self, text: str) -> None:
         logutil.log(text)
+
+    def _note_soft_failure(self, kind: str, exc: BaseException) -> None:
+        """兜住异常时记一笔：面板要能看出「有东西坏了」，不能静默。"""
+        self._soft_failures += 1
+        self._soft_failure_kinds[kind] = self._soft_failure_kinds.get(kind, 0) + 1
+        self._log(f"soft failure [{kind}]: {type(exc).__name__}: {exc}")
+
+    def _sync_bar(self, text: str) -> None:
+        """状态栏带上被兜住的异常数：别让面板停在上一帧还看着正常。"""
+        if self._render_broken:
+            return                      # 渲染崩了有红条，别把它冲掉
+        if self._soft_failures:
+            self.bar_label.config(text=f"{text} · 异常 {self._soft_failures}", fg=YELLOW)
+        else:
+            self.bar_label.config(text=text)
 
     def quit(self) -> None:
         if getattr(self, "_quitting", False):
