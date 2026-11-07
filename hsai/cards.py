@@ -321,8 +321,12 @@ def load(locale: str = "zhCN", *, auto_update: bool = True) -> CardDB:
         except OSError as exc:  # 离线时不要让整个程序挂掉
             print(f"[warn] 卡牌库下载失败（{exc}），以空库启动")
             return CardDB([])
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return CardDB(_from_row(r) for r in payload["rows"])
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return CardDB([])
+    rows = (payload.get("rows") or []) if isinstance(payload, dict) else []
+    return CardDB(_from_row(r) for r in rows)
 
 
 if __name__ == "__main__":  # python -m hsai.cards

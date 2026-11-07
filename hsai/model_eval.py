@@ -110,7 +110,7 @@ def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: fl
         foe_val += foe.weapon.atk * 1.2 + max(0, foe.weapon.hp) * 0.25
 
     # 嘲讽墙：对方有墙时，我们的攻击力打折
-    taunt_val = sum(u.hp + (0 if u.divine else 0) for u in foe.board if u.alive and u.taunt)
+    taunt_val = sum(3 if u.divine else u.hp for u in foe.board if u.alive and u.taunt)
     my_reach = me.board_attack + (me.weapon.atk if me.weapon else 0)
     blocked = min(my_reach, taunt_val) * 0.6
 

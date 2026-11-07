@@ -22,12 +22,12 @@ from .policy_threat import unit_threat
 def _reason(before: Board, after: Board, action: Action, side: int) -> str:
     me0, foe0 = before.sides[side], before.sides[1 - side]
     me1, foe1 = after.sides[side], after.sides[1 - side]
-    killed = [u.name for u in foe0.board if u.alive and not any(x is u or x.card_id == u.card_id for x in foe1.board)]
+    killed = [u.name for u in foe0.board if u.alive and not any(x.uid == u.uid for x in foe1.board)]
     hurt = []
     for u in foe0.board:
         if not u.alive:
             continue
-        still = next((x for x in foe1.board if x.card_id == u.card_id and x.alive), None)
+        still = next((x for x in foe1.board if x.uid == u.uid and x.alive), None)
         if still is not None and still.hp < u.hp:
             hurt.append(f"{u.name} 剩 {still.hp} 血")
     dealt = max(0, (foe0.hero_hp + foe0.armor) - (foe1.hero_hp + foe1.armor))

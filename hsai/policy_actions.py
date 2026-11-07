@@ -22,11 +22,11 @@ def categorize(action: Action, before: Board, after: Board, side: int) -> str:
     if after.sides[1 - side].hero_hp <= 0:
         return "lethal"
     killed = sum(1 for u in before.sides[1 - side].board
-                 if u.alive and not any(x is u or x.card_id == u.card_id for x in after.sides[1 - side].board))
+                 if u.alive and not any(x.uid == u.uid for x in after.sides[1 - side].board))
     if killed:
         # 「白吃」：换掉对面随从，自己一个都没少 —— 保场面的最优交换，优先级要高
         lost = sum(1 for u in before.sides[side].board
-                   if u.alive and not any(x is u or x.card_id == u.card_id for x in after.sides[side].board))
+                   if u.alive and not any(x.uid == u.uid for x in after.sides[side].board))
         return "free_trade" if lost == 0 else "board"
     if action.kind == "play":
         card = before.sides[side].hand[action.card_idx] if action.card_idx < len(before.sides[side].hand) else None

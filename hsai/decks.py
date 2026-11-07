@@ -114,13 +114,18 @@ def load(cards: CardDB, path: Path | None = None) -> list[SavedDeck]:
         return []
 
 
-def best_match(decks: Iterable[SavedDeck], seen: Iterable[str], our_class: str = "") -> tuple[SavedDeck | None, float]:
+def best_match(decks: Iterable[SavedDeck], seen: Iterable[str], our_class: str = "",
+               cards: CardDB | None = None) -> tuple[SavedDeck | None, float]:
     """在「我保存的卡组」里找出这局用的是哪套。
 
     依据：职业必须一致，然后看**已经看到的牌**（起手 + 已打出的 + 牌库里露出的）
     落在这套牌里的比例。起手 4 张通常就足以区分同职业的几套牌。
     """
-    seen_set = {c for c in seen if c}
+    def norm(cid: str) -> frozenset[str]:
+        # 同名不同 id（如 CS2_029 / CORE_CS2_029）是同一张牌；没带卡库就只能硬比
+        return frozenset(cards.siblings(cid)) if cards is not None else frozenset((cid,))
+
+    seen_set = {norm(c) for c in seen if c}
     candidates = [d for d in decks if not our_class or d.class_en == our_class]
     if not candidates:
         return None, 0.0
@@ -128,19 +133,20 @@ def best_match(decks: Iterable[SavedDeck], seen: Iterable[str], our_class: str =
         return candidates[0], 1.0
     # 已看到的牌里会混进「生成牌」（幸运币、衍生物、发现出来的牌），
     # 它们本来就不在任何卡组里，直接拉低命中率。先把这些剔掉。
-    pool: set[str] = set()
+    pool: set[frozenset[str]] = set()
     for d in candidates:
-        pool |= set(d.cards)
+        pool |= {norm(c) for c in d.cards}
     seen_set = {c for c in seen_set if c in pool}
     if not seen_set:
         return None, 0.0
 
     best: tuple[SavedDeck | None, float] = (None, 0.0)
     for deck in candidates:
+        deck_ids = {norm(c) for c in deck.cards}
         if not seen_set:
             score = 0.0
         else:
-            hit = sum(1 for cid in seen_set if cid in deck.cards)
+            hit = sum(1 for cid in seen_set if cid in deck_ids)
             score = hit / len(seen_set)
         if score > best[1]:
             best = (deck, score)

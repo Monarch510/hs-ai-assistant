@@ -76,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     s2 = sub.add_parser("serve", help="旧名字，等同于 ui")
     s2.add_argument("--demo", action="store_true")
     s2.add_argument("--log", default="")
+    s2.add_argument("--check", action="store_true", help="只做环境检查，不弹窗")
     s2.set_defaults(func=cmd_ui)
 
     sp = sub.add_parser("sim", help="自对弈")
@@ -84,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
     sp.add_argument("--games", type=int, default=10)
     sp.add_argument("--seed", type=int, default=1)
     sp.add_argument("--trace", action="store_true")
-    sp.add_argument("--max-turns", type=int, default=40)
+    sp.add_argument("--max-turns", type=int, default=40, help="回合上限，仅 --trace 生效")
     sp.set_defaults(func=cmd_sim)
 
     ln = sub.add_parser("learn", help="自对弈 + 权重优化")

@@ -55,7 +55,7 @@ from .advisor_board_helpers import (  # noqa: E402
 )
 from .advisor_config import _load_json, _positive_scale  # noqa: E402
 
-_PASSIVE_RULE: dict = {}
+_PASSIVE_RULE: dict[str, dict] = {}
 
 def board_from_state(st: GameState) -> Board:
     ours, opp = st.sides()
@@ -129,9 +129,10 @@ def board_from_state(st: GameState) -> Board:
         elif mine:
             hp_card = mine[0]
     # 英雄技能视图有时会缺失（用掉/被替换），一旦认出规则就缓存住，别每帧重算
-    if hp_card is not None and not _PASSIVE_RULE:
-        _PASSIVE_RULE.update(policy.passive_rule(hp_card))
-    rule = _PASSIVE_RULE
+    cls_key = (ours.class_en or "").upper() or "?"
+    if hp_card is not None and cls_key not in _PASSIVE_RULE:
+        _PASSIVE_RULE[cls_key] = dict(policy.passive_rule(hp_card))
+    rule = _PASSIVE_RULE.get(cls_key) or {}
     if rule:
         me.passive_rule = rule
         # 只数「从手牌打出的随从」，召唤物不算（和面板上的计数器同源）
@@ -498,7 +499,7 @@ class Advisor:
             self._auto_deck = queued[-1]
             return
         seen = list(st.our_hand_ids) + list(st.our_played) + list(st.our_deck_ids)
-        deck, score = decks_mod.best_match(self.saved_decks, seen, our_class)
+        deck, score = decks_mod.best_match(self.saved_decks, seen, our_class, self.cards)
         if deck is None:
             return
         # 同职业只有一套牌：直接认；多套牌就要求「看到的牌有 60% 命中」
@@ -754,10 +755,7 @@ def observation_row(
     }
 
 def _new_game_id() -> str:
-    """一局一个 id，用来把 observations / games.jsonl / cases.jsonl 串起来。
-
-    以前三份数据没有任何公共键，复盘数据挂不到观察上，只能按时间猜。
-    """
+    """一局一个唯一 id，写进 observation_row 的 game_id 便于人工对账。"""
     return datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
 
 def load_observations(path: Path = OBSERVATIONS_PATH) -> list[dict[str, Any]]:

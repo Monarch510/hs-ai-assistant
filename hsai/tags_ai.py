@@ -175,7 +175,7 @@ def parse_reply(text: str, batch_ids: list[str],
                 unknown.append(tag)
         if unknown:
             errors.append(f"{card_id}：未知标签 {'、'.join(unknown)}")
-        # 有标签但一个都不在固定 10 类里，等于没标，整行丢掉交给重试/人工
+        # 有标签但一个都不在标签表里，等于没标，整行丢掉交给重试/人工
         if tags and not cleaned:
             continue
         cleaned.sort(key=order.index)
@@ -380,7 +380,7 @@ def print_validate(report: dict[str, Any]) -> None:
         print(f"  [错误] 未知 id（卡牌库里没有）：{shown}")
     if report["unknown_tags"]:
         pairs = "、".join(f"{tag}×{n}" for tag, n in sorted(report["unknown_tags"].items()))
-        print(f"  [错误] 未知标签（只能来自固定 10 类）：{pairs}")
+        print(f"  [错误] 未知标签（只能来自 {len(TAG_ORDER)} 类）：{pairs}")
     if report["bad_rows"]:
         for line in report["bad_rows"][:8]:
             print(f"  [错误] {line}")

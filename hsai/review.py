@@ -58,10 +58,14 @@ def summarize(game: dict[str, Any]) -> list[str]:
     if missed:
         names = "、".join(f"第 {t['turn']} 回合（{t['lethal_damage']} 点）" for t in missed[:3])
         out.append(f"有斩杀没斩：{names}")
+    over = [t for t in turns if (t.get("hand") or 0) >= 10]
+    if over:
+        names = "、".join(f"第 {t['turn']} 回合" for t in over[:3])
+        out.append(f"手牌已满：{names}（10 张时再过牌会烧牌）")
 
     if not out:
         out.append("没有发现明显的低级失误（没有漏掉斩杀）")
-    return out
+    return out[:5]
 
 
 def append_game(record: GameRecord, path: Path = GAMES_PATH) -> None:

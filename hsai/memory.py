@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -53,10 +54,13 @@ def _append_jsonl(path: Path, rows: list[dict[str, Any]], cap: int) -> None:
         all_rows = _read_jsonl(path)
         if len(all_rows) > cap:
             kept = all_rows[-cap:]
-            path.write_text(
+            # 先写临时文件再替换，截断中途崩了也不会留下半截 jsonl
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            tmp.write_text(
                 "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in kept),
                 encoding="utf-8",
             )
+            os.replace(tmp, path)
     except OSError:
         pass
 

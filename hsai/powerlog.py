@@ -53,6 +53,10 @@ KNOWN_TAGS: frozenset[str] = frozenset(
         "DAMAGE", "HEALTH", "ATK", "COST", "ZONE", "CONTROLLER",
         "TAUNT", "DIVINE_SHIELD", "ARMOR", "NUM_ATTACKS_THIS_TURN",
         "HERO_ENTITY", "CARDTYPE", "CARD_ID", "ZONE_POSITION", "MULLIGAN_STATE", "EXHAUSTED", "FROZEN", "FIRST_PLAYER", "ATTACKABLE", "DORMANT", "DURABILITY", "TEMP_RESOURCES", "QUEST_PROGRESS", "QUEST_PROGRESS_TOTAL", "QUEST", "OBJECTIVE", "SECRET", "SIGIL",
+        # state/advisor 真在读但旧名单漏了；丢了会静默算错牌库、疲劳、风怒、回合步骤
+        "STEP", "NUM_CARDS_DRAWN_THIS_TURN", "FATIGUE", "WINDFURY",
+        # NEXT_STEP 是回合开头的预告，state.py 刻意忽略它，但事件本身得照常进来
+        "NEXT_STEP",
     }
 )
 
@@ -123,14 +127,14 @@ class Event:
         return f"<{self.kind} {self.data}>"
 
 def tag_key(raw: str) -> str | None:
-    """日志里的 tag 统一成「名字」。未知数字返回 None（直接忽略）。"""
+    """日志里的 tag 统一成「名字」。未知数字或未知名字一律返回 None 直接忽略。"""
     raw = raw.strip()
     if not raw:
         return None
     if raw.isdigit():
         return TAG_NAMES.get(int(raw))
     key = raw.upper()
-    return key if key in KNOWN_TAGS else key
+    return key if key in KNOWN_TAGS else None
 
 def parse_value(raw: str) -> Any:
     """tag 的 value：能转数字就转；ZONE/PLAYSTATE 的名字转成数字；其它原样。"""

@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import itertools
 from dataclasses import dataclass, field
 
 from .cards import Card
 from .model_effects import Effect, parse_effect
+
+_UID = itertools.count(1)
 
 @dataclass
 class Unit:
@@ -35,6 +38,7 @@ class Unit:
     frozen: bool = False
     can_attack_now: bool = True
     alive: bool = True
+    uid: int = field(default_factory=_UID.__next__)  # clone 后 x is u 失效，靠 uid 认同一只
 
     def __post_init__(self) -> None:
         if self.max_hp <= 0:
