@@ -27,7 +27,6 @@ from typing import Any
 from .advisor import Advisor, board_from_state
 from . import ai as ai_mod
 from . import feedback as feedback_mod
-from . import effects_ai
 from . import logutil
 from . import memory
 from . import policy as policy_mod
@@ -94,35 +93,6 @@ def _save_state(data: dict[str, Any]) -> None:
         pass
 
 
-def hud_row(side: dict[str, Any], label: str) -> str:
-    """面板上那一行「对手 27 血 · 手牌 5 · 牌库 18 · 场攻 3 · 墓地 25」。
-
-    抽成模块级函数是为了能直接测：以前它是 _render 里的闭包，只能靠截图看。
-    """
-    hp = side.get("health") or 0
-    armor = side.get("armor") or 0
-    live = f"{hp + armor} 血"
-    if armor:
-        live += f"（{hp}+{armor}甲）"
-    board = [m for m in (side.get("board") or []) if m.get("atk")]
-    atk = sum(int(m.get("atk") or 0) for m in board)
-    weapon = side.get("weapon") or {}
-    weapon_atk = weapon.get("atk") or 0
-    # 对手没有抽牌标签时牌库是粗估，界面上要看得出来，别当成实测值
-    deck = side.get("deck_count")
-    deck_text = f"约{deck}" if side.get("deck_estimated") else str(deck)
-    parts = [f"{label} {live}", f"手牌 {side.get('hand_count')}",
-             f"牌库 {deck_text}", f"场攻 {atk + weapon_atk}"]
-    gy = side.get("graveyard_count")
-    if isinstance(gy, int):
-        parts.append(f"墓地 {gy}")
-    secrets = side.get("secrets") or []
-    if secrets:
-        parts.append(f"奥秘 {len(secrets)}")
-    if weapon_atk:
-        dur = weapon.get("durability")
-        parts.append(f"武器 {weapon_atk}/{dur if isinstance(dur, int) else 1}")
-    return " · ".join(parts)
 
 
 # 「本回合偏重」最多列几类：一眼扫过的信息，列多了反而要读。
@@ -131,48 +101,8 @@ WEIGHT_TOP_N = 3
 WEIGHT_REASON_WORDS = ("加权", "降权", "偏低", "血线", "场攻", "置顶")
 
 
-def _fmt_weight(value: float) -> str:
-    text = f"{value:.2f}".rstrip("0").rstrip(".")
-    return text or "0"
 
 
-def _weight_summary(tag_weights: Any) -> tuple[list[str], list[str]]:
-    """快照里的 tag_weights → (偏重前 3 类, 最多 2 行解释)。
-
-    只做展示选择，不改权重本身：「未知」恒 0 且没有实际含义，负数是降权不是偏重，
-    两类都过滤。缺字段/坏形状返回空，_render 据此不画卡片。
-    """
-    if not isinstance(tag_weights, dict):
-        return [], []
-    weights = tag_weights.get("weights")
-    if not isinstance(weights, dict):
-        return [], []
-    order = {tag: i for i, tag in enumerate(TAG_ORDER)}
-    picked: list[tuple[float, int, str]] = []
-    for tag, value in weights.items():
-        if tag == "未知":
-            continue
-        try:
-            weight = float(value)
-        except (TypeError, ValueError):
-            continue
-        if weight <= 0:
-            continue
-        picked.append((weight, order.get(tag, len(order)), tag))
-    # 同分按 TAG_ORDER 兜底：输出顺序不能随 dict 遍历/哈希变
-    picked.sort(key=lambda item: (-item[0], item[1]))
-    tops = [f"{tag} {_fmt_weight(weight)}" for weight, _, tag in picked[:WEIGHT_TOP_N]]
-
-    reasons = tag_weights.get("reasons")
-    lines: list[str] = []
-    if isinstance(reasons, list):
-        for reason in reasons:
-            text = str(reason or "").strip()
-            if text and any(word in text for word in WEIGHT_REASON_WORDS):
-                lines.append(text)
-            if len(lines) >= 2:
-                break
-    return tops, lines
 
 
 class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
@@ -231,7 +161,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self._collapsed: set[str] = set(_load_state().get("collapsed_sections") or [])
         self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
         self._last_review = self._load_last_review()
-        self._rule_report: list[str] = []
         self._ai_lessons: list[str] = []
         # 被点了「不赞同」的回合（局后交给 AI 分析）
         self._disagree_turns: set[int] = set()
@@ -240,9 +169,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             path=ADVICE_FEEDBACK_JSONL)
         self._advice_by_turn: dict[int, dict[str, Any]] = {}
         self._effect_done: set[str] = set()      # 已处理过的牌名
-        self._effect_report: list[str] = []      # 本局的规则补充结果
-        self._effect_busy = False
-        self._effect_result: list[str] | None = None
         self._ai_busy = False
         self._ai_turn: tuple[int, bool] | None = None
         self._fail_streak = 0         # 连续渲染失败次数
@@ -531,8 +457,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             self._disagree_turns = set()          # 不赞同标记也只属于一局
             self._advice_by_turn = {}
             self._effect_done.clear()
-            self._effect_report = []
-            self._rule_report = []
             self._case_buf = []
             self._cases_flushed = False
             self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
@@ -601,6 +525,14 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             (snap.get("opp") or {}).get("health"),
             (snap.get("deck") or {}).get("left"),
             tuple(c.get("name") for c in ((snap.get("deck") or {}).get("key_cards") or [])),
+            # SECRET 区三类：任务进度、奥秘数变化都要触发重绘，否则面板停在旧值
+            tuple(
+                (len(s.get("secrets") or []),
+                 tuple((q.get("name"), q.get("progress"), q.get("total"))
+                       for q in (s.get("quests") or [])),
+                 tuple(o.get("name") for o in (s.get("ongoing") or [])))
+                for s in (snap.get("our") or {}, snap.get("opp") or {})
+            ),
         )
 
 

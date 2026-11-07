@@ -47,8 +47,7 @@ class ReviewPanel:
                  font=(FONT, self.font_size, "bold"), anchor="w", justify="left",
                  wraplength=self.width - 46).pack(fill="x", pady=(0, 3))
         rows = [r for r in (list(rev.get("findings") or [])
-                            + list(rev.get("issues") or [])
-                            + list(getattr(self, "_rule_report", []) or []))
+                            + list(rev.get("issues") or []))
                 if str(r).strip() and "未建模" not in str(r)]
         if not rows:
             rows = ["上一局没有可复盘的记录"]

@@ -22,7 +22,7 @@ import urllib.request
 from typing import Any
 
 from . import memory
-from .paths import AI_CONFIG_JSON, EFFECTS_JSON
+from .paths import AI_CONFIG_JSON
 
 CONFIG_PATH = AI_CONFIG_JSON
 TIMEOUT = 12.0
@@ -458,59 +458,3 @@ STRATEGY_RULES = (
 SESSION_SYSTEM = SESSION_SYSTEM + STRATEGY_RULES
 ROUTE_SYSTEM = ROUTE_SYSTEM + STRATEGY_RULES
 
-
-RULES_SYSTEM = (
-    "你在为炉石传说解析器补「卡牌效果规则」。用户会给出引擎读不懂的卡牌及其原文，"
-    "以及现有规则的格式示例。请为每张牌写一条**尽量窄**的正则规则。"
-    '只输出 JSON 数组，元素形如 {"name": "牌名", "regex": "正则", "effect": {"字段": "值或$1"}, "note": "说明"}。'
-    "effect 可用字段：damage, draw, heal, armor, buff_atk, buff_hp, destroy, freeze, "
-    "summon_atk, summon_hp, summon_count, mana, discover, scope, aoe。"
-    "数字用 $1/$2 引用正则分组。正则不要用「造成(\\d+)点伤害」这种万能写法。"
-    "不要输出数组以外的内容。"
-)
-
-
-def parse_rules(text: str) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for row in json_array(text):
-        if not isinstance(row, dict) or not row.get("regex"):
-            continue
-        if not isinstance(row.get("effect"), dict):
-            continue
-        out.append({
-            "name": str(row.get("name") or ""),
-            "regex": str(row["regex"]),
-            "effect": row["effect"],
-            "note": str(row.get("note") or "")[:60],
-        })
-    return out[:6]
-
-
-def effects_rules(unmodelled: list[dict[str, Any]],
-                  cfg: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    """给未建模的牌请求规则建议。返回候选规则列表。"""
-    cfg = cfg or load_config()
-    if not enabled(cfg) or not unmodelled:
-        return []
-    lines = ["需要补规则的卡牌："]
-    for item in unmodelled[:4]:
-        lines.append(f"- {item.get('name')}（{item.get('type') or '?'}）：{item.get('text') or ''}")
-    existing = _load_existing_patterns()
-    if existing:
-        lines.append("")
-        lines.append("现有规则格式示例：")
-        for pat in existing[:3]:
-            lines.append(f"  {json.dumps(pat, ensure_ascii=False)}")
-    text = chat([
-        {"role": "system", "content": RULES_SYSTEM},
-        {"role": "user", "content": "\n".join(lines)},
-    ], cfg, max_tokens=700)
-    return parse_rules(text)
-
-
-def _load_existing_patterns() -> list[dict[str, Any]]:
-    try:
-        data = json.loads(EFFECTS_JSON.read_text(encoding="utf-8"))
-        return list(data.get("patterns") or [])
-    except (OSError, ValueError):
-        return []

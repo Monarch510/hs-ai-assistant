@@ -1,7 +1,10 @@
-"""AI 线程组：问 AI 复盘 / 补效果规则 / 记录反馈。
+"""AI 线程组：局末复盘 / 记录反馈 / 单步建议。
 
 这些方法只通过 self 上的队列式字段与主循环共享状态
-（_ai_result / _effect_result / _ai_busy …），所以能安全做成 Mixin。"""
+（_ai_result / _ai_busy / _feedback_items …），所以能安全做成 Mixin。
+
+注意：这里**不再**让 AI 在局中补卡牌效果规则 —— 未建模的牌只记日志，
+改由人看过复盘后决定要不要补。"""
 
 from __future__ import annotations
 
@@ -14,7 +17,6 @@ from typing import Any
 
 from .advisor import board_from_state
 from . import ai as ai_mod
-from . import effects_ai
 from . import feedback as feedback_mod
 from . import logutil
 from . import memory
@@ -184,53 +186,18 @@ class AiWorkers:
         self._ai_result = (text, pick, None)
 
     def _maybe_effects(self, snap: dict[str, Any]) -> None:
-        """发现新的未建模牌就立刻补规则，不等对局结束。"""
-        names = [str(n) for n in (snap.get("unmodelled") or [])
-                 if str(n) and str(n) not in self._effect_done]
-        if not names or self._effect_busy:
-            return
-        self._effect_busy = True
-        batch = names[:6]
-        # 不在这里标记「已处理」——失败要能重试
-        threading.Thread(target=self._effects_worker,
-                         args=(batch,), daemon=True).start()
+        """把本局未建模的牌记进 data/hsai.log，**不调 AI、不改解析行为**。
 
-    def _effects_worker(self, names: list[str]) -> None:
-        try:
-            self._effect_result = self._auto_effects({"unmodelled": names})
-            # 只有真正跑完（无论通过/被拒）才算处理过；抛异常则下一帧重试
-            self._effect_done.update(names)
-        except Exception as exc:
-            self._log(f"effects worker failed: {exc}")
-            self._effect_result = []
-        self._effect_busy = False
-
-    def _auto_effects(self, snap: dict[str, Any]) -> list[str]:
-        """对局结束：把本局未建模的牌交给 AI 补规则，验证通过才入库。"""
-        names = list(snap.get("unmodelled") or [])[:4]
-        if not names:
-            return []
-        items = []
-        for name in names:
-            card = next((c for c in self.cards.by_id.values() if c.name == name), None)
-            if card is not None:
-                items.append({"name": card.name, "type": card.type, "text": card.text or ""})
-        if not items:
-            return []
-        rules = ai_mod.effects_rules(items)
-        report: list[str] = []
-        for rule in rules:
-            targets = [cid for cid, c in self.cards.by_id.items() if c.name == rule.get("name")]
-            if not targets:
+        以前这里会立刻请求 AI 写正则、验证后写进 effects.json —— 等于运行时
+        改掉解析规则，出问题时很难倒查是哪一局、哪条规则改的。现在只留记录：
+        未建模的牌会随快照进局末复盘摘要，由人决定要不要补规则。
+        """
+        for name in (snap.get("unmodelled") or []):
+            name = str(name)
+            if not name or name in self._effect_done:
                 continue
-            ok, why = effects_ai.validate_rule(self.cards, rule, targets)
-            if ok and effects_ai.commit_rule(rule):
-                report.append(f"已自动补规则：{rule['name']}（{why}）")
-            else:
-                detail = f"规则被拒：{rule['name']} — {why}"
-                self._log(detail)          # 写进 data/hsai.log，方便事后查
-                report.append(detail[:80])
-        return report[:3]
+            self._effect_done.add(name)
+            self._log(f"未建模的牌：{name}")
 
     def _feedback_worker(self) -> None:
         """对被标「不赞同」的回合做一次复盘，写进 advice_feedback.jsonl。"""
@@ -284,7 +251,6 @@ class AiWorkers:
             )
             missed = any("有斩杀没斩" in str(x) for x in (snap.get("review") or []))
             lessons = ai_mod.review(snap, summary, missed_lethal=missed)
-            self._rule_report = list(self._effect_report)
             self._ai_lessons = list(lessons or [])
             if self._disagree_turns:
                 threading.Thread(target=self._feedback_worker, daemon=True).start()
@@ -376,10 +342,6 @@ class AiWorkers:
 
     def _drain_ai_results(self) -> None:
         """把工作线程算好的结果搬到界面上（只在主线程做）。"""
-
-        if self._effect_result is not None:
-            self._effect_report.extend(self._effect_result)
-            self._effect_result = None
 
         res = self._ai_result
         if res is not None:

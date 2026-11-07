@@ -6,9 +6,9 @@
   · model_eval.py     评分（evaluate / resource_score / DEFAULT_WEIGHTS）
 
 为什么 _EFFECT_TABLE / effect_table() / _DB / set_card_db() 还留在这里：
-effects_ai.py 用 `model._EFFECT_TABLE = ...` **赋值**来切换规则表，测试也用
-`mock.patch.object(model, "_EFFECT_TABLE", ...)`。这些是「可被外部重新绑定的模块
-全局」，必须与门面是同一个对象；搬进子模块会让 patch 打到门面、读到子模块，静默失效。
+测试用 `mock.patch.object(model, "_EFFECT_TABLE", ...)` 换规则表。这些是「可被外部
+重新绑定的模块全局」，必须与门面是同一个对象；搬进子模块会让 patch 打到门面、
+读到子模块，静默失效。
 所以缓存与读缓存的两个函数物理留在这里，子模块在函数内部 `from . import model` 回查。
 
 改卡牌效果时记住这条铁律：Effect 字段（model_effects）、parse_effect（model_effects）、
