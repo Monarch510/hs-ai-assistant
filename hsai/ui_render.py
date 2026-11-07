@@ -2,20 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import tkinter as tk
 
 from typing import Any
 
-from . import cards as cards_mod
-from . import logutil
-from .tag_rules import TAG_ORDER
 from .ui_text import _weight_summary, hud_row
 from .ui_theme import (
-    BG, BLUE, BORDER, FONT, GOLD, GREEN, MUTED, PANEL, RED, TEXT, TEXT_SOFT,
-    WEIGHT_REASON_WORDS, WEIGHT_TOP_N, YELLOW,
+    BG, BLUE, FONT, GOLD, GREEN, MUTED, PANEL, RED, TEXT, TEXT_SOFT, YELLOW,
 )
-
 
 class Renderer:
     """主渲染与各分区。Overlay 继承它。"""
@@ -70,7 +64,6 @@ class Renderer:
                 self._pick_gap = 0.0
                 self._ai_text = ""
                 self._ai_route = None
-                self._ai_busy = False
 
         choice = snap.get("choice") or {}
         options = choice.get("options") or []
@@ -92,7 +85,6 @@ class Renderer:
                 tk.Label(inner_c, text=self._ai_pick[1], bg=PANEL, fg=MUTED,
                          font=(FONT, self.font_size - 2), anchor="w", justify="left",
                          wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
-
 
         cthun = snap.get("cthun") or {}
         if cthun.get("count"):
@@ -186,7 +178,6 @@ class Renderer:
             self._strip(warning, fg="#e3b341", bg="#2d2614")
         self._request_fit()
 
-    # --- 预判
     def _render_prediction(self, pred: dict[str, Any]) -> None:
         if not pred:
             return
@@ -261,7 +252,6 @@ class Renderer:
                      bg=PANEL, fg=MUTED, font=(FONT, self.font_size - 2),
                      anchor="w", justify="left", wraplength=self.width - 46).pack(fill="x", pady=(3 if i == 0 else 1, 0))
 
-    # --- 本回合偏重（动态标签权重）
     def _render_tag_weights(self, tag_weights: Any) -> None:
         """只显示权重最高的几类和一句解释；快照里没有这个字段就什么都不画。"""
         tops, reasons = _weight_summary(tag_weights)
@@ -276,7 +266,6 @@ class Renderer:
                      font=(FONT, self.font_size - 3), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
 
-    # --- 留牌
     def _render_mulligan(self, mul: dict[str, Any]) -> None:
         rows = mul.get("advice") or []
         if not rows:
@@ -298,7 +287,6 @@ class Renderer:
                 tk.Label(inner, text=r["reason"], bg=PANEL, fg="#6e7681", font=(FONT, self.font_size - 3),
                          anchor="w", justify="left", wraplength=self.width - 46).pack(fill="x", padx=(28, 0))
 
-    # --- 建议
     def _disagree_button(self, parent, turn: int) -> None:
         """建议行末尾的「不赞同」标记：点一下标红，再点取消。"""
         marked = turn in self._disagree_turns

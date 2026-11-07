@@ -9,11 +9,9 @@ from __future__ import annotations
 import copy
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any
 
 from .cards import Card
 from .model_effects import Effect, parse_effect
-
 
 @dataclass
 class Unit:
@@ -80,7 +78,6 @@ class Unit:
     def clone(self) -> "Unit":
         return copy.copy(self)
 
-
 @dataclass
 class SideState:
     hero_hp: int = 30
@@ -133,12 +130,6 @@ class Board:
         self.log: list[str] = []
         self.cards = cards
 
-    def me(self) -> SideState:
-        return self.sides[0]
-
-    def them(self) -> SideState:
-        return self.sides[1]
-
     def clone(self) -> "Board":
         b = Board([s.clone() for s in self.sides], self.turn, self.active, self.cards)
         b.log = list(self.log)
@@ -147,7 +138,6 @@ class Board:
     def note(self, text: str) -> None:
         self.log.append(text)
 
-    # ------------------------------------------------------------ 伤害
     def damage_unit(self, board_side: SideState, unit: Unit, amount: int) -> int:
         dealt = unit.take_damage(amount)
         if not unit.alive and unit in board_side.board:
@@ -215,7 +205,6 @@ class Board:
         side.hero_hp = max(0, side.hero_hp - rest)
         return amount
 
-    # ------------------------------------------------------------ 效果执行
     def apply_effect(self, eff: Effect, caster: SideState, target: Unit | None) -> None:
         """把解释出来的效果作用到场上。caster 是施法方。"""
         foe_side = next(s for s in self.sides if s is not caster)
@@ -337,10 +326,8 @@ class Board:
             target.frozen = True
             target.can_attack_now = False
 
-
         for _ in range(eff.draw):
             self.draw(caster)
-
 
     def draw(self, side: SideState) -> Card | None:
         if side.deck:

@@ -46,7 +46,6 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
         left.pop(idx)          # 这一次攻击被嘲讽消耗掉，溢出伤害不转脸
     usable = sum(left)
 
-    # 手里的直伤
     spell_dmg = 0
     mana = me.mana
     face_spells = []

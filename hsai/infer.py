@@ -44,7 +44,6 @@ BETA = 0.32
 # 置信度上限：再像也不说「百分之百」，因为卡组会被改牌
 CONF_CAP = 0.95
 
-
 class DeckPredictor:
     def __init__(self, meta: MetaDB, cards: CardDB, *, alpha: float = 6.0) -> None:
         self.meta = meta
@@ -53,7 +52,6 @@ class DeckPredictor:
         self._pool_cache: dict[str, dict[str, float]] = {}
         self._dist_cache: dict[str, dict[str, float]] = {}
 
-    # ------------------------------------------------------------ 概率模型
     def _pool(self, card_class: str) -> dict[str, float]:
         """职业可用牌池的均匀分布（用于平滑，避免「没见过这张牌 -> 概率 0」）。"""
         if card_class in self._pool_cache:
@@ -138,7 +136,6 @@ class DeckPredictor:
         total = sum(e for _, e in exps)
         return sorted(((a, e / total) for a, e in exps), key=lambda x: -x[1])
 
-    # ------------------------------------------------------------ 主入口
     def predict(
         self,
         opp_class: str,
@@ -227,7 +224,6 @@ class DeckPredictor:
             pred.note = "还没有足够证据，这里只是该职业的常见形态先验"
         return pred
 
-    # ------------------------------------------------------------ 局末回顾
     def retrospect(
         self, opp_class: str, revealed: Iterable[str | tuple[str, int | None]]
     ) -> RetroTruth:
@@ -303,7 +299,6 @@ class DeckPredictor:
                 total += take
         return total
 
-    # ------------------------------------------------------------ 解释
     def _explain(self, opp_class: str, obs, best: Archetype, post) -> list[str]:
         from .cards import CLASS_CN
 

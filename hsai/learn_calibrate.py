@@ -15,15 +15,11 @@ from .cards import CardDB
 from .infer import DeckPredictor
 from .meta import MetaDB, build_from_observations
 
-
-# ---------------------------------------------------------------- 自举环境
-
 def build_local_meta(cards: CardDB, *, min_games: int = 3, threshold: float = 0.34,
                      observations_path: Path = OBSERVATIONS_PATH) -> tuple[MetaDB, int]:
     obs = load_observations(observations_path)
     db = build_from_observations(obs, cards, min_games=min_games, threshold=threshold)
     return db, len(obs)
-
 
 def _row_truth(row: dict[str, Any], predictor) -> tuple[str, bool]:
     """这条记录的（真值原型 id, 是否可信）。
@@ -42,7 +38,6 @@ def _row_truth(row: dict[str, Any], predictor) -> tuple[str, bool]:
         return t.archetype_id, t.trusted
     saved = row.get("truth") or {}
     return str(saved.get("arch") or ""), bool(saved.get("trusted"))
-
 
 def calibrate_priors(meta: MetaDB, cards: CardDB,
                      observations_path: Path = OBSERVATIONS_PATH) -> dict[str, Any]:
@@ -116,7 +111,6 @@ def calibrate_priors(meta: MetaDB, cards: CardDB,
         if current is not None:
             item["after"] = current.prior
     return report
-
 
 def backfill_truth(cards: CardDB, meta: MetaDB, *,
                    observations_path: Path = OBSERVATIONS_PATH,

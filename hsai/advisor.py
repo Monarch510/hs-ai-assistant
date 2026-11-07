@@ -8,22 +8,20 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import math
 import re
 import uuid
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from . import cards as cards_mod
 from . import decks as decks_mod
-from . import logutil
 from . import model as model_mod
 from . import mulligan, policy
 from . import review as review_mod
-from .cards import DATA_DIR, Card, CardDB
+from .cards import DATA_DIR, CardDB
 from .infer import DeckPredictor, Prediction, RetroTruth
 from .meta import MetaDB
 from .model import Board, SideState, Unit
@@ -46,8 +44,6 @@ WEIGHTS_PATH = POLICY_WEIGHTS_JSON
 MULLIGAN_WEIGHTS_PATH = MULLIGAN_WEIGHTS_JSON
 OUR_DECK_PATH = OUR_DECK_JSON
 
-
-# ---- 拆出去的纯工具（这里 re-export，外部照旧从 advisor 取） ----
 from .advisor_board_helpers import (  # noqa: E402
     UNKNOWN,
     _attacks_left,
@@ -59,12 +55,9 @@ from .advisor_board_helpers import (  # noqa: E402
 )
 from .advisor_config import _load_json, _positive_scale  # noqa: E402
 
-
 _PASSIVE_RULE: dict = {}
 
-
 def board_from_state(st: GameState) -> Board:
-    """把日志状态翻译成可以模拟的局面模型。"""
     ours, opp = st.sides()
     me = SideState(
         hero_hp=ours.health,
@@ -179,21 +172,6 @@ def board_from_state(st: GameState) -> Board:
                   cards=st.cards)
     return board
 
-
-@dataclass
-class Collected:
-    """一次快照过程中顺带记下来的东西，用于自学习。"""
-
-    prediction: Prediction | None = None
-    our_hand: list[str] = None  # type: ignore[assignment]
-    our_class: str = ""
-    opp_class: str = ""
-
-    def __post_init__(self) -> None:
-        if self.our_hand is None:
-            self.our_hand = []
-
-
 class Advisor:
     def __init__(self, cards: CardDB | None = None, *, meta_path: Path = META_DIR) -> None:
         self.cards = cards if cards is not None else cards_mod.load()
@@ -220,7 +198,6 @@ class Advisor:
         self.our_class_cn: str = deck.get("class_cn", "") or deck.get("class", "")
         self.our_tags: list[str] = deck.get("tags", [])
         self.our_archetype: str = deck.get("archetype", "")
-        self.last_collected: Collected | None = None
         self._recorded = False
         self._mulligan_shown = False
         self._turn_rec: review_mod.TurnRecord | None = None
@@ -234,22 +211,13 @@ class Advisor:
         self._issues: list[str] = []
         self._unknown_turn_seen: set[int] = set()
 
-    # ------------------------------------------------------------ 主入口
     def snapshot(self, st: GameState) -> dict[str, Any]:
         # 卡组张数优先用登记过的（40 张卡组也能算对）。同步给状态层：
         # 抽牌计数的物理上限和这里的牌库反推必须是同一个数。
         deck_total = len(self.our_deck) or 30
         st.deck_size = deck_total
         ours, opp = st.sides()
-        collected = Collected(
-            our_class=ours.class_en or "",
-            opp_class=opp.class_en or "",
-            our_hand=list(st.our_hand_ids),
-        )
-        self.last_collected = collected
-
         pred = self._predict(st, opp)
-        collected.prediction = pred
 
         # 动态标签权重（DYNAMIC-WEIGHTS.md §3）：先按当前局势算一份，留牌/出牌各取所需。
         # 结算/未开局阶段没有「本回合」可言，按留牌口径（只看职业对位）降级。
@@ -259,6 +227,16 @@ class Advisor:
         tag_weight_table = tag_weights(situation, self.tag_weight_overrides)
 
         # 牌库张数：state 层按初始牌库实体计数给出真实读数，这里不再重算。
+        # AI 解释层（build_prompt）一直读 snap["quest"]，快照却从没写过它，
+        # 任务信息因此进不了复盘。取我方仍在 SECRET 区的第一个任务；
+        # 进度读不到就别塞 None，让展示层降级成「?」。
+        our_view = ours.as_dict()
+        quest_now = (our_view.get("quests") or [{}])[0]
+        quest = {"name": quest_now.get("name") or ""}
+        if quest_now.get("progress") is not None:
+            quest["progress"] = quest_now["progress"]
+        if quest_now.get("total") is not None:
+            quest["total"] = quest_now["total"]
         snap: dict[str, Any] = {
             "type": "snapshot",
             "ts": datetime.now().strftime("%H:%M:%S"),
@@ -268,9 +246,10 @@ class Advisor:
             "turn_known": st.effective_turn_owner() in (1, 2),
             # 结束回合阶段比回合归属切换早到：界面要立刻撤掉上一回合的建议
             "end_turn_seq": st.end_turn_seq,
-            "turn_ending": st.next_step == "MAIN_END" and st.phase == "playing",
-            "our": ours.as_dict(),
+            "turn_ending": st.turn_ending and st.phase == "playing",
+            "our": our_view,
             "opp": opp.as_dict(),
+            "quest": quest,
             "prediction": self._prediction_dict(pred),
             "feed": list(st.feed)[-10:],
             "choice": self._choice_view(st),
@@ -434,9 +413,6 @@ class Advisor:
                 self._issues.append(item)
 
 
-    # ------------------------------------------------------------ 预判
-    _passive_rule: dict = {}
-
     def _predict(self, st: GameState, opp) -> Prediction:
         # 只看「卡组自带的牌」：衍生物（复活的食尸鬼、骷髅这类）不代表卡组形态
         observed = [(cid, st.revealed_turns.get(cid))
@@ -457,7 +433,6 @@ class Advisor:
         d = pred.as_dict()
         return d
 
-    # ------------------------------------------------------------ 建议
     def _advice(self, st: GameState, pred: Prediction, *, board: Board | None = None,
                 tag_weights: dict[str, float] | None = None,
                 tag_scale: float | None = None) -> dict[str, Any]:
@@ -623,7 +598,6 @@ class Advisor:
             bits.append("还没有对方的牌，留牌建议只按职业常见形态给")
         return "；".join(bits)
 
-    # ------------------------------------------------------------ 回合追踪（复盘用）
     def _track_turn(self, st: GameState, advice: dict[str, Any], pred: Prediction) -> None:
         if st.phase not in ("playing", "game_over"):
             return
@@ -704,7 +678,6 @@ class Advisor:
             pass
         self._game_turns = []
 
-    # ------------------------------------------------------------ 自学习落盘
     def _record_result(self, st: GameState, pred: Prediction) -> None:
         opp = st.sides()[1]
         # 局末回看：用全部已见牌重新判一次「它到底是什么」。
@@ -741,7 +714,6 @@ class Advisor:
             self.meta.save()
         except OSError:
             pass
-
 
 def observation_row(
     st: GameState, pred: Prediction, truth: RetroTruth, trace: list[dict]

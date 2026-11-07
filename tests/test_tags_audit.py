@@ -12,7 +12,7 @@ from pathlib import Path
 
 from hsai.cards import Card, CardDB
 
-# tools/ 不是包，按文件路径加载（同 tests/test_inbox_cli.py 的做法）
+# tools/ 不是包，按文件路径加载
 _SPEC = importlib.util.spec_from_file_location(
     "tags_audit", Path(__file__).resolve().parents[1] / "tools" / "tags_audit.py")
 audit = importlib.util.module_from_spec(_SPEC)
@@ -248,7 +248,7 @@ class NormalizeTest(unittest.TestCase):
 class FormatTest(unittest.TestCase):
     def test_report_has_all_sections(self) -> None:
         text = audit.format_audit(build(per_class=1))
-        for section in ("== 1. 范围 ==", "== 2. 11 类计数 / 覆盖率 ==",
+        for section in ("== 1. 范围 ==", f"== 2. {len(audit.TAG_ORDER)} 类计数 / 覆盖率 ==",
                         "== 3. 两两共现", "== 4. 抽样核对",
                         "== 5. 可疑清单", "== 6. 待定清单异常", "== 7. 结构问题"):
             self.assertIn(section, text)

@@ -125,7 +125,6 @@ def plan_turn(
                 continue
             nb = apply_action(working, side, act, cards)
             score = evaluate(nb, weights, aoe_risk, side)
-            # 斩杀直接置顶
             if nb.sides[1 - side].hero_hp <= 0:
                 score += 5_000
             raw = score - evaluate(working, weights, aoe_risk, side)

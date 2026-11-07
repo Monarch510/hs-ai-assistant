@@ -1,4 +1,4 @@
-"""advisor 组装局势：快照暴露 11 类动态权重，留牌/出牌按合同拿到 Situation/权重。
+"""advisor 组装局势：快照暴露 12 类动态权重，留牌/出牌按合同拿到 Situation/权重。
 
 B/C 的打分逻辑各有自己的测试，这里只钉组装这一层：传给 mulligan.advise /
 policy.plan_turn 的参数、snap["tag_weights"] 的内容，以及配置缺失/损坏时的降级。
@@ -22,10 +22,8 @@ from hsai.tag_weights import DEFAULT_TAG_WEIGHTS, Situation
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_game.log"
 MULLIGAN_LINES = 40      # 留牌阶段为止的日志前缀；整份会走到对局中
 
-
 def aggro_prediction() -> Prediction:
     return Prediction(name="快攻战", candidates=[Candidate("x", "快攻战", 0.9, "战士", ["快攻"])])
-
 
 class TagAdvisorTest(unittest.TestCase):
     @classmethod
@@ -43,13 +41,11 @@ class TagAdvisorTest(unittest.TestCase):
         with mock.patch.object(advisor, "TAG_WEIGHTS_JSON", tag_cfg):
             return Advisor(self.db)
 
-    # ------------------------------------------------------------ 快照暴露
-
-    def test_snapshot_exposes_11_weights_and_reasons(self) -> None:
+    def test_snapshot_exposes_all_weights_and_reasons(self) -> None:
         snap = Advisor(self.db).snapshot(self._state())
         table = snap["tag_weights"]
         self.assertEqual(list(table["weights"]), list(TAG_ORDER))
-        self.assertEqual(len(table["weights"]), 11)
+        self.assertEqual(len(table["weights"]), len(TAG_ORDER))
         self.assertTrue(table["reasons"])
         self.assertTrue(all(isinstance(line, str) and line for line in table["reasons"]))
         self.assertIn("出牌阶段", table["reasons"][0])
@@ -58,8 +54,6 @@ class TagAdvisorTest(unittest.TestCase):
         snap = Advisor(self.db).snapshot(self._state(mulligan_phase=True))
         self.assertEqual(snap["phase"], "mulligan")
         self.assertIn("留牌阶段", snap["tag_weights"]["reasons"][0])
-
-    # ------------------------------------------------------------ 组装与传参
 
     def test_mulligan_advise_receives_situation(self) -> None:
         with mock.patch.object(mulligan, "advise", return_value=[]) as fake:
@@ -95,8 +89,6 @@ class TagAdvisorTest(unittest.TestCase):
         self.assertEqual(situation.phase, "playing")
         self.assertFalse(situation.lethal)
 
-    # ------------------------------------------------------------ 权重方向
-
     def test_aggro_and_low_hp_raises_defense_lowers_lethal(self) -> None:
         st = self._state()
         st.hero(st.our_id).tags["DAMAGE"] = 25      # 30 - 25 = 5 血
@@ -112,13 +104,11 @@ class TagAdvisorTest(unittest.TestCase):
         self.assertGreater(weights["护甲"], DEFAULT_TAG_WEIGHTS["护甲"])
         self.assertLess(weights["斩杀"], DEFAULT_TAG_WEIGHTS["斩杀"])
 
-    # ------------------------------------------------------------ 配置降级
-
     def test_missing_config_degrades_to_empty(self) -> None:
         adv = self._advisor(Path("__no_such_tag_weights__.json"))
         self.assertEqual(adv.tag_weight_overrides, {})
         snap = adv.snapshot(self._state(mulligan_phase=True))
-        self.assertEqual(len(snap["tag_weights"]["weights"]), 11)
+        self.assertEqual(len(snap["tag_weights"]["weights"]), len(TAG_ORDER))
 
     def test_bad_json_degrades_to_empty(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -127,7 +117,7 @@ class TagAdvisorTest(unittest.TestCase):
             adv = self._advisor(bad)
             self.assertEqual(adv.tag_weight_overrides, {})
             snap = adv.snapshot(self._state(mulligan_phase=True))
-            self.assertEqual(len(snap["tag_weights"]["weights"]), 11)
+            self.assertEqual(len(snap["tag_weights"]["weights"]), len(TAG_ORDER))
 
     def test_bad_shape_degrades_to_empty(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -143,7 +133,6 @@ class TagAdvisorTest(unittest.TestCase):
             self.assertEqual(adv.tag_weight_overrides, {"单解": 3.0})
             snap = adv.snapshot(self._state(mulligan_phase=True))
             self.assertGreaterEqual(snap["tag_weights"]["weights"]["单解"], 3.0)
-
 
 if __name__ == "__main__":
     unittest.main()

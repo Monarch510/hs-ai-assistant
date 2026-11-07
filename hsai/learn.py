@@ -19,22 +19,8 @@
 
 from __future__ import annotations
 
-import json
-import math
-import os
-import random
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable, Iterable
-
-from . import mulligan as mulligan_mod
-from . import meta as meta_mod
-from . import sim
 # 方向保持不变：advisor 只在函数内延迟 `from . import learn` 回查 absorb_observations。
-from .advisor import MULLIGAN_WEIGHTS_PATH, OBSERVATIONS_PATH, WEIGHTS_PATH, load_observations
-from .cards import CardDB
-from .infer import DeckPredictor
-from .meta import MetaDB, build_from_observations
+from .advisor import OBSERVATIONS_PATH, WEIGHTS_PATH
 from .model import DEFAULT_WEIGHTS
 
 # 门面：函数/数据类拆到 learn_* 子模块，显式 re-export 维持原有 import 面。

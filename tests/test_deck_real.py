@@ -1,9 +1,14 @@
-"""牌库数的真实口径：初始牌库实体计数，起手 3/4 张必须计入。
+"""牌库数的真实口径：初始牌库实体计数，起手 3/4 张与第 1 回合抽牌都要计入。
 
 回归基准是真实客户端日志片段（tests/fixtures/real_client_excerpt.log）：
 覆盖 CREATE_GAME → 留牌 → 第 1 回合，GameState / PowerTaskList 双来源齐全。
 玩家 1 用的是 40 张卡组（实体 4-43），玩家 2 是 30 张，正好把两种卡组都测到。
 不读 data/，不联网。
+
+片段末尾含先手第 1 回合的抽牌（实体 12 的 SHOW_ENTITY 里裸 tag=ZONE
+value=HAND，紧跟 NUM_CARDS_DRAWN_THIS_TURN=1），所以最终牌库是 40-3-1=36，
+不是 37。旧的 37 来自离线 parse_text 漏把 show_entity 当上下文实体、裸 ZONE
+被吞掉；实时 logwatch 一直把裸 tag 归真身，线上读数本来就是 36。
 """
 
 from __future__ import annotations
@@ -56,16 +61,28 @@ class DeckRealLogTest(unittest.TestCase):
         cls.text = FIXTURE.read_text(encoding="utf-8")
 
     def test_opening_deck_subtracted(self):
-        """第 1 回合：先手库 = 卡组 − 起手，起手抽牌必须计入。
+        """第 1 回合：先手库 = 卡组 − 起手 − 回合抽牌，两处都要计入。
 
-        玩家 1：40 张卡组、先手起手 3 张 → 37；
+        玩家 1：40 张卡组、先手起手 3 张、第 1 回合再抽 1 张 → 36；
         玩家 2：30 张卡组、后手起手 4 张 → 26（幸运币不是从牌库抽的，不扣）。
         修 bug 前：双方都按「30 − 抽牌数」估，开局显示 30/30。
         """
         st = state.replay_log_text(self.text)
         self.assertTrue(st.mulligan_done)
-        self.assertEqual(st._side(1).deck_count, 37)
+        self.assertEqual(st._side(1).deck_count, 36)
         self.assertEqual(st._side(2).deck_count, 26)
+
+    def test_first_turn_draw_is_subtracted(self):
+        """SHOW_ENTITY 里的裸 ZONE=HAND 必须归真身，回合抽牌才算得进去。
+
+        实体 12 起始在 DECK（40 张卡组之一），片段末尾被抽到手牌；
+        若解析层把裸 tag 挂到 GameEntity / 上一个实体，牌库会虚高成 37。
+        """
+        st = state.replay_log_text(self.text)
+        self.assertEqual(st.entities[12].zone, state.ZONE_HAND)
+        self.assertIn(12, st._deck_ids[1])
+        self.assertEqual(st._side(1).hand_count, 4)   # 起手 3 + 回合抽牌 1
+        self.assertEqual(st._side(1).deck_count, 36)
 
     def test_bounds_and_monotonic_after_mulligan(self):
         """全程 0 ≤ 牌库数 ≤ 卡组张数；换牌彻底结束之后只减不增。"""
@@ -88,7 +105,7 @@ class DeckRealLogTest(unittest.TestCase):
                     self.assertLessEqual(c, prev[pid] if prev[pid] is not None else c,
                                          f"event#{i} player{pid} 牌库变多了")
                     prev[pid] = c
-        self.assertEqual((prev[1], prev[2]), (37, 26))
+        self.assertEqual((prev[1], prev[2]), (36, 26))
 
     def test_advisor_snapshot_keeps_real_count(self):
         """advisor 快照不许再用「卡组张数 − 已抽到」把真实读数覆盖回去。"""

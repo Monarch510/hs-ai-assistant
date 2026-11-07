@@ -1,8 +1,11 @@
-"""「结束回合」的感知：真实日志里 GameEntity 的 NEXT_STEP=MAIN_END。
+"""「结束回合」的感知：GameEntity 的 STEP 才是当前阶段。
 
+NEXT_STEP=MAIN_END 是回合刚进 MAIN_ACTION 时发的「下一步预告」，
+拿它判结束会让整个我方回合都显示「回合已结束」。真正收尾的是
+STEP=MAIN_END（以及随后的 MAIN_CLEANUP / MAIN_NEXT），它比
+TURN / CURRENT_PLAYER 切换早到，界面据此先撤掉上一回合的建议。
 留牌流程也会走一次 MAIN_END，GameState / PowerTaskList 还会各打一遍，
-所以状态层必须同时挡住这两类误报。界面要在回合归属切换之前
-（比 TURN / CURRENT_PLAYER 早到）就撤掉上一回合的建议。
+状态层必须同时挡住这两类误报。
 """
 
 from __future__ import annotations
@@ -23,14 +26,15 @@ from hsai import ai as ai_mod   # noqa: E402
 from hsai.ui import Overlay     # noqa: E402
 
 
-def _line(value: str, source: str = "GameState.DebugPrintPower") -> str:
+def _line(value: str, tag: str = "STEP",
+          source: str = "GameState.DebugPrintPower") -> str:
     return (f"D 12:16:40.7652036 {source}() -     "
-            f"TAG_CHANGE Entity=GameEntity tag=NEXT_STEP value={value} ")
+            f"TAG_CHANGE Entity=GameEntity tag={tag} value={value} ")
 
 
-def _feed(st: state.GameState, value: str,
+def _feed(st: state.GameState, value: str, tag: str = "STEP",
           source: str = "GameState.DebugPrintPower") -> None:
-    ev = pl.parse_line(_line(value, source))
+    ev = pl.parse_line(_line(value, tag, source))
     assert ev is not None, value
     st.apply(ev)
 
@@ -62,16 +66,68 @@ def _texts(widget) -> list[str]:
 
 
 class EndTurnStateTest(unittest.TestCase):
+    def test_next_step_main_end_is_a_lookahead_not_a_turn_end(self) -> None:
+        st = _playing()
+        _feed(st, "MAIN_ACTION")
+        _feed(st, "MAIN_END", tag="NEXT_STEP")
+        self.assertEqual(st.end_turn_seq, 0)
+        self.assertFalse(st.turn_ending)
+
+    def test_real_client_turn_start_is_not_ending(self) -> None:
+        text = (Path(__file__).parent / "fixtures" / "real_client_excerpt.log").read_text(
+            encoding="utf-8")
+        st = state.GameState(cards.CardDB([]))
+        seen_action = False
+        checked = False
+        for ev in pl.parse_text(text):
+            st.apply(ev)
+            d = ev.data
+            if ev.kind != "tag_change":
+                continue
+            if d.get("tag") == "STEP" and d.get("value") == "MAIN_ACTION":
+                seen_action = True
+            # 回合开头紧跟的那条预告：此刻玩家还没出牌，不能判结束
+            if (seen_action and d.get("tag") == "NEXT_STEP"
+                    and d.get("value") == "MAIN_END"):
+                self.assertEqual(st.end_turn_seq, 0)
+                self.assertFalse(st.turn_ending)
+                checked = True
+                break
+        self.assertTrue(checked, "片段里没找到回合开头的 STEP=MAIN_ACTION + NEXT_STEP=MAIN_END")
+
+    def test_step_main_end_is_a_turn_end(self) -> None:
+        st = _playing()
+        _feed(st, "MAIN_END")
+        self.assertEqual(st.end_turn_seq, 1)
+        self.assertTrue(st.turn_ending)
+
+    def test_cleanup_and_next_keep_ending(self) -> None:
+        st = _playing()
+        _feed(st, "MAIN_END")
+        _feed(st, "MAIN_CLEANUP")
+        _feed(st, "MAIN_NEXT")
+        self.assertEqual(st.end_turn_seq, 1)
+        self.assertTrue(st.turn_ending)
+
+    def test_new_turn_action_clears_ending(self) -> None:
+        st = _playing()
+        _feed(st, "MAIN_END")
+        st.turn = 6
+        _feed(st, "MAIN_ACTION")
+        self.assertEqual(st.end_turn_seq, 1)
+        self.assertFalse(st.turn_ending)
+
     def test_mulligan_main_end_is_not_a_turn_end(self) -> None:
         st = _playing()
         st.phase = "mulligan"
         _feed(st, "MAIN_END")
         self.assertEqual(st.end_turn_seq, 0)
+        self.assertFalse(st.turn_ending)
 
     def test_two_sources_count_once(self) -> None:
         st = _playing()
         _feed(st, "MAIN_END")
-        _feed(st, "MAIN_END", "PowerTaskList.DebugPrintPower")
+        _feed(st, "MAIN_END", source="PowerTaskList.DebugPrintPower")
         self.assertEqual(st.end_turn_seq, 1)
 
     def test_next_turn_counts_again(self) -> None:
@@ -86,23 +142,17 @@ class EndTurnStateTest(unittest.TestCase):
         st.phase = "game_over"
         _feed(st, "MAIN_END")
         self.assertEqual(st.end_turn_seq, 0)
+        self.assertFalse(st.turn_ending)
 
     def test_reset_clears(self) -> None:
         st = _playing()
         _feed(st, "MAIN_END")
         st.reset()
         self.assertEqual(st.end_turn_seq, 0)
-        self.assertIsNone(st.next_step)
-
-    def test_next_step_follows_log(self) -> None:
-        st = _playing()
-        _feed(st, "MAIN_END")
-        self.assertEqual(st.next_step, "MAIN_END")
-        _feed(st, "MAIN_READY")
-        self.assertEqual(st.next_step, "MAIN_READY")
+        self.assertFalse(st.turn_ending)
 
     def test_new_turn_clears_ending_state(self) -> None:
-        """日志缺下一条 NEXT_STEP 时，回合号变化也要解除结束阶段。"""
+        """日志缺下一条 STEP 时，回合号变化也要解除结束阶段。"""
         st = _playing()
         _feed(st, "MAIN_END")
         ev = pl.parse_line(
@@ -111,7 +161,7 @@ class EndTurnStateTest(unittest.TestCase):
         assert ev is not None
         st.apply(ev)
         self.assertEqual(st.turn, 6)
-        self.assertIsNone(st.next_step)
+        self.assertFalse(st.turn_ending)
 
 
 class EndTurnUiTest(unittest.TestCase):
@@ -153,6 +203,13 @@ class EndTurnUiTest(unittest.TestCase):
         }
         snap.update(kw)
         return snap
+
+    def test_lookahead_does_not_signal_ending(self) -> None:
+        _feed(self.st, "MAIN_ACTION")
+        _feed(self.st, "MAIN_END", tag="NEXT_STEP")
+        snap = self.ov.advisor.snapshot(self.st)
+        self.assertEqual(snap["end_turn_seq"], 0)
+        self.assertFalse(snap["turn_ending"])
 
     def test_snapshot_exposes_signal(self) -> None:
         _feed(self.st, "MAIN_END")

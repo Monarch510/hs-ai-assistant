@@ -13,8 +13,9 @@ from .ui_theme import WEIGHT_REASON_WORDS, WEIGHT_TOP_N
 
 
 def hud_row(side: dict[str, Any], label: str) -> str:
-    """面板上那一行「对手 27 血 · 手牌 5 · 牌库 18 · 场攻 3 · 墓地 25」。
+    """面板「对战信息」：第一行是双方数值，任务 / 持续法术各自成行。
 
+    SECRET 区混着奥秘、任务、咒符三类，别把任务数量算进「奥秘」。
     抽成模块级函数是为了能直接测：以前它是 _render 里的闭包，只能靠截图看。
     """
     hp = side.get("health") or 0
@@ -36,11 +37,29 @@ def hud_row(side: dict[str, Any], label: str) -> str:
         parts.append(f"墓地 {gy}")
     secrets = side.get("secrets") or []
     if secrets:
-        parts.append(f"奥秘 {len(secrets)}")
+        # 隐藏奥秘没有 cardId：数量照算，但标出「认不出是哪张」
+        hidden = sum(1 for s in secrets if not s)
+        text = f"奥秘 {len(secrets)}"
+        if hidden:
+            text += f"（未知 {hidden}）"
+        parts.append(text)
     if weapon_atk:
         dur = weapon.get("durability")
         parts.append(f"武器 {weapon_atk}/{dur if isinstance(dur, int) else 1}")
-    return " · ".join(parts)
+    lines = [" · ".join(parts)]
+    # 任务 / 持续法术各自成行：混进「奥秘 N」会把任务的进度也当成奥秘数
+    for quest in side.get("quests") or []:
+        name = quest.get("name") or "未知任务"
+        progress = quest.get("progress")
+        total = quest.get("total")
+        lines.append(f"任务 {name} "
+                     f"{'?' if progress is None else progress}/"
+                     f"{'?' if total is None else total}")
+    ongoing = side.get("ongoing") or []
+    if ongoing:
+        names = "、".join(str(o.get("name") or "未知") for o in ongoing)
+        lines.append(f"持续法术 {len(ongoing)}（{names}）")
+    return "\n".join(lines)
 
 
 def _fmt_weight(value: float) -> str:

@@ -12,10 +12,9 @@ from .model import (
     parse_effect, warden_buff,
 )
 from .policy_consts import (
-    CHOOSE_ONE_RE, CTHUN_MULTIPLIER, CTHUN_SKILL_NAMES, EPS, MAX_STEPS,
-    PRIORITY_BONUS, TAG_WEIGHT_SCALE, _GIGANTIC_CACHE,
+    CHOOSE_ONE_RE, CTHUN_MULTIPLIER, CTHUN_SKILL_NAMES, _GIGANTIC_CACHE,
 )
-from .policy_threat import battlecry_times, passive_rule
+from .policy_threat import battlecry_times
 
 
 def categorize(action: Action, before: Board, after: Board, side: int) -> str:
@@ -386,7 +385,6 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         nb.note(f"预备 {card.name}：法力 -{cut}")
         return nb
 
-    # play
     if action.card_idx < 0 or action.card_idx >= len(me.hand):
         return nb
     card = me.hand.pop(action.card_idx)

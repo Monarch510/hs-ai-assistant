@@ -24,7 +24,6 @@ KEEP_LINES = 2000
 
 
 def _rotate_if_needed() -> None:
-    """超过上限就原地截断成最后 KEEP_LINES 行。"""
     try:
         if LOG_FILE.stat().st_size <= MAX_BYTES:
             return

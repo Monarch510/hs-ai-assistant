@@ -16,7 +16,6 @@ from pathlib import Path
 from hsai import cards as cards_mod
 from hsai import cli, learn, meta
 
-
 class CalibrateReportTest(unittest.TestCase):
     def setUp(self) -> None:
         self.db = cards_mod.load()
@@ -49,7 +48,6 @@ class CalibrateReportTest(unittest.TestCase):
     def _trusted(self, n: int) -> list[dict]:
         return [{"opp_class": "WARRIOR", "revealed": self.a_ids} for _ in range(n)]
 
-    # ------------------------------------------------------------ 报告口径
     def test_sample_counts_and_exclusions(self) -> None:
         rows = self._trusted(4)
         rows += [{"revealed": self.a_ids}]                                     # 无职业
@@ -109,7 +107,6 @@ class CalibrateReportTest(unittest.TestCase):
                 self.assertEqual(report["updated"], [])
                 self.assertEqual(report["skipped"], [])
 
-    # ------------------------------------------------------------ CLI 打印
     def test_cli_print_says_why_nothing_changed(self) -> None:
         report = {
             "rows": 6, "total_rows": 6, "trusted": 6, "no_class": 0, "untrusted": 0,
@@ -134,7 +131,6 @@ class CalibrateReportTest(unittest.TestCase):
                                         "updated": [], "skipped": []})
         self.assertIn("没有对局记录，先验不变", buf.getvalue())
 
-    # ------------------------------------------------------------ rebuild 报告
     def test_rebuild_report_counts_observations(self) -> None:
         # 空原型库：已有原型重合度 >= 0.6 时 absorb 会跳过，那会让 added 变成 0
         m = meta.MetaDB([])
@@ -142,7 +138,6 @@ class CalibrateReportTest(unittest.TestCase):
         report = learn.rebuild_learned(self.db, m, min_games=2, observations_path=path)
         self.assertEqual(report["observations"], 3)
         self.assertEqual(report["added"], 1)
-
 
 if __name__ == "__main__":
     unittest.main()

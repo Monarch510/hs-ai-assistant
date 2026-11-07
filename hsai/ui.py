@@ -16,20 +16,16 @@ from __future__ import annotations
 import ctypes
 import json
 import sys
-from datetime import datetime
-import threading
 import time
 import tkinter as tk
 from tkinter import messagebox
 from pathlib import Path
 from typing import Any
 
-from .advisor import Advisor, board_from_state
+from .advisor import Advisor
 from . import ai as ai_mod
 from . import feedback as feedback_mod
 from . import logutil
-from . import memory
-from . import policy as policy_mod
 from . import cards as cards_mod
 from .cards import CardDB
 from .live import SourceManager
@@ -37,14 +33,11 @@ from .paths import (
     ADVICE_FEEDBACK_JSONL, ADVICE_LOG_JSONL, DATA_DIR, LAST_REVIEW_JSON, WINDOW_JSON,
 )
 from .state import GameState
-from .tag_rules import TAG_ORDER
-# ---- 拆出去的 Mixin（AI 线程 / 复盘 / 小部件 / 渲染） ----
 from .ui_ai import AiWorkers
 from .ui_render import Renderer
 from .ui_review import ReviewPanel
 from .ui_widgets import Widgets
 
-# ---- 拆出去的纯函数与常量（门面照旧导出，测试也用这些名字） ----
 from .ui_text import _fmt_weight, _weight_summary, hud_row  # noqa: F401
 from .ui_theme import (  # noqa: F401
     BG, BLUE, BORDER, COLLAPSED_H, DEFAULT_WIDTH, FONT, GOLD, GREEN, LAYOUT_VERSION,
@@ -59,7 +52,6 @@ DEFAULT_WIDTH = 260
 # 改了布局参数就 +1：老配置文件里的宽度会被忽略，位置照旧保留
 LAYOUT_VERSION = 7
 
-# ---------------------------------------------------------------- 配色
 # BG 同时是「透明键」：窗口上凡是这个颜色的像素都会被抠掉，露出下面的游戏。
 # 所以它只能用在「缝隙」上（root / container / body），卡片必须用 PANEL。
 BG = "#0f131a"
@@ -77,13 +69,11 @@ BLUE = "#58a6ff"
 FONT = "Microsoft YaHei UI"
 COLLAPSED_H = 28
 
-
 def _load_state() -> dict[str, Any]:
     try:
         return json.loads(STATE_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
-
 
 def _save_state(data: dict[str, Any]) -> None:
     try:
@@ -92,18 +82,10 @@ def _save_state(data: dict[str, Any]) -> None:
     except OSError:
         pass
 
-
-
-
 # 「本回合偏重」最多列几类：一眼扫过的信息，列多了反而要读。
 WEIGHT_TOP_N = 3
 # 解释行只留带实质变化的，跳过「留牌阶段：只看职业…」这类元说明。
 WEIGHT_REASON_WORDS = ("加权", "降权", "偏低", "血线", "场攻", "置顶")
-
-
-
-
-
 
 class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
     def __init__(self, cards: CardDB, *, demo: bool = False, log_path: Path | None = None) -> None:
@@ -146,8 +128,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self._ai_route: list[dict] | None = None
         self._pick_source = "AI"
         self._pick_gap = 0.0                 # 0 表示这轮还没算过与第二名的分差
-        self._hint_busy = False
-        self._hint_result: tuple | None = None          # 这条建议是 AI 给的还是引擎给的
         # 工作线程只写这个字段，主线程在 _tick 里取走 —— Tk 不是线程安全的，
         # 从子线程直接调 root.after 有可能静默失败，导致建议永远不出现
         self._ai_result: tuple | None = None
@@ -169,7 +149,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             path=ADVICE_FEEDBACK_JSONL)
         self._advice_by_turn: dict[int, dict[str, Any]] = {}
         self._effect_done: set[str] = set()      # 已处理过的牌名
-        self._ai_busy = False
         self._ai_turn: tuple[int, bool] | None = None
         self._fail_streak = 0         # 连续渲染失败次数
         self._render_broken = False   # 是否已切到错误提示
@@ -185,7 +164,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self.root.deiconify()
         self.root.after(50, self._tick)
 
-    # ------------------------------------------------------------ 骨架
     def _build_shell(self) -> None:
         self.container = tk.Frame(self.root, bg=BG)
         self.container.pack(fill="both", expand=True)
@@ -201,7 +179,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
                                   font=(FONT, 9), anchor="w", padx=8)
         self.bar_label.pack(side="left", fill="both", expand=True)
 
-        # 完整面板
         self.panel = tk.Frame(self.container, bg=BG)
 
         self.header = tk.Frame(self.panel, bg=PANEL, height=30)
@@ -218,12 +195,10 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self.body = tk.Frame(self.panel, bg=BG, padx=10, pady=8)
         self.body.pack(fill="both", expand=True)
 
-
         self.root.bind("<Button-3>", self._popup_menu)
         self.container.bind("<Button-3>", self._popup_menu)
         self._build_menu()
         self._bind_drag_everywhere()
-
 
     def _make_close(self, parent: tk.Widget, side: str = "right") -> tuple[tk.Frame, tk.Label]:
         """做一个「一看就是关闭按钮」的方块：深红底 + 白叉，悬停变亮。
@@ -281,7 +256,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
                                   variable=tk.BooleanVar(value=self.bg_mode == "key"))
         self.menu.add_command(label="退出", command=self.quit)
 
-    # ------------------------------------------------------------ 拖动
     # 只绑顶栏是不够的：用户会直接按住面板正文拖，那样没反应。
     # 所以用 bind_all 接管整个窗口的左键拖动，命中「关闭按钮」时放行。
     def _bind_drag_everywhere(self) -> None:
@@ -326,7 +300,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
                 pass
             self._persist()
 
-    # ------------------------------------------------------------ 设置
     def _bump_alpha(self, delta: float) -> None:
         self.alpha = round(max(0.35, min(1.0, self.alpha + delta)), 2)
         self.root.attributes("-alpha", self.alpha)
@@ -358,7 +331,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         finally:
             self.menu.grab_release()
 
-    # ------------------------------------------------------------ 主循环
     def _tick(self) -> None:
         if self._in_fit:            # 正在量尺寸，这一拍跳过，避免递归
             self.root.after(320, self._tick)
@@ -384,7 +356,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             self._drain_ai_results()
             self._fail_streak = 0
             if self._render_broken:
-                # 下一帧画成功了就恢复正常
                 self._render_broken = False
                 self.bar_label.config(fg=MUTED)
                 self._last_sig = None
@@ -535,36 +506,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             ),
         )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # ------------------------------------------------------------ 收尾
     def _log(self, text: str) -> None:
         logutil.log(text)
 
@@ -601,10 +542,8 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self.root.protocol("WM_DELETE_WINDOW", self.quit)
         self.root.mainloop()
 
-
 _MUTEX_NAME = "Local\\HearthstoneAIAssistantOverlay"
 ERROR_ALREADY_EXISTS = 183
-
 
 def _acquire_single_instance() -> tuple[bool, int | None]:
     """用命名互斥体保证只有一个悬浮窗。
@@ -623,7 +562,6 @@ def _acquire_single_instance() -> tuple[bool, int | None]:
     except Exception:
         return True, None
 
-
 def _focus_existing() -> bool:
     """把已经在跑的那个窗口提到最前。"""
     try:
@@ -636,7 +574,6 @@ def _focus_existing() -> bool:
         return True
     except Exception:
         return False
-
 
 def main(*, demo: bool = False, log_path: Path | None = None) -> int:
     ok, mutex = _acquire_single_instance()

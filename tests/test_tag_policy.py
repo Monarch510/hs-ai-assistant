@@ -51,7 +51,6 @@ GOLDEN = {
     },
 }
 
-
 class TagPolicyTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -77,7 +76,6 @@ class TagPolicyTest(unittest.TestCase):
         card = self.db.by_name_or_id(name)
         return [t for t in TAG_ORDER if RULES[t](card)]
 
-    # ------------------------------------------------------------ 现状回归
     def test_default_plan_matches_golden(self) -> None:
         result = policy.plan_turn(self._board(hand=["淡水鳄"]), self.db, side=0)
         self.assertEqual(self._strip(result), GOLDEN)
@@ -90,7 +88,6 @@ class TagPolicyTest(unittest.TestCase):
                                tag_scale=0.0)
         self.assertEqual(self._strip(off), self._strip(base))
 
-    # ------------------------------------------------------------ 叠加口径
     def test_tags_stack_exactly_once_per_card(self) -> None:
         """一张牌只按它的标签权重和叠加一次 —— 曾经 policy.py 里留过两套
         叠加逻辑（上一轮 subagent 残留），同一张牌会被加两倍分。"""
@@ -126,7 +123,6 @@ class TagPolicyTest(unittest.TestCase):
         board_only = policy.plan_turn(b, self.db, side=0, tag_weights={"站场": 50.0})
         self.assertIn("淡水鳄", board_only["plan"][0]["desc"])
 
-    # ------------------------------------------------------------ 不该动的地方
     def test_lethal_route_ignores_tag_weights(self) -> None:
         b = self._board(my_units=[(5, 5)], opp_hp=4)
         base = policy.plan_turn(b, self.db, side=0)
@@ -185,7 +181,6 @@ class TagPolicyTest(unittest.TestCase):
         self.assertEqual(heal_weighted["gain"], heal_base["gain"])
         # 主 plan 不受影响：淡水鳄是站场（权重 0），仍靠 raw + PRIORITY_BONUS 胜出
         self.assertIn("淡水鳄", weighted["plan"][0]["desc"])
-
 
 if __name__ == "__main__":
     unittest.main()

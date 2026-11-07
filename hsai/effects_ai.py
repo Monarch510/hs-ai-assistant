@@ -1,7 +1,8 @@
-"""让 AI 帮忙补卡牌效果规则，并**严格验证**不会误伤已有的牌。
+"""卡牌效果规则的验证器：一条新规则会不会误伤已有的牌。
 
-流程：
-    未建模的牌 → 请求 AI 给出正则规则 → 逐条验证 → 通过才写进 effects.json
+早年这里还会让 AI 局中补规则、验证通过后写回 effects.json；那套已下线，
+现在只留验证逻辑，供测试与人工核对规则用 —— 运行时不调、也不写盘。
+未建模的牌只记日志，要补规则由人看过复盘后手动加。
 
 三道闸门：
     ① 目标牌必须从「未建模」变成「能解析」
@@ -21,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from .model import Effect, parse_effect
-from .paths import EFFECTS_BACKUP, EFFECTS_JSON
+from .paths import EFFECTS_JSON
 
 EFFECTS_PATH = EFFECTS_JSON
 MAX_NEW_COVER = 3          # 一条规则最多新覆盖几张牌
@@ -177,26 +178,3 @@ def validate_rule(cards, rule: dict[str, Any], target_ids: list[str]) -> tuple[b
         detail = "、".join(names)
         return False, f"会改变 {len(changed)} 张已有卡牌：{detail}"
     return True, f"通过：新覆盖 {len(newly)} 张"
-
-
-def commit_rule(rule: dict[str, Any]) -> bool:
-    """把通过验证的规则写进 effects.json（先备份）。"""
-    table = _load_rules(EFFECTS_PATH)
-    patterns = table.setdefault("patterns", [])
-    if any(p.get("regex") == rule.get("regex") for p in patterns):
-        return False
-    patterns.insert(0, rule)
-    try:
-        EFFECTS_BACKUP.write_text(
-            EFFECTS_PATH.read_text(encoding="utf-8"), encoding="utf-8")
-    except OSError:
-        pass
-    try:
-        EFFECTS_PATH.write_text(json.dumps(table, ensure_ascii=False, indent=2),
-                                encoding="utf-8")
-    except OSError:
-        return False
-    # 清缓存，下一次解析就用新规则
-    model = __import__("hsai.model", fromlist=["x"])
-    model._EFFECT_TABLE = None
-    return True

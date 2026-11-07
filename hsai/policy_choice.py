@@ -55,14 +55,12 @@ def score_choice(card, effect, board: Board, side: int, mana: int,
     is_spell = getattr(card, "type", "") == "SPELL"
     is_minion = getattr(card, "type", "") == "MINION"
 
-    # ① 当回合能不能打出去
     if cost <= mana:
         score += 2.0
         reasons.append("当回合可打")
     else:
         score -= 2.0
 
-    # ② 立即收益
     mult = CTHUN_MULTIPLIER if tripled else 1
     if effect.known:
         if effect.damage and effect.scope in ("any", "minion", "enemy", "target", "enemy_minion"):
@@ -112,7 +110,6 @@ def score_choice(card, effect, board: Board, side: int, mana: int,
         value = (atk + hp) / max(1, cost)
         score += min(2.5, value * 0.8)
 
-    # ③ 卡组主题
     if deck_theme == "spell" and is_spell:
         score += 0.8
     elif deck_theme == "aggro" and cost <= 2:
@@ -120,16 +117,15 @@ def score_choice(card, effect, board: Board, side: int, mana: int,
     elif deck_theme == "minion" and is_minion:
         score += 0.5
 
-    # ④ 场上法伤加成
     if spell_damage > 0 and is_spell and effect.damage:
         score += 0.5 * spell_damage
 
-    # ⑤ 手牌组合：手里法术多、场上又有法伤，法伤随从更值
+    # 手牌组合：手里法术多、场上又有法伤，法伤随从更值
     if hand_spells >= 3 and spell_damage > 0 and is_minion and "法术伤害" in (card.text or ""):
         score += 0.8
         reasons.append("和手牌法术配合")
 
-    # ⑥ 对手形态：快攻优先解场/回血，控制优先大身材/过牌
+    # 对手形态：快攻优先解场/回血，控制优先大身材/过牌
     if opp_fast:
         # 认不出的牌不因为「可能是解牌」加分，否则快攻对局会偏向未建模的牌
         if effect.known and (effect.damage or effect.destroy):
@@ -208,8 +204,6 @@ def pick_choice(options: list, board: Board, cards, side: int, mana: int,
                       if c is not None and getattr(c, "type", "") == "SPELL")
     scored: list[tuple[float, int, str]] = []
     # 克苏恩四技能：按用户定的优先级选，不走打分
-    skill_pairs = [(i, o) for i, o in pairs
-                   if str(o.get("name")) in CTHUN_SKILL_NAMES]
     if len(skill_pairs) >= 2:
         ruled = _cthun_choice(board, side, [o for _, o in skill_pairs], cards)
         if ruled is not None:

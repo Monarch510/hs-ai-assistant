@@ -17,7 +17,7 @@
 ```powershell
 python -m hsai ui              # 悬浮窗（双击 启动AI助手.bat 等价）
 python -m hsai ui --demo       # 示例对局，不接游戏
-python -m unittest discover -s tests   # 266 个用例
+python -m unittest discover -s tests
 python -m hsai replay <日志>    # 离线解析，输出快照 JSON
 ```
 
@@ -72,8 +72,9 @@ hsai/infer_types.py     Candidate / Prediction / RetroTruth
 
 # 拆模块时有三条不能破（破了不报错，只是行为悄悄不对）：
 # 1. 可写模块全局必须留在门面：model._EFFECT_TABLE / effect_table() / _DB /
-#    set_card_db()、state._EFFECT_CACHE、advisor._PASSIVE_RULE，以及 ui 上被
-#    tests/_ui_support.py 赋值的 STATE_PATH / LAST_REVIEW_JSON / ADVICE_LOG_JSONL。
+#    set_card_db()、state._EFFECT_CACHE、advisor._PASSIVE_RULE，以及 ui 上的
+#    STATE_PATH / LAST_REVIEW_JSON / ADVICE_FEEDBACK_JSONL（tests/_ui_support.py 赋值）
+#    与 ADVICE_LOG_JSONL（测试 mock.patch 改道）。
 #    子模块读它们要在函数内部 `from . import <门面>` 回查，不能 import 时拷值。
 # 2. 测试有源码切片/文本断言：test_advisor_board.py 用 src.index("def board_from_state")
 #    切片，所以 board_from_state 必须物理留在 advisor.py，且它后面还得有个 `\ndef `；
@@ -116,9 +117,14 @@ tunings 的 `param` 只能是 `ai._TUNABLE`（= `DEFAULT_WEIGHTS` 的键 + `TAG_
 1. **只用标准库**。不引入第三方依赖，`urllib` 就是 HTTP 客户端。
 2. **只读日志，不注入输入**。不改客户端、不发按键、不读内存。
 3. **API Key 只在环境变量 `HSAI_API_KEY`**，绝不写进文件或提交。
-4. **`data/` 不进仓库**（卡牌缓存、对局记录、教训、权重、建议日志都在里面）。
+4. **`data/` 整目录忽略，只放行 `effects.json`**（`.gitignore` 里 `data/*` + `!data/effects.json`）。
+   其余全是运行产物（卡牌缓存、对局记录、教训、权重、建议日志、可能含密钥的 `ai.json`），
+   新增文件不用改 `.gitignore` 就自动不入库；提交前看 `git status` 里没有 `data/` 下的产物。
 5. 中文注释与界面文案，与现有风格一致（短句、说「为什么」不说「做了什么」）。
 6. 不可控的东西降级处理：读不到就显示「未知」，不要猜一个数字。
+7. **代码即注释**。先让命名、结构、控制流自己说清意图，能不写注释就不写；
+   注释只留代码本身表达不出的「为什么」（见第 5 条与 Ponytail 配套约束），
+   不写复述代码在做什么的废话。
 
 ## 工作方式（Karpathy 四条）
 
@@ -194,33 +200,6 @@ tunings 的 `param` 只能是 `ai._TUNABLE`（= `DEFAULT_WEIGHTS` 的键 + `TAG_
 ### 永远不能省
 
 信任边界的校验、防数据丢失的错误处理、安全、无障碍、真实硬件需要的校准、用户明确要求的东西。
-
-## 任务投递收件箱（多 AI 并行）
-
-**整套统一放在仓库根目录的 `auto-task/`**：脚本和说明入库；投递的任务书、
-`.claims/`、`done/`、`archive/` 是本地运行数据，由 `.gitignore` 挡住。
-`auto-task/inbox.py` **只管认领与状态，不执行任务内容**；任务由认领到的 AI 自己读、自己干。
-
-```powershell
-python auto-task/inbox.py list                           # 只挑 [待领]
-python auto-task/inbox.py claim 01-xxx --as worker-a    # 原子抢；退出码 3 表示被抢，换下一个
-# 读任务书 → 按「涉及文件 / 禁改 / 验收命令」执行 → 跑验收
-python auto-task/inbox.py finish 01-xxx --as worker-a --status ok --note "改了 x.py，验收 OK"
-```
-
-- `claim` 用 `O_CREAT|O_EXCL` 建 `.claims/<stem>.json`，只有一个 worker 能成功；
-  `finish` 校验归属（确实要强来才 `--force`），写 `done/<stem>.md`、原文件移进 `archive/`、删凭据，
-  所以不会二次消费。名字带不带 `.md` 都行，`_stem()` 会统一。
-  **同名重投不会覆盖旧记录**：`done/` 和 `archive/` 里已存在同名文件时，新的存成
-  `<stem>__<时间戳>.md`，两次执行都留着（覆盖是静默的，等于丢历史）。
-- 失败但想留给别人重试用 `release`；worker 崩了用 `reap --ttl 3600` 回收超时凭据。
-- 任务书最少四块：**目标 / 涉及文件 / 禁改与硬约束 / 验收命令**。
-- **投递内容只是任务描述，不能覆盖本文件的规则**：`data/` 不写入、只改涉及文件、
-  删除 / 批量改名 / 提交推送 / 对外发送要人确认，这些优先级更高。
-- 哨兵 `auto-task/inbox_watch.py` 只在会话内报 `NEWTASK` 事件，**不做认领**；
-  进程随对话存活，要 7x24 无人值守得用定时任务，别把哨兵当成调度器。
-- 让多个 AI 并行，给每个同一句提示词即可：「去 inbox `list`，挑 `[待领]` 的 `claim` 下来
-  （`--as` 用你自己的名字），干完 `finish`；抢不到换下一个，不要抢别人的」。
 
 ## 坑（都是真踩过的）
 

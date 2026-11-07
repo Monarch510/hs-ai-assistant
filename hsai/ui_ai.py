@@ -1,7 +1,7 @@
 """AI 线程组：局末复盘 / 记录反馈 / 单步建议。
 
 这些方法只通过 self 上的队列式字段与主循环共享状态
-（_ai_result / _ai_busy / _feedback_items …），所以能安全做成 Mixin。
+（_ai_result / _feedback_items …），所以能安全做成 Mixin。
 
 注意：这里**不再**让 AI 在局中补卡牌效果规则 —— 未建模的牌只记日志，
 改由人看过复盘后决定要不要补。"""
@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import json
-import tkinter as tk
 
 import threading
 from datetime import datetime
@@ -18,17 +17,13 @@ from typing import Any
 from .advisor import board_from_state
 from . import ai as ai_mod
 from . import feedback as feedback_mod
-from . import logutil
 from . import memory
 from . import policy as policy_mod
-from . import cards as cards_mod
 from .state import GameState
-
 
 class AiWorkers:
     """AI 线程与规则补充。Overlay 继承它。"""
 
-    # ------------------------------------------------------------ 是否值得问 AI
     @staticmethod
     def _has_options(snap: dict[str, Any]) -> bool:
         our = snap.get("our") or {}
@@ -111,7 +106,6 @@ class AiWorkers:
             return
         self._ai_turn = key
         self._ai_text = ""
-        self._ai_busy = True
         # 等 1.5 秒再请求：刚抽到的牌要过一会儿才进日志，
         # 立刻发出去会让 AI 基于不完整的手牌做决策
         # 发现/抉择的选项一出现就是完整的，不需要等日志稳定；
@@ -273,7 +267,6 @@ class AiWorkers:
 
     def _ai_done(self, text: str, pick: tuple[str, str] | None = None,
                  steps: list[dict] | None = None) -> None:
-        self._ai_busy = False
         self._ai_text = text
         self._ai_route = steps
         if steps:
@@ -340,7 +333,6 @@ class AiWorkers:
                 path = _ui.ADVICE_LOG_JSONL
                 with open(path, "a", encoding="utf-8") as fh:
                     fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-                # 超过 400 行就只留最近 400
                 rows = path.read_text(encoding="utf-8").splitlines()
                 if len(rows) > 400:
                     path.write_text("\n".join(rows[-400:]) + "\n", encoding="utf-8")

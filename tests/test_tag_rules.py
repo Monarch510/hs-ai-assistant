@@ -1,4 +1,4 @@
-"""11 类卡牌功能标签的规则钉行为（CONTEXT §6 必测例子）。
+"""12 类卡牌功能标签的规则钉行为（CONTEXT §6 必测例子）。
 
 只用真实卡牌库按中文名取牌；不联网、不依赖 data/card_tags.json。
 """
@@ -200,15 +200,15 @@ AUDIT_PENDING = {
     "RLK_218": ("站场", "增益"),                    # 「不能以英雄为目标」是限制（增益来自法术伤害+2）
     "TRL_319": ("站场",),                           # 「会以选中随从及相邻随从作为目标」字面不同
     "CORE_ICC_068": ("站场", "减益"),               # 有明确动作词「冻结」，标签不变
-    # #10 B2：受益对象明确是「你的英雄」的免伤 = 增益（关键词增益表免疫的显式例外）
-    "BT_752": ("增益",),                             # 疾影：全库唯一「无法受到伤害」
-    "TRL_302": ("增益",),                            # 暂避锋芒：直到下个回合你的英雄免疫
-    "CORE_ICC_850": ("站场", "增益", "斩杀"),         # 暗影之刃：战吼免伤 + 武器能打脸
-    "KAR_712": ("站场", "增益"),                     # 紫罗兰幻术师：在你的回合中免伤
-    "ULDA_114": ("站场", "增益"),                    # 死亡护盾：武器光环
-    "TIME_021": ("站场", "增益"),                    # 末日准备狂：流放触发的免伤
-    "GDB_843": ("站场", "增益", "资源", "斩杀"),      # 视差光枪：法术迸发免伤
-    "CORE_GVG_021": ("站场", "增益"),                # 玛尔加尼斯：本就含增益，标签不变
+    # #10 B2 原判「增益」，#21 B1 起整族迁入第 12 类「保护」（迁移、互斥）
+    "BT_752": ("保护",),                             # 疾影：全库唯一「无法受到伤害」
+    "TRL_302": ("保护",),                            # 暂避锋芒：直到下个回合你的英雄免疫
+    "CORE_ICC_850": ("站场", "斩杀", "保护"),         # 暗影之刃：战吼免伤 + 武器能打脸
+    "KAR_712": ("站场", "保护"),                     # 紫罗兰幻术师：在你的回合中免伤
+    "ULDA_114": ("站场", "保护"),                    # 死亡护盾：武器光环
+    "TIME_021": ("站场", "保护"),                    # 末日准备狂：流放触发的免伤
+    "GDB_843": ("站场", "资源", "斩杀", "保护"),      # 视差光枪：法术迸发免伤
+    "CORE_GVG_021": ("站场", "增益", "保护"),         # 玛尔加尼斯：+2/+2 仍给增益，免伤转保护
     # 反例：受益对象不是「你的英雄」/ 被条件隔开 / 奥秘触发句，都不收
     "AT_057": ("站场",),                             # 「使一个友方野兽获得免疫」
     "CORE_ICC_467": ("站场",),                       # 「使一个友方随从获得免疫」
@@ -228,9 +228,13 @@ AUDIT_PENDING = {
     # 反例：己方水晶是代价，C 只认对手/敌方
     "EX1_301": ("站场",),                            # 恶魔卫士：摧毁你的一个法力水晶
     "TRL_500": ("增益",),                            # 疯入膏肓：代价换牌库随从 +2/+2
-    "DEEP_027": ("站场",),                           # 暗石守卫：抉择代价
-    "DEEP_027B": (),                                 # 法力裂解：纯代价牌，仍 0 标签
+    "DEEP_027": ("站场",),                           # 暗石守卫：抉择代价（本体不受影响）
+    "DEEP_027A": ("减益",),                          # #25 B1：碎裂形态「弃两张牌」整句 → 减益
+    "DEEP_027B": ("减益",),                          # #25 B1：法力裂解「摧毁你的一个法力水晶」整句 → 减益
+    "EX1_308": ("单解", "斩杀"),                     # 灵魂之火：伤害+随机弃一张，不补减益
+    "LOOT_417": ("群解",),                           # 大灾变：消灭随从+弃两张牌，不补减益
     "DMF_115": ("站场",),                            # 怨灵捣蛋鬼：每个玩家各一个
+    "DMF_534": ("未知",),                            # #26 B2：混乱套牌，费用/攻击力互换双向方向不明 → 未知
     "AT_038": ("站场", "资源"),                      # 豹骑士：亡语失去一个，不按减益
     "EDR_483": ("未知",),                            # 破碎之力：延迟跳费按 #3 判未知，不受影响
     # #12 B2：「你的英雄拥有+关键词」= 增益（受益对象明确，不碰 HERO）
@@ -244,8 +248,8 @@ AUDIT_PENDING = {
     "CATA_613": ("站场",),                           # 「则拥有免疫」是本随从
     "BE_230": ("站场",),                             # 你的最左边的随从拥有突袭
     "CATA_898": ("站场",),                           # 所有敌方随从拥有嘲讽
-    "TRL_302": ("增益",),                            # #10 已收的免疫，不重复
-    "BT_752": ("增益",),                             # #10 已收的免伤，不重复
+    "TRL_302": ("保护",),                            # #10 已收的免疫，#21 起归保护
+    "BT_752": ("保护",),                             # #10 已收的免伤，#21 起归保护
     # #14 C：后续法术施放两次 / 输出型伤害治疗翻倍 = 增益
     "CORE_DMF_058": ("增益",),                       # 日蚀：0 标签转增益
     "DMF_058": ("增益",),                            # 日蚀（原版）
@@ -319,6 +323,116 @@ AUDIT_PENDING = {
     "CAP_001": ("单解", "增益"),
     "BE_732": ("单解", "站场"),
     "AV_209": ("站场", "斩杀"),
+    # #17 B1：亡语「回到战场」= 站场（同「再次召唤本随从」先例）
+    "CORE_ICC_244": ("站场",),                       # 殊死一搏：0 标签转站场
+    "ICC_244": ("站场",),                            # 殊死一搏（原版）
+    "ICC_244E": ("站场",),                           # 救赎附魔：规则命中但 scope 外、不落盘
+    # 反例：奥秘救赎是「使其回到战场」，无亡语前缀，仍 0 标签待定
+    "EX1_136": (),
+    "VAN_EX1_136": (),
+    # 反例：既有「再次召唤」先例全是站场、无增益，本轮不碰
+    "CS2_038": ("站场",),
+    "BT_101": ("站场",),
+    "CORE_ICC_257": ("站场",),
+    # #18 B1：指控牌的延迟消灭 = 单解（动词在句末，_KILL_RE 认不到）
+    "CORE_MAW_001": ("单解",),                       # 纵火指控：0 标签转单解
+    "MAW_001": ("单解",),                            # 纵火指控（原版）
+    "CORE_MAW_019": ("单解",),                       # 谋杀指控：0 标签转单解
+    "MAW_019": ("单解",),                            # 谋杀指控（原版）
+    # 反例：句号隔开 + why 含「复制」的盗窃指控不收
+    "CORE_MAW_023": (),
+    "MAW_023": (),
+    # 反例：奥秘是 SECRET 强制待定，「下个回合开始时」「每当…时」都不收
+    "CORE_CS3_016": (),
+    "CS3_016": (),
+    "EX1_594": (),
+    "UNG_831": (),
+    "AT_063": ("站场",),
+    "WON_024": ("站场",),
+    # 反例：已有标签的延迟消灭牌，补单解即误伤
+    "RLK_536": ("未知",),
+    "ETC_534": ("站场",),
+    "NX2_037": ("站场",),
+    "SCH_126": ("站场",),
+    "VAC_503": ("站场",),
+    # #19 B1：单体「移出对战」= 单解（永久移除、不触发亡语的硬解）
+    "CORE_MAW_013": ("单解",),                       # 终身刑罚：0 标签转单解
+    "MAW_013": ("单解",),                            # 终身刑罚（原版）
+    # 反例：群体写法不收；WW_0700 是 HERO，按 #8 不加标签
+    "WW_0700": (),
+    "TLC_452T21": ("站场",),                         # scope 外，仅随从牌本身
+    "TTN_429T2": (),                                 # scope 外
+    # 反例：既有软解先例不受 #19 影响
+    "FP1_025": ("单解", "站场"),
+    "ULD_269": ("站场",),
+    # #20 贴休眠：窄口径 ^锚定恰好 3 张，0 标签转减益
+    "CORE_MAW_026": ("减益",),                       # 监禁
+    "MAW_026": ("减益",),                            # 监禁（原版）
+    "GDB_851B": ("减益",),                           # 晕击星光
+    # 反例：中口径「使其休眠N回合」的另外 5 张，带战吼/自己召唤的前缀，不收
+    "BT_737": ("站场",),                             # 玛维·影歌
+    "TIME_442": ("站场",),                           # 时间流守望者
+    "ETC_838": ("站场",),                            # 宏大梦想：给自己召唤的野兽贴
+    "MIS_305": ("站场", "资源"),                     # 产品延期
+    "JAIL_850": ("站场", "增益"),                    # 典狱官玛维
+    # 反例：把动作写在未来的第 11 类，仍归未知
+    "RLK_919": ("站场", "未知"),
+    "CORE_RLK_919": ("站场", "未知"),
+    "MAW_026E": ("未知",),                           # 附魔「服刑」，scope 外
+    "BT_737E": ("未知",),                            # 附魔「被禁锢」，scope 外
+    # 反例：冻结仍是减益（§3 软处理归属，本轮未动）
+    "PART_005": ("减益",),
+    # #21 B1：新增第 12 类「保护」，免伤族整族从增益迁入（互斥）
+    "CORE_REV_504": ("保护",),                       # 脱罪力证：0 标签转保护
+    "REV_504": ("保护",),                            # 脱罪力证（原版）
+    "LOE_119": ("站场", "保护"),                     # 活化铠甲：补保护，保留站场
+    "AV_146": ("站场", "斩杀", "保护"),              # 无法撼动之物：伤害减半
+    "GVG_021": ("站场", "增益", "保护"),             # 玛尔加尼斯：+2/+2 仍给增益
+    # 反例：受益对象不是己方英雄、或是伤害效果递减，都不收
+    "LOEA16_27": ("站场",),                          # 本随从每次只会受到1点伤害
+    "LOEA16_27H": ("站场",),
+    "KARA_08_06": ("站场",),                         # 蓝色光线照射下的角色
+    "TRLA_142": ("站场",),                           # 嘲讽（随从）每次只会受到1点
+    "CATA_491": ("群解",),                           # 每次伤害减少1点＝伤害效果递减
+    "JAM_002": ("单解",),
+    # #22 变形费用三分支（用户拍板）：增加=增益 / 减少=减益 / 相同=未知
+    "CORE_REV_920": ("增益",),                       # 可信的伪装：0 标签转增益
+    "REV_920": ("增益",),
+    "DMF_108": ("增益",),                            # 愚人套牌：牌库法术升级
+    "TTN_485": ("增益",),                            # 星辰排列：手牌随从升级
+    "ULDA_116": ("增益",),                           # 无恒药剂：冒险 passive
+    "CORE_REV_923": ("站场", "增益"),                # 淤泥之池：地标牌型 + 升级
+    "REV_923": ("站场", "增益"),
+    "CORE_REV_924": ("增益", "减益", "资源"),        # 始源之潮：敌方降级 + 友方升级
+    "REV_924": ("增益", "减益", "资源"),
+    "CFM_696": ("群解", "减益", "资源"),             # 衰变：敌方降级
+    "SCH_235": ("减益", "资源"),                     # 衰变飞弹
+    "BE_055": ("站场", "资源", "未知"),              # 阿扎达斯：同费变形
+    "DMF_700": ("群解", "未知"),                     # 异变轮转
+    "GVG_108": ("站场", "未知"),                     # 侏儒变形师
+    "THD_042P": ("单解", "未知"),                    # 布莱恩的鞍座
+    # 反例：#8 HERO 不加标签；奥秘标签层给增益、仍按 SECRET 分支待定
+    "CORE_ICC_481": (),                              # 死亡先知萨尔（HERO）
+    "ICC_481": (),
+    "BT_042": ("单解", "增益"),
+    # #23 B1：解锁过载水晶并造成等量伤害 → 单解+斩杀
+    "CORE_SW_114": ("单解", "斩杀"),             # 强行透支：0 标签转单解+斩杀
+    "SW_114": ("单解", "斩杀"),
+    # 反例：解锁 / 等量伤害族其余写法都不收
+    "BRM_011": ("单解", "斩杀"),                  # 熔岩震击：先伤害后解锁，旧判据已给
+    "CATA_724": ("站场",),                        # 缚风者：亡语解锁
+    "SW_031": (),                                 # 号令元素：任务线奖励解锁，仍待定
+    "TTN_835": ("站场", "抽牌"),                  # 托里姆：战吼解锁+抽牌
+    "OG_104": (),                                 # 暗影之握：治疗转伤害，仍待定
+    "AT_026": ("站场",),                          # 愤怒卫士：每当受到伤害的等量反伤
+    # #24 B2：全体友方随从回手 → 资源（B1 的「保护」未采用）
+    "DAL_728": ("资源",),                         # 战略转移：0 标签转资源
+    "ETC_079": ("资源",),                         # 舞动全场：减费句本轮不夹带
+    "PART_002": (),                               # 单个友方随从回手，仍待定
+    "SCH_514": (),                                # 两个已死友方随从回手，仍待定
+    "UNG_956": (),                                # 亡语贴回手，仍待定
+    "SW_460": (),                                 # 攻击后回手，仍待定
+    "CFM_800": (),                                # 奥秘战术撤离，仍按 SECRET 待定
 }
 
 
@@ -335,7 +449,8 @@ class TagRulesCase(unittest.TestCase):
     def test_tag_order(self) -> None:
         self.assertEqual(
             tag_rules.TAG_ORDER,
-            ("单解", "群解", "站场", "增益", "减益", "治疗", "护甲", "资源", "抽牌", "斩杀", "未知"),
+            ("单解", "群解", "站场", "增益", "减益", "治疗", "护甲", "资源", "抽牌", "斩杀",
+             "未知", "保护"),
         )
 
     def test_rules_cover_all_tags(self) -> None:
@@ -411,11 +526,28 @@ class TagRulesCase(unittest.TestCase):
                 self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
 
     def test_hero_immune_leaves_pending(self) -> None:
-        # 己方英雄免伤被增益认下后，就不该再留在待定清单里
+        # #10 己方英雄免伤：#21 起打「保护」而非「增益」，不该再留在待定清单里
         for cid in ("BT_752", "TRL_302"):
             with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("增益",))
+                self.assertEqual(_tags(self.card(cid)), ("保护",))
                 self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+
+    def test_protect_damage_limit_leaves_pending(self) -> None:
+        # #21 伤害上限族：两张脱罪力证由 0 标签转保护并退出待定
+        for cid in ("CORE_REV_504", "REV_504"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ("保护",))
+                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+        # 钉死第 12 类的全库命中面：免伤 + 伤害上限 + 伤害减半共 43 张
+        # （scope 内 24 张，其余是冒险/附魔/乱斗牌，规则命中但不落盘）
+        hits = [cid for cid, card in self.db.by_id.items()
+                if tag_rules.rule_protect(card)]
+        self.assertEqual(len(hits), 43)
+        # 迁移是互斥的：只靠免伤拿标签的牌不该再带「增益」
+        for cid in ("BT_752", "TRL_302", "CORE_ICC_850", "KAR_712"):
+            with self.subTest(cid=cid):
+                self.assertIn("保护", _tags(self.card(cid)))
+                self.assertNotIn("增益", _tags(self.card(cid)))
 
     def test_mana_drain_leaves_pending(self) -> None:
         # 削对方法力水晶被减益认下后，就不该再留在待定清单里
@@ -466,6 +598,184 @@ class TagRulesCase(unittest.TestCase):
             with self.subTest(cid=cid):
                 self.assertEqual(_tags(self.card(cid)), ("单解",))
                 self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+
+    def test_return_to_battlefield_leaves_pending(self) -> None:
+        # 「亡语：回到战场」被站场认下后，两张殊死一搏就不该再留在待定清单里
+        for cid in ("CORE_ICC_244", "ICC_244"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ("站场",))
+                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+        # 两张奥秘救赎仍是奥秘待定（why 不变、标签仍为空）
+        for cid in ("EX1_136", "VAN_EX1_136"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ())
+                self.assertEqual(
+                    tag_rules.pending_reason(self.card(cid)),
+                    "奥秘：效果取决于对手动作，规则不硬猜",
+                )
+
+    def test_delayed_kill_leaves_pending(self) -> None:
+        # 指控牌的延迟消灭被单解认下后，四张牌都不该再留在待定清单里
+        for cid in ("CORE_MAW_001", "MAW_001", "CORE_MAW_019", "MAW_019"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ("单解",))
+                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+        # 两张盗窃指控仍是「文本含复制」待定（why 不变、标签仍为空）
+        for cid in ("CORE_MAW_023", "MAW_023"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ())
+                self.assertEqual(
+                    tag_rules.pending_reason(self.card(cid)),
+                    "文本含「复制」，规则未命中任何标签，可能有分支漏标",
+                )
+
+    def test_remove_from_game_leaves_pending(self) -> None:
+        # 单体「移出对战」被单解认下后，两张终身刑罚不该再留在待定清单里
+        for cid in ("CORE_MAW_013", "MAW_013"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ("单解",))
+                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+        # HERO 雷诺按 #8 仍不加标签、why 不变（不会被群体写法顺带打标）
+        reno = self.card("WW_0700")
+        self.assertEqual(reno.type, "HERO")
+        self.assertEqual(_tags(reno), ())
+        self.assertEqual(
+            tag_rules.pending_reason(reno),
+            "规则未命中任何标签，卡面文本需要人工判断",
+        )
+
+    def test_puts_to_sleep_leaves_pending(self) -> None:
+        # 贴休眠被减益认下后，3 张纯法术不该再留在待定清单里
+        for cid in ("CORE_MAW_026", "MAW_026", "GDB_851B"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ("减益",))
+                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+        # 钉死命中面：^ 锚定的窄判据全库只认这 3 张
+        hits = sorted(cid for cid, card in self.db.by_id.items()
+                      if tag_rules._puts_to_sleep(card))
+        self.assertEqual(hits, ["CORE_MAW_026", "GDB_851B", "MAW_026"])
+        # 战吼贴休眠的两张先例仍只有站场，不被顺带补减益
+        for cid in ("BT_737", "TIME_442"):
+            with self.subTest(cid=cid):
+                self.assertNotIn("减益", _tags(self.card(cid)))
+
+    def test_transform_cost_leaves_pending(self) -> None:
+        # #22：5 张 0 标签队列牌拿到增益后，就不该再留在待定清单里
+        for cid in ("CORE_REV_920", "REV_920", "DMF_108", "TTN_485", "ULDA_116"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ("增益",))
+                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+        # 全库钉死命中面：59 张牌的三方向与标签严格一一对应，互不串味
+        wanted = {"增加": "增益", "减少": "减益", "相同": "未知"}
+        checked = 0
+        for cid, card in self.db.by_id.items():
+            dirs = tag_rules._transform_cost_directions(card)
+            if not dirs:
+                continue
+            checked += 1
+            with self.subTest(cid=cid):
+                for direction, tag in wanted.items():
+                    self.assertEqual(direction in dirs, tag in _tags(card))
+        self.assertEqual(checked, 59)
+        # #8：HERO 死亡先知萨尔不参与，仍是 0 标签待定
+        for cid in ("CORE_ICC_481", "ICC_481"):
+            with self.subTest(cid=cid):
+                self.assertEqual(self.card(cid).type, "HERO")
+                self.assertEqual(_tags(self.card(cid)), ())
+                self.assertIsNotNone(tag_rules.pending_reason(self.card(cid)))
+        # 奥秘：标签层给增益，但 pending_reason 仍按 SECRET 分支留在待定
+        secret = self.card("BT_042")
+        self.assertIn("增益", _tags(secret))
+        self.assertEqual(
+            tag_rules.pending_reason(secret),
+            "奥秘：效果取决于对手动作，规则不硬猜",
+        )
+
+    def test_unlock_overload_damage_leaves_pending(self) -> None:
+        # #23：两张强行透支拿到单解+斩杀后，就不该再留在待定清单里
+        for cid in ("CORE_SW_114", "SW_114"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ("单解", "斩杀"))
+                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+        # 全库钉死命中面：窄正则恰好 2 张，不多不少
+        hits = [cid for cid, card in self.db.by_id.items()
+                if tag_rules._unlock_overload_damage(card)]
+        self.assertEqual(sorted(hits), ["CORE_SW_114", "SW_114"])
+        # 同族其余写法一律不动
+        for cid, expected in (("BRM_011", ("单解", "斩杀")),
+                              ("CATA_724", ("站场",)),
+                              ("SW_031", ()),
+                              ("TTN_835", ("站场", "抽牌")),
+                              ("OG_104", ()),
+                              ("AT_026", ("站场",))):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), expected)
+
+    def test_return_all_friendly_to_hand_leaves_pending(self) -> None:
+        # #24 B2：两张「将所有友方随从移回你的手牌」拿到资源后退出待定；
+        # 不是 B1，第 12 类「保护」范围没扩，仍只收英雄免伤族
+        for cid in ("DAL_728", "ETC_079"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ("资源",))
+                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+        # 全库钉死命中面：窄正则恰好 2 张，不多不少
+        hits = [cid for cid, card in self.db.by_id.items()
+                if tag_rules._returns_all_friendly_to_hand(card)]
+        self.assertEqual(sorted(hits), ["DAL_728", "ETC_079"])
+        # `ETC_079` 的减费句本身仍不算资源：本轮没夹带放宽 rule_resource 的减费分支
+        fake = Card(id="FAKE_COST_1", name="仅减费", type="SPELL",
+                    text="在本回合中，其法力值消耗为（1）点。")
+        self.assertNotIn("资源", _tags(fake))
+        # 同族其余写法一律不动：暗影步靠减费句已有资源，其余仍 0 标签待定
+        for cid, expected in (("EX1_144", ("资源",)),
+                              ("CORE_EX1_144", ("资源",)),
+                              ("PART_002", ()),
+                              ("SCH_514", ()),
+                              ("UNG_956", ()),
+                              ("SW_460", ()),
+                              ("CFM_800", ())):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), expected)
+        self.assertEqual(tag_rules.pending_reason(self.card("CFM_800")),
+                         "奥秘：效果取决于对手动作，规则不硬猜")
+
+    def test_own_resource_cost_leaves_pending(self) -> None:
+        # #25 B1：两张纯己方代价整句牌拿到减益后退出待定；
+        # 它们是 DEEP_027 暗石守卫的抉择选项牌，按 B1 打标、不按 #13 移出 scope
+        for cid in ("DEEP_027A", "DEEP_027B"):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), ("减益",))
+                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
+        # 全库钉死命中面：整句全等恰好 2 张，不多不少
+        hits = [cid for cid, card in self.db.by_id.items()
+                if tag_rules._own_resource_cost(card)]
+        self.assertEqual(sorted(hits), ["DEEP_027A", "DEEP_027B"])
+        # 同句但带其他动作的写法一律不补减益：本体已有站场、其余各有原标签
+        for cid, expected in (("DEEP_027", ("站场",)),
+                              ("EX1_301", ("站场",)),
+                              ("VAN_EX1_301", ("站场",)),
+                              ("EDR_483", ("未知",)),
+                              ("EX1_310", ("站场", "斩杀")),
+                              ("EX1_308", ("单解", "斩杀")),
+                              ("LOOT_417", ("群解",)),
+                              ("AT_025", ("群解",))):
+            with self.subTest(cid=cid):
+                self.assertEqual(_tags(self.card(cid)), expected)
+
+    def test_cost_attack_swap_leaves_pending(self) -> None:
+        # #26 B2：费用/攻击力互换双向都发生、方向不明 → 未知，退出待定
+        card = self.card("DMF_534")
+        self.assertEqual(_tags(card), ("未知",))
+        self.assertIsNone(tag_rules.pending_reason(card))
+        # 全库钉死命中面：恰好 DMF_534 一张
+        hits = [cid for cid, c in self.db.by_id.items()
+                if tag_rules._cost_attack_swap(c)]
+        self.assertEqual(hits, ["DMF_534"])
+        # 攻血互换族不受新判据影响，仍按减益打
+        for cid in ("AT_016", "BOT_517", "CFM_063"):
+            with self.subTest(cid=cid):
+                self.assertIn("减益", _tags(self.card(cid)))
+                self.assertFalse(tag_rules._cost_attack_swap(self.card(cid)))
 
     def test_plain_text_strips_markup(self) -> None:
         # $ / # 是卡面里的数值前缀，<b> 是富文本标记

@@ -20,7 +20,6 @@ from pathlib import Path
 from hsai import cards as cards_mod
 from hsai import meta
 
-
 class StoreFormatTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -47,7 +46,6 @@ class StoreFormatTest(unittest.TestCase):
                            prior=0.4, cards={self.picked[0].id: 1}, source="import"),
         ], self.db)
 
-    # ---------------------------------------------------------- 一个原型一个文件
     def test_one_file_per_archetype(self) -> None:
         self._db().save(self.dir)
         names = sorted(p.name for p in self.dir.glob("*.json"))
@@ -105,7 +103,6 @@ class StoreFormatTest(unittest.TestCase):
         self.assertIsNone(back.prior_base)
         self.assertAlmostEqual(back.base_prior, back.prior, places=6)
 
-    # ---------------------------------------------------------- cards 字段
     def test_cards_carry_name_cost_count(self) -> None:
         self._db().save(self.dir)
         payload = json.loads((self.dir / "tempo_warrior.json").read_text(encoding="utf-8"))
@@ -138,7 +135,6 @@ class StoreFormatTest(unittest.TestCase):
         back = meta.MetaDB.load(self.db, self.dir)
         self.assertEqual(back.get("old").cards, {self.picked[0].id: 2, self.picked[1].id: 1})
 
-    # ---------------------------------------------------------- 老单文件迁移
     def test_single_file_is_migrated_in_place(self) -> None:
         legacy = Path(self._tmp.name) / "meta.json"
         legacy.write_text(json.dumps({
@@ -162,14 +158,12 @@ class StoreFormatTest(unittest.TestCase):
                           .read_text(encoding="utf-8"))["cards"]
         self.assertTrue(rows[0]["name"])
 
-    # ---------------------------------------------------------- 种子
     def test_no_builtin_seeds(self) -> None:
         """内置示例原型已删：删掉它们是因为它们不是真实天梯数据。"""
         self.assertFalse(hasattr(meta, "SEED"), "SEED 列表应该已经删掉")
         self.assertFalse(hasattr(meta, "seeds"), "seeds() 应该已经删掉")
         self.assertEqual(len(meta.build_from_observations([], self.db)), 0,
                          "没有对局记录时不该凭空长出原型")
-
 
 if __name__ == "__main__":
     unittest.main()

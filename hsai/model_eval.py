@@ -7,10 +7,8 @@
 from __future__ import annotations
 
 from .model_effects import parse_effect, warden_buff, hero_power_effect, is_passive_hero_power
-from .model_units import Board, SideState
+from .model_units import Board
 
-
-# ---------------------------------------------------------------- 评估函数
 DEFAULT_WEIGHTS = {
     "tempo": 1.0,        # 场面交换优势
     "face": 0.9,         # 打脸进度
@@ -20,7 +18,6 @@ DEFAULT_WEIGHTS = {
     "aoe_risk": 1.2,
     "fatigue": 0.6,     # 牌库差 / 疲劳伤害（残局里牌多的一方更能拖）     # 铺场被清的风险
 }
-
 
 def resource_score(side_state, cards=None) -> float:
     """估算一方还有多少「资源」。
@@ -71,7 +68,6 @@ def resource_score(side_state, cards=None) -> float:
                     score += 0.5          # 站在场上的资源，按半张算
     return score
 
-
 def _adjacency_value(side_state) -> float:
     """相邻光环带来的额外价值：只在两个随从真的挨着时才算。"""
     import re as _re
@@ -94,7 +90,6 @@ def _adjacency_value(side_state) -> float:
             neighbors += 1
         total += buff * neighbors * 0.5
     return total
-
 
 def evaluate(board: Board, weights: dict[str, float] | None = None, aoe_risk: float = 0.0,
              perspective: int = 0) -> float:

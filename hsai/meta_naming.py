@@ -19,7 +19,6 @@ RARITY_RANK = {
     "FREE": -1,      # 基本牌没有稀有度，排在普通之下
 }
 
-
 def _copy_ratio(count: int, card) -> float:
     """张数 -> 「满编程度」0..1，用作没有真实出牌率时的替代。
 
@@ -28,7 +27,6 @@ def _copy_ratio(count: int, card) -> float:
     """
     cap = 1 if (card is not None and (getattr(card, "rarity", "") or "").upper() == "LEGENDARY") else 2
     return min(1.0, max(0.0, count / cap))
-
 
 def key_card_rank(card, presence: float) -> tuple:
     """命名用的排序键：**先比稀有度，再比出牌率**。
@@ -48,7 +46,6 @@ def key_card_rank(card, presence: float) -> tuple:
             -cost,                       # 仅用于打破完全相同的死局
             getattr(card, "name", "") or "",
             getattr(card, "id", "") or "")   # id 兜底，保证可复现
-
 
 def pick_key_cards(deck: dict[str, int], cards: CardDB, *,
                    presence: dict[str, float] | None = None,
@@ -72,7 +69,6 @@ def pick_key_cards(deck: dict[str, int], cards: CardDB, *,
     ranked.sort(key=lambda p: p[0])
     return [c.id for _, c in ranked[:limit]]
 
-
 def content_id(card_class: str, cards: dict[str, int]) -> str:
     """由标志牌集合算出稳定 id（8 位十六进制）。
 
@@ -85,7 +81,6 @@ def content_id(card_class: str, cards: dict[str, int]) -> str:
     """
     payload = "|".join(f"{cid}:{n}" for cid, n in sorted(cards.items()))
     return hashlib.md5(payload.encode("utf-8")).hexdigest()[:8]
-
 
 def _name_archetype(cls: str, keys: list[str], cards: CardDB, used: set[str]) -> str:
     """`职业·关键牌`，**只取一张牌的名字**。
@@ -106,8 +101,6 @@ def _name_archetype(cls: str, keys: list[str], cards: CardDB, used: set[str]) ->
         i += 1
     return f"{base}#{i}"
 
-
-# ---------------------------------------------------------------- 自举聚类
 def _jaccard(a: set[str], b: set[str]) -> float:
     if not a or not b:
         return 0.0

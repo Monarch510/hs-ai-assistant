@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
-import sys
-from pathlib import Path
 
 from .cli_boot import _db
 from .paths import CARD_TAGS_AI_JSON, CARD_TAGS_MANUAL_JSON

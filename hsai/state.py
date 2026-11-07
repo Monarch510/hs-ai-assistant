@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from collections import Counter, deque
+from collections import deque
 from typing import Any, Iterable
 
 from . import powerlog as pl
@@ -30,7 +30,6 @@ from .state_types import (
     Entity, Side, _EFFECT_CACHE, _cached_effect, _clean_text, _int,
 )
 
-
 class GameState:
     """一次对局的可变状态。每次 apply 事件后都可以随时读取视图。"""
 
@@ -38,13 +37,10 @@ class GameState:
         self.cards = cards
         self.reset()
 
-    # ------------------------------------------------------------ 生命周期
     def reset(self) -> None:
         # 局与局之间必须隔离：抽牌数、墓地、休眠/入场回合、克苏恩进度
         self.entities: dict[int, Entity] = {}
         self.player_ids: dict[int, int] = {}  # player_id -> entity id
-        self.player_entities: dict[int, Entity] = {}
-        self._last_class: dict[int, str] = {}
         self.our_id: int = 1
         self.opp_id: int = 2
         self._our_id_locked = False
@@ -53,9 +49,10 @@ class GameState:
         self._id_by_hand_done = False
         self.turn = 0
         self.turn_owner: int | None = None
-        # NEXT_STEP 预告下一阶段；MAIN_END 比 TURN/CURRENT_PLAYER 早到，
-        # 是「结束回合生效」的第一个信号。按回合号幂等：两条管线各打一遍。
-        self.next_step: str | None = None
+        # STEP 才是当前阶段；收尾的 MAIN_END/CLEANUP/NEXT 比 TURN 切换早到，
+        # 是「结束回合生效」的第一个信号。NEXT_STEP 是下一步预告，回合开头
+        # 就发，别拿它判结束。按回合号幂等：两条管线各打一遍。
+        self.turn_ending = False
         self.end_turn_seq = 0
         self._end_turn_last_turn: int | None = None
         self.playstate = 0
@@ -64,7 +61,6 @@ class GameState:
         self.game_over = False
         self.winner: int | None = None
         self.mulligan_done = False
-        self.revealed_opp: Counter[str] = Counter()
         self.revealed_opp_order: list[str] = []
         self.revealed_turns: dict[str, int] = {}
         self.our_hand_ids: list[str] = []
@@ -80,8 +76,6 @@ class GameState:
         self._fed: dict[tuple[str, int], int] = {}
         # 本局出现过「引擎看不懂效果」的牌，供对局结束时的说明使用
         self.unmodelled: list[str] = []
-        # 任务牌进度：实体 id -> {"progress": n, "total": m}
-        self.quest_progress: dict[int, dict[str, int]] = {}
         # 实体 -> 它进入战场的回合数（判断突袭刚入场用）
         self.played_turn: dict[int, int] = {}
         # 实体 -> 从休眠醒来的回合（醒来当回合不能攻击）
@@ -130,11 +124,8 @@ class GameState:
         self._hero_entities: dict[int, int] = {}
         self._name_player: dict[str, int] = {}
         self._create_ts: str = ""
-        self._block_depth = 0
-        self._last_block: dict[str, Any] | None = None
         self._last_attack_key: tuple[int, Any, Any] | None = None
 
-    # ------------------------------------------------------------ 事件入口
     def apply_many(self, events: Iterable[pl.Event]) -> None:
         for ev in events:
             self.apply(ev)
@@ -182,8 +173,6 @@ class GameState:
             self._on_tag_change(ev)
         elif kind == "block_start":
             self._on_block_start(ev)
-        elif kind == "block_end":
-            self._block_depth = max(0, self._block_depth - 1)
         elif kind == "choices":
             self._on_choices(ev)
         elif kind == "chosen":
@@ -201,7 +190,6 @@ class GameState:
                 # 牌库计数和归属都会少一块。
                 e.card_id = None
 
-    # ------------------------------------------------------------ 事件处理
     def _entity(self, eid: int) -> Entity:
         e = self.entities.get(eid)
         if e is None:
@@ -239,13 +227,6 @@ class GameState:
                 self._deck_collect(e, 0)
         if ref.get("zone_pos") is not None:
             e.zone_pos = _int(ref["zone_pos"])
-        # 完整实体块里带着 ZONE_POSITION 标签，这才是场面从左到右的顺序
-        tags = d.get("tags") or {}
-        if tags.get("ZONE_POSITION") is not None:
-            try:
-                e.zone_pos = _int(tags["ZONE_POSITION"])
-            except (TypeError, ValueError):
-                pass
         if ref.get("controller") is not None:
             e.controller = _int(ref["controller"])
             e.tags[T_CONTROLLER] = e.controller
@@ -354,15 +335,19 @@ class GameState:
                         self.turn_owner = None
                 return
 
-        # 回合结束：留牌/开局流程也会走一次 MAIN_END，只认对局中；
+        # 回合结束：只认 STEP 的收尾阶段。NEXT_STEP=MAIN_END 是回合刚进
+        # MAIN_ACTION 时发的下一步预告，拿它判结束会让整个我方回合都挂着
+        # 「回合已结束」。留牌流程也会走一次 MAIN_END，故只认对局中；
         # GameState 与 PowerTaskList 各打一遍，按回合号只算一次。
-        if tag == "NEXT_STEP" and eid == 1:
-            self.next_step = val if isinstance(val, str) else None
-            if (val == "MAIN_END" and self.phase == "playing"
-                    and self.turn != self._end_turn_last_turn):
-                self._end_turn_last_turn = self.turn
-                self.end_turn_seq += 1
-                self._note("回合结束")
+        if tag == "STEP" and eid == 1:
+            if self.phase == "playing" and val in ("MAIN_END", "MAIN_CLEANUP", "MAIN_NEXT"):
+                if self.turn != self._end_turn_last_turn:
+                    self._end_turn_last_turn = self.turn
+                    self.end_turn_seq += 1
+                    self._note("回合结束")
+                self.turn_ending = True
+            elif val in ("MAIN_READY", "MAIN_START_TRIGGERS", "MAIN_START", "MAIN_ACTION"):
+                self.turn_ending = False
 
         e = self._entity(eid)
         prev_zone = e.zone
@@ -415,9 +400,9 @@ class GameState:
             # 含义不同（那个玩家的第几个回合），读错会把回合数搞乱。
             if eid == 1 and val != self.turn:
                 self.turn = val
-                # 新回合开始就清掉 MAIN_END：日志缺下一条 NEXT_STEP 时，
+                # 新回合开始就清掉结束阶段：日志缺下一条 STEP 时，
                 # 不能让界面一直挂着「回合已结束」、把后面的建议全屏蔽。
-                self.next_step = None
+                self.turn_ending = False
                 self._note(f"第 {val} 回合")
             elif self.turn == 0:
                 self.turn = val
@@ -456,10 +441,6 @@ class GameState:
                     self._wake_up(pid)
             elif val == 0 and pid_from_name and self.turn_owner == pid_from_name:
                 self.turn_owner = None
-        elif tag in ("QUEST_PROGRESS", "QUEST_PROGRESS_TOTAL") and eid:
-            if isinstance(val, int):
-                slot = self.quest_progress.setdefault(eid, {})
-                slot["progress" if tag == "QUEST_PROGRESS" else "total"] = val
         elif tag == "NUM_CARDS_DRAWN_THIS_TURN" and eid:
             try:
                 val_i = int(val)
@@ -757,7 +738,6 @@ class GameState:
                         # 而且靠「牌多所以解释得多」赢下覆盖率比较。
                         # 判据复用 cards.is_token，和预测侧口径保持一致。
                         if not (self.cards and self.cards.is_token(e.card_id)):
-                            self.revealed_opp[e.card_id or "?"] += 1
                             if e.card_id not in self.revealed_opp_order:
                                 self.revealed_opp_order.append(e.card_id or "?")
                                 self.revealed_turns[e.card_id or "?"] = self.turn
@@ -777,7 +757,6 @@ class GameState:
 
     def _on_choice_sent(self, ev: pl.Event) -> None:
         """玩家提交的选择。克苏恩四技能只在这里能知道「到底选了哪个」。"""
-        src = self._choice_source or {}
         # 不管是谁触发的，用掉一个技能就记一次：
         # 这样本体触发时「四个技能各用过一次」才可能成立，从而翻四倍。
         # （触发者本身是不是本体，只影响「这一次是否翻倍」，不影响计数）
@@ -867,9 +846,7 @@ class GameState:
         self._track_visibility(e)
 
     def _on_block_start(self, ev: pl.Event) -> None:
-        self._block_depth += 1
         d = ev.data
-        self._last_block = d
         # 出牌/攻击/英雄技能都会开 block；block 的实体引用里带 controller，
         # 正好可以把「刚才 CURRENT_PLAYER=1 的那个名字」绑定到玩家上。
         ctrl = (d.get("ref") or {}).get("controller")
@@ -883,7 +860,6 @@ class GameState:
         if e is not None and d.get("type") == "PLAY":
             self._track_visibility(e)
 
-    # ------------------------------------------------------------ 可见性
     def _track_visibility(self, e: Entity) -> None:
         if not e.card_id:
             return
@@ -902,7 +878,6 @@ class GameState:
             # 不经过 _on_zone_change，所以这里也要触发）
             self._infer_first_player()
 
-    # ------------------------------------------------------------ 读取视图
     def effective_turn_owner(self) -> int | None:
         """当前该谁行动。日志没给 CURRENT_PLAYER 时，用「先手 + 回合奇偶」推。
 
@@ -992,6 +967,7 @@ class GameState:
             s.max_mana, s.mana = self._mana_from_turn(pid)
 
         hand, deck, board, secrets, grave, weapon, hp = [], [], [], [], [], None, None
+        quests, ongoing = [], []
         for e in self.entities.values():
             if e.controller != pid or e.id == 1:   # 1 是 GameEntity，别当手牌/随从
                 continue
@@ -1016,7 +992,13 @@ class GameState:
                 if card is not None and card.is_minion:
                     grave.append(e)
             elif e.zone == ZONE_SECRET:
-                secrets.append(self._card_view(e))
+                kind = self._secret_zone_kind(e)
+                if kind == "quest":
+                    quests.append(self._quest_view(e))
+                elif kind == "ongoing":
+                    ongoing.append(self._secret_zone_view(e))
+                else:
+                    secrets.append(self._card_view(e))
 
         hand.sort(key=lambda x: (x.zone_pos or 0, x.id))
         board.sort(key=lambda x: (x.zone_pos or 0, x.id))
@@ -1045,7 +1027,12 @@ class GameState:
                 s.deck_estimated = True
             s.deck_count = max(0, self.deck_size - drawn)
         s.graveyard = [self._grave_view(e) for e in grave if e.card_id]
-        s.secrets = [x["id"] for x in secrets if x.get("id")]
+        # 隐藏奥秘没有 cardId：用空位占位，数量照样要算进去。
+        # 已知牌排在前面，界面读列表时顺序稳定。
+        known = [x["id"] for x in secrets if x.get("id")]
+        s.secrets = known + [""] * (len(secrets) - len(known))
+        s.quests = quests
+        s.ongoing = ongoing
         s.weapon = weapon
         s.hero_power = self._card_view(hp) if hp is not None and hp.card_id else None
         return s
@@ -1131,6 +1118,38 @@ class GameState:
         return {"used": ordered, "count": len(ordered), "total": 4,
                 "tripled": len(ordered) >= 4}
 
+    def _secret_zone_kind(self, e: Entity) -> str:
+        """SECRET 区混着任务、奥秘、咒符三类，别把任务当成奥秘。
+
+        日志标签优先：隐藏牌没有 cardId，而且任务/咒符打出前 SECRET=0，
+        单看 SECRET 标签会把它们全算成奥秘。卡牌库只作兜底。
+        """
+        tags = e.tags
+        card = self.cards.get(e.card_id) if (self.cards and e.card_id) else None
+        text = str(card.text or "") if card else ""
+        if (tags.get("QUEST") in (1, "1") or tags.get("OBJECTIVE") in (1, "1")
+                or tags.get("QUEST_PROGRESS_TOTAL") is not None
+                or tags.get("QUEST_PROGRESS") is not None
+                or (card is not None and (
+                    "QUEST" in card.mechanics
+                    or any(k in text for k in ("任务：", "任务线：", "支线任务："))))):
+            return "quest"
+        if (tags.get("SIGIL") in (1, "1") or "咒符" in text
+                or (card is not None and "SECRET" not in card.mechanics
+                    and "奥秘：" not in text and tags.get("SECRET") not in (1, "1"))):
+            return "ongoing"
+        return "secret"
+
+    def _secret_zone_view(self, e: Entity) -> dict[str, Any]:
+        view = self._card_view(e)
+        return {"id": view["id"], "name": view["name"]}
+
+    def _quest_view(self, e: Entity) -> dict[str, Any]:
+        view = self._secret_zone_view(e)
+        view["progress"] = _int(e.tags.get("QUEST_PROGRESS"))
+        view["total"] = _int(e.tags.get("QUEST_PROGRESS_TOTAL"))
+        return view
+
     def _card_view(self, e: Entity) -> dict[str, Any]:
         card = self.cards.get(e.card_id) if (self.cards and e.card_id) else None
         base_hp = card.health if card else 0
@@ -1205,7 +1224,6 @@ class GameState:
             return False
         return True
 
-    # ------------------------------------------------------------ 对外快照
     def snapshot(self) -> dict[str, Any]:
         # 视图和 advisor 必须看到同一套身份：sides() 会校正，snapshot() 以前不会
         self._fix_our_id_by_name()
@@ -1225,7 +1243,6 @@ class GameState:
             "game_over": self.game_over,
         }
 
-    # ------------------------------------------------------------ 摘要
     def summary(self) -> str:
         ours, opp = self._side(self.our_id), self._side(self.opp_id)
         mine = self.effective_turn_owner() == self.our_id
@@ -1238,11 +1255,9 @@ class GameState:
     def _note(self, text: str) -> None:
         self.log.append(text)
 
-
 def replay_log_text(text: str, cards: CardDB | None = None) -> GameState:
     """把一整段日志跑成最终状态（离线复盘/测试用）。"""
     st = GameState(cards)
     st.apply_many(pl.parse_text(text))
     return st
-
 

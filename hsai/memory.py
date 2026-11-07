@@ -23,7 +23,6 @@ OPP_HISTORY_PATH = OPP_HISTORY_JSONL
 MAX_OPP_HISTORY = 200
 MAX_CASES = 400
 
-
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -43,7 +42,6 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
         return []
     return rows
 
-
 def _append_jsonl(path: Path, rows: list[dict[str, Any]], cap: int) -> None:
     if not rows:
         return
@@ -62,7 +60,6 @@ def _append_jsonl(path: Path, rows: list[dict[str, Any]], cap: int) -> None:
     except OSError:
         pass
 
-
 def record_opponent(opp_class: str, archetype: str) -> None:
     """记一局遇到的对手卡组形态（用于下次同职业时的先验）。"""
     if not opp_class or not archetype:
@@ -70,7 +67,6 @@ def record_opponent(opp_class: str, archetype: str) -> None:
     _append_jsonl(OPP_HISTORY_PATH,
                   [{"opp_class": opp_class, "archetype": archetype}],
                   MAX_OPP_HISTORY)
-
 
 def class_counts(opp_class: str, limit: int = 60) -> dict[str, int]:
     """最近 limit 局里，这个职业各形态各出现了多少次。"""
@@ -84,8 +80,6 @@ def class_counts(opp_class: str, limit: int = 60) -> dict[str, int]:
             out[name] = out.get(name, 0) + 1
     return out
 
-
-# ---------------------------------------------------------------- 教训
 def add_lessons(lessons: list[str], meta: dict[str, Any]) -> int:
     rows = []
     for text in lessons:
@@ -102,7 +96,6 @@ def add_lessons(lessons: list[str], meta: dict[str, Any]) -> int:
     _append_jsonl(LESSONS_PATH, rows, MAX_LESSONS)
     return len(rows)
 
-
 def _lesson_score(row: dict[str, Any], our_class: str, opp_class: str, archetype: str) -> int:
     score = 0
     if opp_class and row.get("opp_class") == opp_class:
@@ -114,7 +107,6 @@ def _lesson_score(row: dict[str, Any], our_class: str, opp_class: str, archetype
     if not row.get("opp_class") and not row.get("our_class"):
         score += 1          # 老的通用教训，仍然有点用
     return score
-
 
 def query_lessons(our_class: str, opp_class: str, archetype: str,
                   limit: int = 2) -> list[str]:
@@ -133,8 +125,6 @@ def query_lessons(our_class: str, opp_class: str, archetype: str,
             break
     return out
 
-
-# ---------------------------------------------------------------- 案例
 def add_cases(records: list[dict[str, Any]], meta: dict[str, Any]) -> int:
     rows = []
     for rec in records:
@@ -148,7 +138,6 @@ def add_cases(records: list[dict[str, Any]], meta: dict[str, Any]) -> int:
         rows.append(row)
     _append_jsonl(CASES_PATH, rows, MAX_CASES)
     return len(rows)
-
 
 def _case_score(row: dict[str, Any], our_class: str, opp_class: str,
                 archetype: str, mana: int, board_n: int) -> float:
@@ -167,7 +156,6 @@ def _case_score(row: dict[str, Any], our_class: str, opp_class: str,
         score += 0.5
     return score
 
-
 def query_cases(our_class: str, opp_class: str, archetype: str,
                 mana: int, board_n: int, limit: int = 2) -> list[dict[str, Any]]:
     """取最相似的历史决策案例。"""
@@ -177,13 +165,10 @@ def query_cases(our_class: str, opp_class: str, archetype: str,
     scored.sort(key=lambda x: -x[0])
     return [row for _, row in scored[:limit]]
 
-
-# ---------------------------------------------------------------- 调整建议
 # AI 局末复盘给出的参数增量只落盘、不自动生效：一局的样本量撑不起改全局权重。
 # 攒够若干局、同一个方向被反复提出，才值得人去看一眼（或以后接自对弈验证）。
 MAX_TUNINGS = 500
 ADVICE_TUNING_PATH = ADVICE_TUNING_JSONL
-
 
 def add_tunings(tunings: list[dict[str, Any]], meta: dict[str, Any]) -> int:
     """把一局的调整建议连对局标签一起记下来，返回实际写入条数。"""
@@ -199,7 +184,6 @@ def add_tunings(tunings: list[dict[str, Any]], meta: dict[str, Any]) -> int:
         rows.append(row)
     _append_jsonl(ADVICE_TUNING_PATH, rows, MAX_TUNINGS)
     return len(rows)
-
 
 def summarize_tunings(*, min_count: int = 3) -> dict[str, dict[str, Any]]:
     """按参数汇总：出现几次、平均增量、方向是否一致。

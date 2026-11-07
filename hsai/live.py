@@ -60,7 +60,7 @@ class ReplaySource:
                 continue
             if ev.kind == "create_game":
                 self.state.reset()
-            elif ev.kind in ("full_entity", "entity", "block_start") and ev.data.get("entity"):
+            elif ev.kind in powerlog.CONTEXT_KINDS and ev.data.get("entity"):
                 self.pending = ev.data["entity"]
             self.state.apply(ev)
         self.idx = end

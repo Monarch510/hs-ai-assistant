@@ -21,8 +21,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-# ---------------------------------------------------------------- 常量表
-
 # 数字 tag -> 名字。只收录本工具用到的；日志里出现未知数字时直接丢弃。
 TAG_NAMES: dict[int, str] = {
     2: "ENTITY_ID",
@@ -54,7 +52,7 @@ KNOWN_TAGS: frozenset[str] = frozenset(
         "RESOURCES", "RESOURCES_USED", "PLAYER_ID",
         "DAMAGE", "HEALTH", "ATK", "COST", "ZONE", "CONTROLLER",
         "TAUNT", "DIVINE_SHIELD", "ARMOR", "NUM_ATTACKS_THIS_TURN",
-        "HERO_ENTITY", "CARDTYPE", "CARD_ID", "ZONE_POSITION", "MULLIGAN_STATE", "EXHAUSTED", "FROZEN", "FIRST_PLAYER", "ATTACKABLE", "DORMANT", "DURABILITY", "TEMP_RESOURCES", "QUEST_PROGRESS", "QUEST_PROGRESS_TOTAL",
+        "HERO_ENTITY", "CARDTYPE", "CARD_ID", "ZONE_POSITION", "MULLIGAN_STATE", "EXHAUSTED", "FROZEN", "FIRST_PLAYER", "ATTACKABLE", "DORMANT", "DURABILITY", "TEMP_RESOURCES", "QUEST_PROGRESS", "QUEST_PROGRESS_TOTAL", "QUEST", "OBJECTIVE", "SECRET", "SIGIL",
     }
 )
 
@@ -70,6 +68,13 @@ PLAYSTATE_NAMES: dict[int, str] = {
 }
 PLAYSTATE_IDS: dict[str, int] = {v: k for k, v in PLAYSTATE_NAMES.items()}
 
+# 裸 tag 行没有自己的实体引用，靠最近一条「带实体的块」补上下文。
+# 三条解析路径（parse_text / ReplaySource / PowerLogWatcher）必须共用这份名单：
+# 漏掉 show_entity 时，QUEST / OBJECTIVE / SIGIL 会挂到上一个实体甚至 GameEntity 上。
+CONTEXT_KINDS = frozenset(
+    {"full_entity", "entity", "block_start", "show_entity", "change_entity"}
+)
+
 POWER_SOURCES = frozenset(
     {
         "GameState.DebugPrintPower",
@@ -83,7 +88,6 @@ POWER_SOURCES = frozenset(
     }
 )
 
-# 一行里可能出现的所有实体引用
 LINE_RE = re.compile(
     r"^[A-Za-z]?\s*(?P<time>\d{2}:\d{2}:\d{2}\.\d+)?\s*"
     r"(?P<source>[\w.]+)\(\)\s*-\s?(?P<body>.*)$"
@@ -107,7 +111,6 @@ PLAYER_ID_RE = re.compile(r"\bPlayerID=(?P<pid>\d+)\b")
 TAG_VALUE_RE = re.compile(r"\btag=(?P<tag>\w+)\s+value=(?P<val>\S+)")
 BARE_TAG_RE = re.compile(r"^tag=(?P<tag>\w+)\s+value=(?P<val>\S+)")
 
-
 @dataclass(slots=True)
 class Event:
     """一条结构化日志事件。kind 决定 data 里的字段。"""
@@ -119,7 +122,6 @@ class Event:
     def __repr__(self) -> str:  # pragma: no cover - 调试用
         return f"<{self.kind} {self.data}>"
 
-
 def tag_key(raw: str) -> str | None:
     """日志里的 tag 统一成「名字」。未知数字返回 None（直接忽略）。"""
     raw = raw.strip()
@@ -129,7 +131,6 @@ def tag_key(raw: str) -> str | None:
         return TAG_NAMES.get(int(raw))
     key = raw.upper()
     return key if key in KNOWN_TAGS else key
-
 
 def parse_value(raw: str) -> Any:
     """tag 的 value：能转数字就转；ZONE/PLAYSTATE 的名字转成数字；其它原样。"""
@@ -146,7 +147,6 @@ def parse_value(raw: str) -> Any:
     if up in PLAYSTATE_IDS:
         return PLAYSTATE_IDS[up]
     return raw
-
 
 def parse_entity_ref(text: str) -> dict[str, Any] | None:
     """解析实体引用，返回 {id?, name?, zone?, zone_pos?, card_id?, controller?}。"""
@@ -184,7 +184,6 @@ def parse_entity_ref(text: str) -> dict[str, Any] | None:
         return {"name": m3.group(1)}
     return None
 
-
 def _tag_event(ref: dict[str, Any] | None, tag_raw: str, val_raw: str, time: str) -> Event | None:
     key = tag_key(tag_raw)
     if key is None:
@@ -200,7 +199,6 @@ def _tag_event(ref: dict[str, Any] | None, tag_raw: str, val_raw: str, time: str
         },
         time,
     )
-
 
 def parse_line(line: str, pending_entity: int | None = None) -> Event | None:
     """解析单行。不是 Power 日志行则返回 None。"""
@@ -280,7 +278,6 @@ def parse_line(line: str, pending_entity: int | None = None) -> Event | None:
 
     return Event("unknown", {"raw": body}, time)
 
-
 def _bracket_blocks(text: str) -> list[str]:
     """按括号配平切出所有顶层 [ ... ] 的内容。
 
@@ -305,7 +302,6 @@ def _bracket_blocks(text: str) -> list[str]:
                     start = -1
     return blocks
 
-
 def _ref_from_block(inner: str) -> dict[str, Any] | None:
     m_id = re.search(r"\bid=(-?\d+)", inner)
     if not m_id:
@@ -326,7 +322,6 @@ def _ref_from_block(inner: str) -> dict[str, Any] | None:
             out["name"] = nm
     return out
 
-
 def _all_refs(body: str) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for inner in _bracket_blocks(body):
@@ -335,13 +330,11 @@ def _all_refs(body: str) -> list[dict[str, Any]]:
             out.append(ref)
     return out
 
-
 def _parse_ref_line(body: str, time: str) -> Event | None:
     refs = _all_refs(body)
     if not refs:
         return None
     return Event("entity_update", {"refs": refs}, time)
-
 
 def _parse_full_entity(body: str, time: str) -> Event:
     im = ENTITY_ID_RE.search(body)
@@ -357,26 +350,20 @@ def _parse_full_entity(body: str, time: str) -> Event:
         time,
     )
 
-
 def _parse_block_start(body: str, time: str) -> Event:
-    d: dict[str, Any] = {"type": None, "entity": None, "ref": None, "target": None, "effect_card_id": None}
+    d: dict[str, Any] = {"type": None, "entity": None, "ref": None}
     if m := re.search(r"BlockType=(\w+)", body):
         d["type"] = m.group(1)
     ref = parse_entity_ref(body)
     if ref:
         d["ref"] = ref
         d["entity"] = ref.get("id")
-    if (tm := re.search(r"Target=(\d+)", body)) and tm.group(1) != "0":
-        d["target"] = int(tm.group(1))
-    elif tm2 := re.search(r"Target=\[([^\]]+)\]", body):
+    if tm2 := re.search(r"Target=\[([^\]]+)\]", body):
         # 攻击块的 Target 是实体引用（带名字），拿到它才知道打的是谁
         tref = parse_entity_ref("[" + tm2.group(1) + "]")
         if tref:
             d["target_ref"] = tref
-    if (em := re.search(r"EffectCardId=(\w*)", body)) and em.group(1):
-        d["effect_card_id"] = em.group(1)
     return Event("block_start", d, time)
-
 
 def _parse_choices(body: str, time: str) -> Event:
     d: dict[str, Any] = {"raw": body, "entity": None, "player": None, "choice_type": None, "count": None}
@@ -400,7 +387,6 @@ def _parse_choices(body: str, time: str) -> Event:
     d["refs"] = _all_refs(body)
     return Event("choices", d, time)
 
-
 def parse_text(text: str) -> list[Event]:
     """解析一整段日志文本，自动为裸 tag 行补上下文实体。"""
     events: list[Event] = []
@@ -409,9 +395,8 @@ def parse_text(text: str) -> list[Event]:
         ev = parse_line(line, pending)
         if ev is None:
             continue
-        if ev.kind in ("full_entity", "entity", "block_start") and ev.data.get("entity"):
+        if ev.kind in CONTEXT_KINDS and ev.data.get("entity"):
             pending = ev.data["entity"]
         events.append(ev)
     return events
-
 

@@ -21,7 +21,6 @@ from ..model import Board, SideState
 
 Agent = Callable[[Board, int], "policy.Action | None"]
 
-
 @dataclass
 class GameOutcome:
     winner: int | None          # 0 / 1 / None(平局或超时)
@@ -32,9 +31,6 @@ class GameOutcome:
     @property
     def decided(self) -> bool:
         return self.winner is not None
-
-
-# ---------------------------------------------------------------- 组牌
 
 def make_deck(arch: Archetype, cards: CardDB, rng: random.Random) -> list[Card]:
     """按原型组 30 张：标志牌优先，剩余槽位从职业牌池随机补。"""
@@ -63,9 +59,6 @@ def make_deck(arch: Archetype, cards: CardDB, rng: random.Random) -> list[Card]:
     rng.shuffle(deck)
     return deck
 
-
-# ---------------------------------------------------------------- agent
-
 def greedy_agent(weights: dict[str, float] | None = None, aoe_risk: float = 0.0) -> Agent:
     """每步取「局面分提升最大」的动作，没有提升就结束回合。"""
 
@@ -77,13 +70,9 @@ def greedy_agent(weights: dict[str, float] | None = None, aoe_risk: float = 0.0)
 
     return _act
 
-
-# ---------------------------------------------------------------- 对局
-
 def _draw(side: SideState, board: Board, n: int = 1) -> None:
     for _ in range(n):
         board.draw(side)
-
 
 def _mulligan_phase(
     board: Board,
@@ -107,7 +96,6 @@ def _mulligan_phase(
             replacement = side.deck.pop(0)
             side.hand.append(replacement)
             side.deck.append(card)
-
 
 def run_game(
     deck_a: Sequence[Card],
@@ -135,7 +123,6 @@ def run_game(
     sides[1].hero_class = class_b or (getattr(deck_b[0], "card_class", "NEUTRAL") if deck_b else "NEUTRAL")
     board = Board(sides, turn=1, active=first, cards=cards)
 
-    # 起手 + 留牌
     for idx in (0, 1):
         _draw(sides[idx], board, 3 if idx == first else 4)
     for idx in (0, 1):
@@ -184,7 +171,6 @@ def run_game(
             return GameOutcome(winner, turn_no, list(board.log) if trace else [], (board.sides[0].hero_hp, board.sides[1].hero_hp))
 
     return GameOutcome(None, turn_no, list(board.log) if trace else [], (board.sides[0].hero_hp, board.sides[1].hero_hp))
-
 
 def match(
     arch_a: Archetype,

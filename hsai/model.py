@@ -26,7 +26,6 @@ from .cards import Card
 # 关键词/文本效果的解释表（data/effects.json），改表就能改行为
 _EFFECT_TABLE: dict[str, Any] | None = None
 
-
 def effect_table() -> dict[str, Any]:
     global _EFFECT_TABLE
     if _EFFECT_TABLE is not None:
@@ -40,17 +39,13 @@ def effect_table() -> dict[str, Any]:
         _EFFECT_TABLE = {"keywords": {}, "patterns": []}
     return _EFFECT_TABLE
 
-
 _DB = None
-
 
 def set_card_db(db) -> None:
     """让评估函数能查到场上随从的卡面文本（场上资源用）。"""
     global _DB
     _DB = db
 
-
-# ---- 子模块（三者顶层都不 import 本门面，无环） ----
 from .model_effects import (  # noqa: E402
     Effect,
     _as_int,

@@ -20,13 +20,11 @@ COMMON_3 = "CORE_EX1_400"     # 旋风斩 1费 普通
 RARE_2 = "CORE_EX1_402"       # 铸甲师 2费 稀有
 LEGENDARY_3 = "ETC_121"       # 摇滚教父沃恩 3费 传说
 
-
 class KeyCardTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.db = cards_mod.load()
 
-    # ---------------------------------------------------------- 稀有度优先
     def test_legendary_beats_higher_frequency_common(self) -> None:
         """1 费普通牌 100% 出现，传说牌只有 70% —— 名字该取传说。
 
@@ -61,7 +59,6 @@ class KeyCardTest(unittest.TestCase):
                               presence={legend.id: 1.0, big_epic.id: 1.0})
         self.assertEqual(keys[0], legend.id)
 
-    # ---------------------------------------------------------- 同稀有度比出牌率
     def test_same_rarity_sorted_by_presence(self) -> None:
         a = self.db.get(COMMON_1)
         b = self.db.get(COMMON_2)
@@ -74,7 +71,6 @@ class KeyCardTest(unittest.TestCase):
         keys = pick_key_cards({COMMON_1: 2, LEGENDARY_3: 1}, self.db)
         self.assertEqual(keys[0], LEGENDARY_3)
 
-    # ---------------------------------------------------------- 排序键
     def test_rank_is_lexicographic(self) -> None:
         legend = self.db.get(LEGENDARY_3)
         cheap = self.db.get(COMMON_1)
@@ -91,7 +87,6 @@ class KeyCardTest(unittest.TestCase):
 
     def test_unknown_cards_are_skipped(self) -> None:
         self.assertEqual(pick_key_cards({"NOT_A_REAL_CARD": 2}, self.db), [])
-
 
 class LearnedNameTest(unittest.TestCase):
     """聚类出来的原型，名字取关键牌。"""
@@ -141,7 +136,6 @@ class LearnedNameTest(unittest.TestCase):
         second = build_from_observations(obs, self.db, min_games=3).archetypes[0].name
         self.assertEqual(first, second)
 
-
 class DeckCodeNameTest(unittest.TestCase):
     """没给名字的卡组代码，也按关键牌起名。"""
 
@@ -181,7 +175,6 @@ class DeckCodeNameTest(unittest.TestCase):
             deckcode.DeckCode(fmt=2, heroes=[hero], cards={legend.dbf: 1}),
             self.db, name="我的法术法")
         self.assertEqual(resolved.name, "我的法术法")
-
 
 if __name__ == "__main__":
     unittest.main()

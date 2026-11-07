@@ -106,7 +106,6 @@ def _int(v: Any) -> int | None:
 
 @dataclass
 class Side:
-    """一方的展示视图。"""
 
     player_id: int
     class_cn: str = "未知"
@@ -123,7 +122,10 @@ class Side:
     # True 表示牌库数是「卡组张数 − 手牌 − 场面」的粗估（没赶上 CREATE_GAME，
     # 拿不到初始牌库实体），不是真值
     deck_estimated: bool = False
+    # SECRET 区混着三类实体："" 表示客户端没给 cardId 的隐藏奥秘
     secrets: list[str] = field(default_factory=list)
+    quests: list[dict[str, Any]] = field(default_factory=list)      # 任务 / 任务线 / 支线任务
+    ongoing: list[dict[str, Any]] = field(default_factory=list)     # 咒符等持续法术
     graveyard: list[dict[str, Any]] = field(default_factory=list)   # 已死的随从
     weapon: dict[str, Any] | None = None
     hero_power: dict[str, Any] | None = None
@@ -142,6 +144,8 @@ class Side:
             "deck_count": self.deck_count,
             "deck_estimated": self.deck_estimated,
             "secrets": self.secrets,
+            "quests": self.quests,
+            "ongoing": self.ongoing,
             "weapon": self.weapon,
             "hero_power": self.hero_power,
             # 只给数量：墓地内容在 advisor 里按需查（复活推荐/亡语池），

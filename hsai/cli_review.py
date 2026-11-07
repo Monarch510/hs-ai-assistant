@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
-import sys
-from pathlib import Path
 
 
 def cmd_review(args: argparse.Namespace) -> int:

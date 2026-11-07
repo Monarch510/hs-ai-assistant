@@ -21,7 +21,6 @@
 
 from __future__ import annotations
 
-# 常量（外部大量以 policy.X 访问，且测试断言值）
 from .policy_consts import (  # noqa: F401
     CHOOSE_ONE_RE,
     CTHUN_MULTIPLIER,
@@ -33,7 +32,6 @@ from .policy_consts import (  # noqa: F401
     _GIGANTIC_CACHE,
 )
 
-# 最底层：威胁估算
 from .policy_threat import (  # noqa: F401
     battlecry_times,
     board_threat,
@@ -41,7 +39,6 @@ from .policy_threat import (  # noqa: F401
     unit_threat,
 )
 
-# 动作底座
 from .policy_actions import (  # noqa: F401
     Action,
     _find_unit,
@@ -55,10 +52,8 @@ from .policy_actions import (  # noqa: F401
     legal_actions,
 )
 
-# 斩杀
 from .policy_lethal import _lethal_sequence, max_face_damage  # noqa: F401
 
-# 抢血 / 解场
 from .policy_race import (  # noqa: F401
     _hand_burst,
     _has_profitable_trade,
@@ -67,7 +62,6 @@ from .policy_race import (  # noqa: F401
     race_plan,
 )
 
-# 发现 / 抉择
 from .policy_choice import (  # noqa: F401
     _cthun_choice,
     _deck_theme,
@@ -76,7 +70,6 @@ from .policy_choice import (  # noqa: F401
     score_choice,
 )
 
-# 路线规划
 from .policy_plan import (  # noqa: F401
     _reason,
     _score_from_gain,

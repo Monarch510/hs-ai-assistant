@@ -39,7 +39,6 @@ EXPECTED_B = [
      "reason": "对位 猎人（形态未知，按快攻处理）；你自己的卡组偏快，4 费以上起手偏重"},
 ]
 
-
 class TagMulliganTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -58,7 +57,6 @@ class TagMulliganTest(unittest.TestCase):
         rows = mulligan.advise(self._hand(*names), cards=self.db, **kwargs)
         return {r["name"]: r["score"] for r in rows}
 
-    # ---------------------------------------------------------------- 回归
     def test_without_situation_is_byte_identical(self) -> None:
         """不传 situation：输出与接入动态权重前逐字节一致（含理由行、分数、顺序）。"""
         rows = mulligan.advise(
@@ -111,7 +109,6 @@ class TagMulliganTest(unittest.TestCase):
         self.assertGreater(delta, 0, "极端局势仍应有正向加权")
         self.assertLessEqual(delta, mulligan.MULLIGAN_BONUS_CAP)
 
-    # ---------------------------------------------------------------- 对位加权
     def test_vs_aggro_low_hp_boosts_aoe_and_heal(self) -> None:
         """对快攻且我方血线低：群解（暴风雪）和治疗（治疗波）分数高于无局势时。"""
         names = ("暴风雪", "治疗波", "森金持盾卫士")
@@ -154,14 +151,13 @@ class TagMulliganTest(unittest.TestCase):
         self.assertGreater(up["寒冰箭"], base["寒冰箭"])
         self.assertEqual(up["暴风雪"], base["暴风雪"], "没有单解标签的牌不该被影响")
 
-    # ---------------------------------------------------------------- 打分公式
     def test_score_formula_with_stubbed_weights(self) -> None:
         """用 mock 把 tag_weights 换成固定表，单独验 score += SCALE * sum(权重[t])。
 
-        A 的权重表以后会调系数，这条不依赖它的具体数值：只钉住「全 11 类求和再乘缩放」
+        A 的权重表以后会调系数，这条不依赖它的具体数值：只钉住「全 12 类求和再乘缩放」
         这个接入口径，且不改动 A 的任何文件。
         """
-        stub_w = {t: 0.0 for t in DEFAULT_TAG_WEIGHTS}  # 固定 11 键
+        stub_w = {t: 0.0 for t in DEFAULT_TAG_WEIGHTS}  # 固定 12 键
         stub_w["群解"] = 2.0  # 暴风雪只吃「群解」，期望附加 = 3 * 2 = 6
         s = Situation(opp_style=frozenset({"快攻"}), phase="mulligan")
         with mock.patch.object(mulligan, "tag_weights", return_value=stub_w), \
@@ -170,7 +166,6 @@ class TagMulliganTest(unittest.TestCase):
             up = mulligan.advise(self._hand("暴风雪"), cards=self.db, situation=s)[0]["score"]
         self.assertEqual(up - base, round(mulligan.MULLIGAN_SCALE * 2.0))
 
-    # ---------------------------------------------------------------- 基础分
     def test_duplicate_and_cost_base_unchanged(self) -> None:
         """动态叠加不改变重复惩罚和费用基础分：两者仍是可解释的固定项。"""
         s = Situation(opp_style=frozenset({"快攻"}), our_hp=10, phase="playing")
@@ -183,7 +178,6 @@ class TagMulliganTest(unittest.TestCase):
         scores = self._scores(("鱼人袭击者", "冰风雪人"), situation=s)
         expected = mulligan.DEFAULT_WEIGHTS["cost_1"] - mulligan.DEFAULT_WEIGHTS["cost_4"]
         self.assertEqual(scores["鱼人袭击者"] - scores["冰风雪人"], expected)
-
 
 if __name__ == "__main__":
     unittest.main()

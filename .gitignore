@@ -1,55 +1,12 @@
 # ============================================================
 # 运行产物：全部可由程序重建，不进仓库
-# 对照 hsai/paths.py —— 那边定义了路径，这里负责挡住它们
-# （唯一例外是 data/effects.json：它是可复现的行为定义，要入库）
+# 对照 hsai/paths.py —— 那边定义了路径，这里整目录挡住，
+# 新增文件不用再改这里（逐条列清单漏过 advice_tuning.jsonl）。
+# 唯一例外 effects.json：可复现的行为定义，要入库。
+# ai.json 可能含密钥、cards_*.json 约 4 MB，都靠这条挡住。
 # ============================================================
-
-# 卡牌库缓存
-data/cards_*.json
-
-# 卡组与环境
-# meta/ 是「一个原型一个文件」；meta_backup/ 是 rebuild 前的自动备份
-data/meta.json
-data/meta.json.migrated
-data/meta.backup.json
-data/meta/
-data/meta_backup/
-data/meta_before_*/
-data/our_deck.json
-
-# 对局记录
-data/observations.jsonl
-data/games.jsonl
-data/last_review.json
-data/advice_log.jsonl
-data/advice_feedback.jsonl
-
-# 长期记忆
-data/lessons.jsonl*
-data/cases.jsonl
-data/opp_history.jsonl
-
-# 卡牌功能标签：可重生成；ai/manual 是本地补标输入，同样不进仓库
-data/card_tags.json
-data/card_tags_ai.json
-data/card_tags_manual.json
-data/card_tags_pending.jsonl
-
-# 权重
-data/policy_weights.json
-data/mulligan_weights.json
-data/tag_weights.json
-
-# 运行状态与诊断
-data/window.json
-data/install_dir.txt
-data/hsai.log
-data/*.bak
-
-# ============================================================
-# 可能含密钥，绝不入库
-# ============================================================
-data/ai.json
+data/*
+!data/effects.json
 
 # ============================================================
 # Python
@@ -80,14 +37,6 @@ _dbg_*
 
 # docs/ 只作本地记录，不入库
 docs/
-
-# auto-task/：脚本与说明入库，队列运行数据只在本地
-auto-task/*.md
-auto-task/*.txt
-!auto-task/_README.md
-auto-task/.claims/
-auto-task/done/
-auto-task/archive/
 
 # 沙箱里跑测试的本地包装（DSH Windows 临时目录权限绕过），不入库
 data/run_tests.py

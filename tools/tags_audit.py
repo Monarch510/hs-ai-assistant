@@ -1,10 +1,10 @@
-"""独立审计 11 类卡牌标签：覆盖率、抽样、可疑清单。
+"""独立审计 12 类卡牌标签：覆盖率、抽样、可疑清单。
 
 为什么审计不 import hsai.tag_rules
 ----------------------------------
 范围口径只有一份，直接用 hsai.tags.in_scope，不自己另算一套；但标签质量必须用
 **另一把尺子**量 —— 拿规则自己的判定证明规则对，等于什么都没证明。所以这里按
-CONTEXT.md 的 11 类定义独立复核。
+CONTEXT.md 的 12 类定义独立复核。
 
 输出全部是给人看的：抽样表人工核对，可疑清单交给 Lead 决定要不要返工。
 
@@ -32,7 +32,13 @@ from hsai import paths  # noqa: E402
 from hsai.cards import TYPE_CN, Card, CardDB, load  # noqa: E402
 
 # CONTEXT.md 第 3 节定死的口径。改这里等于改验收标准，先问 Lead。
-TAG_ORDER = ("单解", "群解", "站场", "增益", "减益", "治疗", "护甲", "资源", "抽牌", "斩杀")
+# 独立复核用的标签表：必须与 hsai.tag_rules.TAG_ORDER 一致，但不 import 它
+# （拿规则自己的判定证明规则对没有意义）。#1 新增「未知」时这里漏同步，
+# #21 新增第 12 类「保护」时一并补齐；此前真实数据里的「未知」一直被误报非法标签。
+TAG_ORDER = (
+    "单解", "群解", "站场", "增益", "减益", "治疗", "护甲", "资源", "抽牌", "斩杀",
+    "未知", "保护",
+)
 TAG_SET = frozenset(TAG_ORDER)
 # 文本里出现这些词却 0 标签，多半是规则漏判；只是「可疑」，不是自动判错。
 SIGNAL_WORDS = ("消灭", "伤害", "恢复", "护甲", "召唤", "发现", "获得", "随机", "冻结", "沉默", "抽")
@@ -41,13 +47,9 @@ DEFAULT_SEED = 20261106
 DEFAULT_PER_CLASS = 15
 DEFAULT_TOP = 10
 
-
 def tags_path() -> Path:
     """data/card_tags.json：优先用 paths.py 的唯一出处，B 还没加时退回本地推算。"""
     return getattr(paths, "CARD_TAGS_JSON", paths.DATA_DIR / "card_tags.json")
-
-
-# ---------- 输入归一 ----------
 
 def normalize_rows(payload: dict) -> dict[str, tuple[str, ...]]:
     """rows 可能是 {id: {"tags": [...]}}，手写文件也可能是 {id: [...]}。"""
@@ -57,7 +59,6 @@ def normalize_rows(payload: dict) -> dict[str, tuple[str, ...]]:
         rows[str(cid).upper()] = tuple(str(t) for t in tags)
     return rows
 
-
 def sort_tags(tags) -> tuple[str, ...]:
     """按 TAG_ORDER 排，非法标签放最后 —— 别用 set 顺序，输出会飘。"""
     return tuple(sorted(
@@ -65,21 +66,15 @@ def sort_tags(tags) -> tuple[str, ...]:
         key=lambda t: (TAG_ORDER.index(t) if t in TAG_SET else len(TAG_ORDER), t),
     ))
 
-
 def clean_tags(tags) -> tuple[str, ...]:
     return tuple(dict.fromkeys(sort_tags(tags)))
-
 
 def scope_cards(db: CardDB, in_scope) -> list[Card]:
     return [c for c in db.by_id.values() if in_scope(c, db)]
 
-
-# ---------- 统计 ----------
-
 def type_distribution(cards) -> list[tuple[str, int]]:
     counts = Counter(c.type for c in cards)
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
-
 
 def tag_counts(rows: dict[str, tuple[str, ...]], scope_ids: set[str]) -> list[tuple[str, int]]:
     counts = Counter()
@@ -88,7 +83,6 @@ def tag_counts(rows: dict[str, tuple[str, ...]], scope_ids: set[str]) -> list[tu
             if tag in TAG_SET:
                 counts[tag] += 1
     return [(tag, counts.get(tag, 0)) for tag in TAG_ORDER]
-
 
 def top_pairs(rows: dict[str, tuple[str, ...]], scope_ids: set[str],
               top: int) -> list[tuple[tuple[str, str], int]]:
@@ -99,7 +93,6 @@ def top_pairs(rows: dict[str, tuple[str, ...]], scope_ids: set[str],
             counts[(a, b)] += 1
     # 同分按组合名兜底，否则输出顺序会随 set 遍历漂
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:top]
-
 
 def coverage_numbers(rows, scope_ids, pending_ids) -> dict:
     total = len(scope_ids)
@@ -117,7 +110,6 @@ def coverage_numbers(rows, scope_ids, pending_ids) -> dict:
         "pending_pct": round(100.0 * pending / total, 1) if total else 0.0,
     }
 
-
 def sample_groups(cards, rows, per_class: int, seed: int) -> list[tuple[str, list[Card]]]:
     """固定 seed 抽样：每类 per_class 张 + 无标签 per_class 张，可复现。"""
     rng = random.Random(seed)
@@ -129,7 +121,6 @@ def sample_groups(cards, rows, per_class: int, seed: int) -> list[tuple[str, lis
     untagged = [c for c in ordered if not rows.get(c.id.upper())]
     groups.append(("（无标签）", rng.sample(untagged, min(per_class, len(untagged)))))
     return groups
-
 
 def suspicious_untagged(cards, rows, limit: int = SAMPLE_LIMIT) -> dict:
     """0 标签但文本含信号词：规则可能整条漏了，交给人逐张核。"""
@@ -150,7 +141,6 @@ def suspicious_untagged(cards, rows, limit: int = SAMPLE_LIMIT) -> dict:
         "samples": [{"card": _card_row(c, rows), "signals": words} for c, words in hits[:limit]],
     }
 
-
 def _pending_row(entry: dict, rows, db: CardDB) -> dict:
     cid = str(entry.get("id") or "").upper()
     card = db.get(cid) if cid else None
@@ -161,7 +151,6 @@ def _pending_row(entry: dict, rows, db: CardDB) -> dict:
         "why": entry.get("why") or "",
         "tags": rows.get(cid, ()),
     }
-
 
 def pending_anomalies(pending, rows, db: CardDB, limit: int = SAMPLE_LIMIT) -> dict:
     """待定清单自身的问题：已打标还进待定、无文本、查不到牌、重复、缺 why。"""
@@ -198,7 +187,6 @@ def pending_anomalies(pending, rows, db: CardDB, limit: int = SAMPLE_LIMIT) -> d
         "missing_why": {"count": len(no_why), "samples": pack(no_why)},
     }
 
-
 def structural_issues(rows, scope_ids, limit: int = SAMPLE_LIMIT) -> dict:
     """数据文件本身的毛病：越界、非法标签名、重复、没按 TAG_ORDER 排。"""
     outside = sorted(cid for cid in rows if cid not in scope_ids)
@@ -211,7 +199,6 @@ def structural_issues(rows, scope_ids, limit: int = SAMPLE_LIMIT) -> dict:
         "duplicate_tags": {"count": len(duplicated), "samples": duplicated[:limit]},
         "unsorted_tags": {"count": len(unsorted_rows), "samples": unsorted_rows[:limit]},
     }
-
 
 def collect_audit(payload: dict, db: CardDB, in_scope, *, seed: int = DEFAULT_SEED,
                   per_class: int = DEFAULT_PER_CLASS, top: int = DEFAULT_TOP) -> dict:
@@ -236,9 +223,6 @@ def collect_audit(payload: dict, db: CardDB, in_scope, *, seed: int = DEFAULT_SE
         "structural": structural_issues(rows, scope_ids),
     }
 
-
-# ---------- 排版 ----------
-
 def _card_row(card: Card, rows) -> dict:
     return {
         "id": card.id,
@@ -249,14 +233,12 @@ def _card_row(card: Card, rows) -> dict:
         "tags": rows.get(card.id.upper(), ()),
     }
 
-
 def display_text(text: str, limit: int = 120) -> str:
     """去掉标记看正文；太长的截断，人工核对够用。"""
     plain = re.sub(r"<[^>]+>", "", text or "")
     plain = plain.replace("$", "").replace("#", "").replace("@", "").replace("_", " ")
     plain = " ".join(plain.split())
     return plain if len(plain) <= limit else plain[:limit] + "…"
-
 
 def _fmt_card(row: dict, indent: str = "  ", text_limit: int = 120) -> list[str]:
     tags = ",".join(row["tags"]) or "无标签"
@@ -267,10 +249,8 @@ def _fmt_card(row: dict, indent: str = "  ", text_limit: int = 120) -> list[str]
         lines.append(f"{indent}    {text}")
     return lines
 
-
 def _section_index(n: int, title: str) -> list[str]:
     return ["", f"== {n}. {title} =="]
-
 
 def format_audit(report: dict) -> str:
     gen = report["generated"]
@@ -283,7 +263,7 @@ def format_audit(report: dict) -> str:
         pct = 100.0 * count / scope["total"] if scope["total"] else 0.0
         lines.append(f"  {TYPE_CN.get(type_name, type_name)}（{type_name}） {count}（{pct:.1f}%）")
 
-    lines += _section_index(2, "11 类计数 / 覆盖率")
+    lines += _section_index(2, f"{len(TAG_ORDER)} 类计数 / 覆盖率")
     for tag, count in report["tag_counts"]:
         lines.append(f"  {tag} {count}")
     cov = report["coverage"]
@@ -352,9 +332,6 @@ def format_audit(report: dict) -> str:
     lines.append("")
     return "\n".join(lines)
 
-
-# ---------- CLI ----------
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="独立审计 data/card_tags.json 的标签质量")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="抽样随机种子（默认 %(default)s）")
@@ -378,7 +355,6 @@ def main(argv: list[str] | None = None) -> int:
                            per_class=args.per_class, top=args.top)
     print(format_audit(report), end="")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

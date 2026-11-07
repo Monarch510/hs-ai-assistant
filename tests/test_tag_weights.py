@@ -21,10 +21,10 @@ from hsai.tag_weights import (
 
 class TagWeightsTest(unittest.TestCase):
     def test_keys_order_and_base_table(self):
-        """固定 11 键、TAG_ORDER 顺序；中性局势就是基础表。"""
+        """键数固定跟 TAG_ORDER 一致、顺序相同；中性局势就是基础表。"""
         base_before = dict(DEFAULT_TAG_WEIGHTS)
         self.assertEqual(list(DEFAULT_TAG_WEIGHTS), list(TAG_ORDER))
-        self.assertEqual(len(DEFAULT_TAG_WEIGHTS), 11)
+        self.assertEqual(len(DEFAULT_TAG_WEIGHTS), len(TAG_ORDER))
 
         for s in (Situation(), Situation(phase="mulligan")):
             w = tag_weights(s)

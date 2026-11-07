@@ -3,12 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import json
-import sys
-from pathlib import Path
 
 from . import cards as cards_mod
-from .cli_boot import _db
 
 
 def cmd_cards(args: argparse.Namespace) -> int:

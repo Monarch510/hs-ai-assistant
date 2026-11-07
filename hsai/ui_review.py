@@ -5,11 +5,9 @@ from __future__ import annotations
 import tkinter as tk
 
 import json
-from typing import Any
 
 from . import cards as cards_mod
-from . import logutil
-from .ui_theme import BORDER, FONT, GOLD, MUTED, PANEL, RED, TEXT, TEXT_SOFT
+from .ui_theme import FONT, GOLD, MUTED, PANEL, TEXT, TEXT_SOFT
 
 
 class ReviewPanel:

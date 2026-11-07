@@ -13,18 +13,15 @@ from __future__ import annotations
 
 import argparse
 
-from .cli_boot import LOG_PATH, _ensure_console, _fix_streams
+from .cli_boot import _ensure_console, _fix_streams
 from .cli_boot import _db as _db  # noqa: F401  兼容旧的 cli._db 引用
 
-# ---- 命令族（顶层 import 安全：只有 cmd_ui 内部才延迟 import ui） ----
 from .cli_cards import cmd_cards  # noqa: E402
-from .cli_deck import _deck_from_code, cmd_deck  # noqa: E402
+from .cli_deck import cmd_deck  # noqa: E402
 from .cli_learn import cmd_learn  # noqa: E402
-from .cli_live import _print_live, cmd_log, cmd_replay  # noqa: E402
+from .cli_live import cmd_log, cmd_replay  # noqa: E402
 from .cli_meta import (  # noqa: E402
-    _backup_meta,
     _print_calibrate_report,
-    _rebuild,
     cmd_meta,
 )
 from .cli_mulligan import cmd_mulligan  # noqa: E402
@@ -34,7 +31,6 @@ from .cli_sim import cmd_sim  # noqa: E402
 from .cli_stats import cmd_stats, cmd_tunings  # noqa: E402
 from .cli_tags import cmd_tags  # noqa: E402
 from .cli_ui import cmd_ui  # noqa: E402
-
 
 def main(argv: list[str] | None = None) -> int:
     _fix_streams()
@@ -136,7 +132,6 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
     return int(args.func(args) or 0)
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

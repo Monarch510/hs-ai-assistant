@@ -36,7 +36,6 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "keep_heal_vs_aggro": 9.0,
     "keep_value_vs_control": 6.0,
     "keep_weapon": 6.0,
-    # 其他
     "duplicate_penalty": -11.0,
     "second_player_bonus": 4.0,
 }
@@ -193,7 +192,7 @@ def advise(
             elif "单解" in tags:
                 score += w["keep_removal_vs_aggro"]
                 reasons.append("单解能处理对方前期核心")
-            if card.has("TAUNT"):  # 嘲讽是关键词（mechanics），不是 11 类功能标签
+            if card.has("TAUNT"):  # 嘲讽是关键词（mechanics），不是 12 类功能标签
                 score += w["keep_taunt_vs_aggro"]
                 reasons.append("嘲讽能挡住打脸")
             if tags & {"治疗", "护甲"}:  # 回血和叠甲都算稳血线

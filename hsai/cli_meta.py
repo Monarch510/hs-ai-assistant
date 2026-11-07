@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 from . import learn
 from .cli_boot import _db
-from .meta import Archetype, MetaDB, import_archetypes, pick_key_cards
+from .meta import MetaDB, import_archetypes, pick_key_cards
 from .paths import META_BACKUP_DIR, META_DIR
 
 

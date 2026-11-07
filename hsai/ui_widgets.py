@@ -6,14 +6,12 @@ import tkinter as tk
 
 from .ui_state import _load_state, _save_state
 from .ui_theme import (
-    BG, BORDER, COLLAPSED_H, FONT, GOLD, MUTED, PANEL, TEXT_SOFT, YELLOW,
+    BG, BORDER, COLLAPSED_H, FONT, GOLD, MUTED, PANEL, YELLOW,
 )
-
 
 class Widgets:
     """区块/分隔线/折叠/几何。Overlay 继承它。"""
 
-    # --- 通用小部件
     def _toggle_section(self, title: str) -> None:
         """点标题折叠/展开；状态存 window.json，重开窗口还记得。"""
         if title in self._collapsed:
@@ -73,7 +71,6 @@ class Widgets:
         self._apply_geometry()
         self._request_fit()
 
-    # ------------------------------------------------------------ 渲染
     def _show_placeholder(self) -> None:
         """窗口一出现就要有字，不能等第一条日志 —— 否则看起来就是个空框。"""
         self.header_label.config(text="炉石 AI 助手 · 正在读取日志")

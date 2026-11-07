@@ -1,4 +1,4 @@
-"""动态标签权重：局势 → 11 类标签权重的纯函数层。
+"""动态标签权重：局势 → 12 类标签权重的纯函数层。
 
 口径见 docs/card-tagging/DYNAMIC-WEIGHTS.md §2。留牌和出牌共用这一套
 （各自再乘缩放系数，缩放系数在调用方），所以这里只回答一件事：
@@ -18,7 +18,9 @@ from dataclasses import dataclass
 
 from .tag_rules import TAG_ORDER
 
-# 基础分：11 类，键顺序跟 TAG_ORDER 一致。「未知」是看不出效果的牌，给 0 不偏不倚。
+# 基础分：12 类，键顺序跟 TAG_ORDER 一致。「未知」是看不出效果的牌，给 0 不偏不倚。
+# 「保护」是 #21 从增益里分出来的防御维度：与治疗同级（0.5），低于进攻向的解场/斩杀，
+# 高于纯叠甲；局势修正表里没有它的系数，等于只吃基础分，后续可单独调。
 DEFAULT_TAG_WEIGHTS: dict[str, float] = {
     "单解": 0.8,
     "群解": 0.8,
@@ -31,11 +33,11 @@ DEFAULT_TAG_WEIGHTS: dict[str, float] = {
     "抽牌": 0.7,
     "斩杀": 0.9,
     "未知": 0.0,
+    "保护": 0.5,
 }
 
 # 最终权重的兜底边界。真正的钳制在信号上（±1），这里只防多项叠加后的极端值。
 _MIN_W, _MAX_W = -2.0, 6.0
-
 
 @dataclass(frozen=True)
 class Situation:
@@ -64,17 +66,14 @@ class Situation:
     lethal: bool = False
     phase: str = "playing"     # mulligan | playing
 
-
 def _clamp(x: float) -> float:
     return max(-1.0, min(1.0, x))
-
 
 def _style_tables():
     # 延迟导入：mulligan 将来要反过来 import 本模块拿 Situation，顶层导入会成环；
     # 函数内导入发生在调用时，那时两个模块都已加载完。职业取向表直接复用，不另造。
     from .mulligan import AGGRO_TAGS, CLASS_STYLE, CONTROL_TAGS
     return AGGRO_TAGS, CONTROL_TAGS, CLASS_STYLE
-
 
 def _styles(s: Situation):
     """(对快攻, 对控制, 我方偏快, 我方偏控制, 职业兜底说明)。"""
@@ -93,7 +92,6 @@ def _styles(s: Situation):
     return (bool(opp & aggro), bool(opp & control),
             bool(our & aggro), bool(our & control), label)
 
-
 def _contributions(s: Situation):
     """[(每类系数, 已钳制信号, 正向人话, 反向人话), ...]。
 
@@ -111,7 +109,6 @@ def _contributions(s: Situation):
     if label:
         add({}, 1.0, f"对面形态未知，按职业取向当作「{label}」处理")
 
-    # --- 职业 / 卡组形态：离散修正，留牌和出牌都算 ---
     add({"群解": .5, "单解": .4, "治疗": .4, "护甲": .35, "增益": .2,
          "减益": .15, "站场": .1, "资源": -.25, "抽牌": -.25},
         int(vs_aggro), "对面偏快攻/铺场：清场、单解、回复、护甲加权，高费补牌降权")
@@ -122,7 +119,6 @@ def _contributions(s: Situation):
     add({"群解": .3, "治疗": .3, "护甲": .3, "资源": .3},
         int(our_control), "我方偏控制：清场、回复、资源加权")
 
-    # --- 局势连续信号：起手没有场面，留牌阶段整段跳过 ---
     if s.phase == "mulligan":
         return out
 
@@ -159,7 +155,6 @@ def _contributions(s: Situation):
     add({"斩杀": 2.5}, int(s.lethal), "本回合能斩杀：斩杀权重压倒性置顶")
     return out
 
-
 def _normalize_overrides(overrides) -> dict[str, float]:
     """支持 {"单解": 1.2} 与 {"tag_单解": 1.2} 两种键名；不认识的键忽略。"""
     if not overrides:
@@ -171,9 +166,8 @@ def _normalize_overrides(overrides) -> dict[str, float]:
             out[tag] = float(value)
     return out
 
-
 def tag_weights(s: Situation, overrides: dict | None = None) -> dict[str, float]:
-    """局势 → 11 类权重，固定 TAG_ORDER 顺序、可复现、无 IO。
+    """局势 → 12 类权重，固定 TAG_ORDER 顺序、可复现、无 IO。
 
     overrides 是基础表的局部覆盖（跟 mulligan 的 weights 一个写法）：只列要改的键，
     其余仍用 DEFAULT_TAG_WEIGHTS，局势修正照常叠加。
@@ -183,7 +177,6 @@ def tag_weights(s: Situation, overrides: dict | None = None) -> dict[str, float]
         for tag, coef in coefs.items():
             w[tag] += coef * sig
     return {t: max(_MIN_W, min(_MAX_W, w[t])) for t in TAG_ORDER}
-
 
 def explain(s: Situation) -> list[str]:
     """人话：这个局势下哪几类权重为什么变了（UI 直接显示）。"""
@@ -196,6 +189,5 @@ def explain(s: Situation) -> list[str]:
     else:
         lines.append("没有额外的对位或局势信号，各类标签用基础权重")
     return lines
-
 
 __all__ = ["Situation", "DEFAULT_TAG_WEIGHTS", "tag_weights", "explain"]

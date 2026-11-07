@@ -20,17 +20,14 @@ from pathlib import Path
 _STUB_MARK = "IS_FAKE_TK"
 _TMP: tempfile.TemporaryDirectory | None = None
 
-
 def _tmp_dir() -> Path:
     global _TMP
     if _TMP is None:
         _TMP = tempfile.TemporaryDirectory(prefix="hsai-ui-test-")
     return Path(_TMP.name)
 
-
 class TclError(Exception):
     """对应 tkinter.TclError：界面代码靠它做降级（透明色不支持之类）。"""
-
 
 class _Base:
     """控件替身：记住配置、子控件和 pack 状态，够界面代码跑完整一遍渲染。"""
@@ -48,7 +45,6 @@ class _Base:
         if isinstance(master, _Base):
             master._children.append(self)
 
-    # ------------------------------------------------------------ 布局
     def pack(self, **kw: object) -> None:
         self._packed = True
         self._layout = kw
@@ -59,7 +55,6 @@ class _Base:
     grid = pack
     place = pack
 
-    # ------------------------------------------------------------ 配置
     def configure(self, **kw: object) -> None:
         self._opts.update(kw)
 
@@ -73,7 +68,6 @@ class _Base:
     def __getitem__(self, key: str) -> object:
         return self.cget(key)
 
-    # ------------------------------------------------------------ 事件
     def bind(self, seq: str, func: object = None, add: object = None) -> None:
         self._binds[seq] = func
 
@@ -89,7 +83,6 @@ class _Base:
     def tk_popup(self, *args: object, **kw: object) -> None:
         return None
 
-    # ------------------------------------------------------------ 查询
     def winfo_children(self) -> list[_Base]:
         return list(self._children)
 
@@ -120,7 +113,6 @@ class _Base:
     def winfo_screenheight(self) -> int:
         return 1080
 
-    # ------------------------------------------------------------ 窗口属性
     def title(self, text: str | None = None) -> str | None:
         if text is None:
             return self._attrs.get("title", "")
@@ -180,7 +172,6 @@ class _Base:
     def grab_release(self) -> None:
         return None
 
-    # ------------------------------------------------------------ 菜单 / Canvas
     def add_command(self, **kw: object) -> None:
         return None
 
@@ -195,7 +186,6 @@ class _Base:
 
     def create_text(self, *args: object, **kw: object) -> int:
         return 2
-
 
 class Tk(_Base):
     """根窗口：记住 geometry 设进来的尺寸，winfo_* 如实回报。"""
@@ -226,31 +216,24 @@ class Tk(_Base):
     def winfo_y(self) -> int:
         return self._geom[3]
 
-
 class Frame(_Base):
     pass
-
 
 class Label(_Base):
     pass
 
-
 class Canvas(_Base):
     pass
-
 
 class Menu(_Base):
     pass
 
-
 class Widget(_Base):
     pass
-
 
 class Event:
     def __init__(self, **kw: object) -> None:
         self.__dict__.update(kw)
-
 
 class _Var:
     def __init__(self, master: object = None, value: object = None, **kw: object) -> None:
@@ -262,7 +245,6 @@ class _Var:
     def set(self, value: object) -> None:
         self._value = value
 
-
 class BooleanVar(_Var):
     def __init__(self, master: object = None, value: bool = False, **kw: object) -> None:
         super().__init__(master, bool(value), **kw)
@@ -272,7 +254,6 @@ class BooleanVar(_Var):
 
     def set(self, value: object) -> None:
         self._value = bool(value)
-
 
 def install() -> bool:
     """没有真 tkinter 时装上替身。返回 True 表示这次用的是替身。"""
@@ -303,7 +284,6 @@ def install() -> bool:
     sys.modules["tkinter"] = fake
     sys.modules["tkinter.messagebox"] = box
     return True
-
 
 def prepare() -> bool:
     """装上替身（需要时）并把界面会写的状态文件改道到临时目录。返回是否用了替身。

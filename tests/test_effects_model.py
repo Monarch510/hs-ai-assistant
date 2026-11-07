@@ -16,21 +16,17 @@ from hsai.cards import Card
 from hsai import model
 from hsai.model import Board, Effect, SideState, Unit
 
-
 def _card(text: str, **kw) -> Card:
     name = kw.pop("name", "测试牌")
     return Card(id="T_EFFECT", name=name, type=kw.pop("type", "SPELL"), text=text, **kw)
 
-
 def _unit(name: str, atk: int = 2, hp: int = 5, **kw) -> Unit:
     return Unit(card_id="T_UNIT", name=name, atk=atk, hp=hp, **kw)
-
 
 def _board(me: SideState | None = None, foe: SideState | None = None) -> tuple[Board, SideState, SideState]:
     a = me or SideState()
     b = foe or SideState()
     return Board([a, b], 5, 0, cards=None), a, b
-
 
 # text -> {字段: 期望值}。每行都对应一类结算，见下面的独立用例。
 PARSE_CASES = [
@@ -50,7 +46,6 @@ PARSE_CASES = [
     ("将所有随从的生命值变为1", {"set_hp": 1}),
 ]
 
-
 class EffectConsistencyTest(unittest.TestCase):
     def setUp(self) -> None:
         # 效果表来自 data/effects.json；这里只用内置规则，避免测试依赖本机数据
@@ -67,7 +62,6 @@ class EffectConsistencyTest(unittest.TestCase):
                     self.assertEqual(getattr(eff, key), value, f"{text} 的 {key}")
                 self.assertTrue(eff.known, f"{text} 不该被判成未建模")
 
-    # ------------------------------------------------------------ 伤害
     def test_single_target_damage(self) -> None:
         eff = model.parse_effect(_card("造成3点伤害"))
         board, me, foe = _board()
@@ -127,7 +121,6 @@ class EffectConsistencyTest(unittest.TestCase):
         board.apply_effect(eff, me, None)
         self.assertEqual(foe.hero_hp, 27)
 
-    # ------------------------------------------------------------ 消灭
     def test_destroy_target(self) -> None:
         eff = model.parse_effect(_card("消灭一个随从"))
         board, me, foe = _board()
@@ -149,7 +142,6 @@ class EffectConsistencyTest(unittest.TestCase):
         self.assertEqual([u.alive for u in (low_mine, high_mine, low_foe, high_foe)],
                          [True, False, True, False])
 
-    # ------------------------------------------------------------ 恢复 / 护甲
     def test_heal_friendly_minion_and_hero_cap(self) -> None:
         eff = model.parse_effect(_card("恢复5点生命值"))
         board, me, foe = _board(me=SideState(hero_hp=28))
@@ -170,7 +162,6 @@ class EffectConsistencyTest(unittest.TestCase):
         board.apply_effect(eff, me, None)
         self.assertEqual(me.armor, 5)
 
-    # ------------------------------------------------------------ 其它效果
     def test_freeze_target(self) -> None:
         eff = model.parse_effect(_card("冻结一个随从"))
         board, me, foe = _board()
@@ -221,7 +212,6 @@ class EffectConsistencyTest(unittest.TestCase):
         board.apply_effect(Effect(known=False), me, None)
         self.assertEqual((me.hero_hp, me.armor, len(me.board), len(me.hand)), (30, 0, 0, 0))
 
-    # ------------------------------------------------------------ 僵尸权重
     def test_lethal_bonus_weight_is_ignored(self) -> None:
         """DEFAULT_WEIGHTS 里没有 lethal_bonus，读它只会让分数随外部权重漂移。"""
         board, me, foe = _board(me=SideState(hero_hp=10))
@@ -247,7 +237,6 @@ class EffectConsistencyTest(unittest.TestCase):
         self.assertEqual(sorted(model.DEFAULT_WEIGHTS),
                          ["aoe_risk", "face", "fatigue", "hand", "health", "taunt", "tempo"])
         self.assertEqual(len(model.DEFAULT_WEIGHTS), 7)
-
 
 if __name__ == "__main__":
     unittest.main()

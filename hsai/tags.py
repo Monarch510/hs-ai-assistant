@@ -39,7 +39,6 @@ PLAYABLE_TOKEN_IDS = frozenset({
     "CATA_EVENT_110T5", "CATA_EVENT_110T6", "CATA_EVENT_110T7",
 })
 
-
 def in_scope(card: Card, db: CardDB) -> bool:
     """这张牌要不要打标签：可打出场、非衍生物、非皮肤/名单。
 
@@ -56,18 +55,13 @@ def in_scope(card: Card, db: CardDB) -> bool:
         return True
     return not db.is_token(card.id)
 
-
 def classify(card: Card) -> tuple[str, ...]:
     """规则打标，按 TAG_ORDER 排序 —— 顺序固定，输出才不会随 dict 遍历变。"""
     return tuple(tag for tag in TAG_ORDER if RULES[tag](card))
 
-
 def pending_reason(card: Card) -> str | None:
     """规则拿不准的原因；透传规则层，给待定清单用。"""
     return _rule_pending_reason(card)
-
-
-# ---------------------------------------------------------------- 构建
 
 def _norm_rows(extra: dict | None) -> dict[str, dict]:
     """补标文件的 key 统一成大写 id，方便和卡牌库对齐。"""
@@ -77,11 +71,9 @@ def _norm_rows(extra: dict | None) -> dict[str, dict]:
             out[str(key).upper()] = row
     return out
 
-
 def _valid_tags(row: dict) -> tuple[str, ...]:
-    """只收固定 11 类里的标签：补标文件写错标签名时丢掉，别污染输出。"""
+    """只收固定 12 类里的标签：补标文件写错标签名时丢掉，别污染输出。"""
     return tuple(t for t in (row.get("tags") or ()) if t in TAG_ORDER)
-
 
 def build(db: CardDB, ai: dict | None = None, manual: dict | None = None) -> dict:
     """全量打标。
@@ -142,9 +134,6 @@ def build(db: CardDB, ai: dict | None = None, manual: dict | None = None) -> dic
         "pending": pending,
     }
 
-
-# ---------------------------------------------------------------- 读写
-
 def _read_json(path: Path) -> dict:
     """缺文件、坏文件都当「没有」：缓存坏了不该让查询/命令直接崩。
 
@@ -157,11 +146,9 @@ def _read_json(path: Path) -> dict:
         return {}
     return payload if isinstance(payload, dict) else {}
 
-
 def load_payload(path: Path | None = None) -> dict:
     """读整份标签数据（report/pending 要看 scope 与 pending，不只是 rows）。"""
     return _read_json(Path(path or CARD_TAGS_JSON))
-
 
 def load(path: Path | None = None) -> dict[str, tuple[str, ...]]:
     """id -> 标签元组；缺文件返回空表。"""
@@ -173,14 +160,12 @@ def load(path: Path | None = None) -> dict[str, tuple[str, ...]]:
             out[str(cid).upper()] = tuple(row.get("tags") or ())
     return out
 
-
 def save(payload: dict, path: Path | None = None) -> Path:
     """写全量标签数据，返回实际路径。"""
     target = Path(path or CARD_TAGS_JSON)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return target
-
 
 def save_pending(payload: dict, path: Path | None = None) -> Path:
     """写待定清单（JSONL，一行一张牌），返回实际路径。"""
@@ -190,12 +175,10 @@ def save_pending(payload: dict, path: Path | None = None) -> Path:
     target.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
     return target
 
-
 def load_source(path: Path) -> dict[str, dict]:
     """读 AI / 人工补标文件的 `rows`；缺文件返回空表。"""
     rows = _read_json(path).get("rows")
     return rows if isinstance(rows, dict) else {}
-
 
 def card_tags(
     key: str | Card,
@@ -214,9 +197,6 @@ def card_tags(
     else:
         cid = key
     return load(path).get((cid or "").upper(), ())
-
-
-# ---------------------------------------------------------------- 报告
 
 def summary(payload: dict) -> dict:
     """把标签数据数成报告用的数字；纯函数，测试不依赖 data/ 文件。"""
@@ -242,7 +222,6 @@ def summary(payload: dict) -> dict:
         "src": dict(sorted(src.items())),
         "untagged": untagged,
     }
-
 
 def format_report(payload: dict) -> str:
     """渲染覆盖率报告：范围、类型分布、每类张数、待定、来源、无标签。"""

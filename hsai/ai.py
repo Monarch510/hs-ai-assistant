@@ -143,13 +143,11 @@ def build_prompt(snap: dict[str, Any]) -> str:
     played = snap.get("opp_played") or []
     if played:
         lines.append("对手已打出：" + "、".join(str(x) for x in played[:10]) + "。")
-    # 我方牌库剩余的关键牌（没有就直接跳过）
     deck = snap.get("deck") or {}
     key_cards = deck.get("key_cards") or []
     if key_cards:
         names = "、".join(f"{k.get('name')}×{k.get('count', 1)}" for k in key_cards[:4])
         lines.append(f"我方牌库剩 {deck.get('left', '?')} 张，其中关键牌：{names}。")
-    # 英雄技能是否还能用
     hp = our.get("hero_power") or {}
     if hp.get("name"):
         used = "已用" if our.get("hero_power_used") else "可用"

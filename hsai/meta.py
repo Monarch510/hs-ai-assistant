@@ -36,7 +36,6 @@ from .meta_naming import (
 )
 from .meta_cluster import build_from_observations, import_archetypes
 
-
 class MetaDB:
     def __init__(self, archetypes: Iterable[Archetype],
                  cards: CardDB | None = None) -> None:
@@ -46,7 +45,6 @@ class MetaDB:
         self.cards = cards
         self.normalize_priors()
 
-    # ------------------------------------------------------------ 基本操作
     def __len__(self) -> int:
         return len(self.archetypes)
 
@@ -78,7 +76,6 @@ class MetaDB:
             self.archetypes.append(arch)
         self.normalize_priors()
 
-    # ------------------------------------------------------------ 持久化
     def to_json(self) -> dict[str, Any]:
         return {
             "version": 2,
@@ -155,7 +152,6 @@ class MetaDB:
         except OSError:
             pass
         return db
-
 
 def _load_dir(path: Path) -> list[Archetype]:
     out: list[Archetype] = []

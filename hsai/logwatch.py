@@ -50,7 +50,6 @@ ScreenPrinting=False
 Verbose=True
 """
 
-
 def _powershell(command: str, timeout: float = 6.0) -> str:
     try:
         proc = subprocess.run(
@@ -61,7 +60,6 @@ def _powershell(command: str, timeout: float = 6.0) -> str:
         return (proc.stdout or "").strip()
     except (OSError, subprocess.SubprocessError):
         return ""
-
 
 def running_hearthstone_dir() -> Path | None:
     """正在运行的 Hearthstone.exe 所在目录。这是最可靠的线索。
@@ -82,9 +80,7 @@ def running_hearthstone_dir() -> Path | None:
     _proc_cache = (now, path)
     return path
 
-
 _proc_cache: tuple[float, Path | None] | None = None
-
 
 def cached_install_dir() -> Path | None:
     try:
@@ -94,14 +90,12 @@ def cached_install_dir() -> Path | None:
     p = Path(text)
     return p if p.exists() else None
 
-
 def remember_install_dir(path: Path) -> None:
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         INSTALL_CACHE.write_text(str(path), encoding="utf-8")
     except OSError:
         pass
-
 
 def candidate_roots(extra: Iterable[Path] = (), *, include_ambient: bool = True) -> list[Path]:
     """可能存放 Logs 的目录，按可信度排序。"""
@@ -133,7 +127,6 @@ def candidate_roots(extra: Iterable[Path] = (), *, include_ambient: bool = True)
         out.append(r)
     return out
 
-
 def _logs_in(root: Path) -> list[Path]:
     """root 下所有可能的 Logs 目录（含按会话分的子目录）。"""
     logs = root / "Logs"
@@ -148,9 +141,7 @@ def _logs_in(root: Path) -> list[Path]:
             pass
     return out
 
-
 def find_power_log(extra_roots: Iterable[Path] = (), *, include_ambient: bool = True) -> Path | None:
-    """在所有候选位置里找最新的 Power.log。"""
     best: tuple[float, Path] | None = None
     for root in candidate_roots(extra_roots, include_ambient=include_ambient):
         for d in _logs_in(root):
@@ -162,7 +153,6 @@ def find_power_log(extra_roots: Iterable[Path] = (), *, include_ambient: bool = 
                 if best is None or mtime > best[0]:
                     best = (mtime, candidate)
     return best[1] if best else None
-
 
 def log_config_targets(extra_roots: Iterable[Path] = (), *, include_ambient: bool = True) -> list[Path]:
     """应该把 log.config 写到哪些目录。
@@ -180,7 +170,6 @@ def log_config_targets(extra_roots: Iterable[Path] = (), *, include_ambient: boo
         if root not in out:
             out.append(root)
     return out
-
 
 def setup_log_config(extra_roots: Iterable[Path] = (), *, dry_run: bool = False,
                      include_ambient: bool = True) -> list[tuple[Path, str]]:
@@ -213,7 +202,6 @@ def setup_log_config(extra_roots: Iterable[Path] = (), *, dry_run: bool = False,
             results.append((target, f"写入失败：{exc}"))
     return results
 
-
 def tail_start_offset(path: Path, limit: int = READ_LIMIT) -> int:
     """返回最后一个 CREATE_GAME 所在行的起点。
 
@@ -244,35 +232,23 @@ def tail_start_offset(path: Path, limit: int = READ_LIMIT) -> int:
         end = start + 32          # 稍微重叠，避免把一个标记切断
     return 0
 
-
 class PowerLogWatcher:
     """把「文件增长」变成「状态更新」。"""
 
-    def __init__(self, path: Path, cards: CardDB | None = None, *, follow_from_end: bool = False) -> None:
+    def __init__(self, path: Path, cards: CardDB | None = None) -> None:
         self.path = path
         self.cards = cards
         self.state = GameState(cards)
         self._offset = 0
         self._pending: int | None = None
         self._started = False
-        self._follow_from_end = follow_from_end
-        self.generation = 0     # 每开新局 +1
         self._rearm = False     # 跳过「已结束的上一局」后，等新数据出现再重新定位
         self.version = 0        # 每处理一批 +1
 
-    # ------------------------------------------------------------ 位置管理
     def _init_offset(self) -> None:
         if self._started:
             return
         self._started = True
-        try:
-            size = self.path.stat().st_size
-        except OSError:
-            self._offset = 0
-            return
-        if self._follow_from_end:
-            self._offset = size
-            return
         start = tail_start_offset(self.path)
         # 大文件里找不到 CREATE_GAME（例如日志被截断/滚过）时，绝不要从头重放——
         # 那会把好几局旧对局重新演一遍，用户重启后看到的就是上一局。
@@ -281,11 +257,8 @@ class PowerLogWatcher:
     def reset(self) -> None:
         self.state = GameState(self.cards)
         self._pending = None
-        self.generation += 1
 
-    # ------------------------------------------------------------ 读取
     def poll(self) -> bool:
-        """读新内容。返回 True 表示状态变了。"""
         first = not self._started
         self._init_offset()
         try:
@@ -326,7 +299,7 @@ class PowerLogWatcher:
                 continue
             if ev.kind == "create_game":
                 self.reset()
-            elif ev.kind in ("full_entity", "entity", "block_start", "show_entity", "change_entity"):
+            elif ev.kind in powerlog.CONTEXT_KINDS:
                 if ev.data.get("entity"):
                     self._pending = ev.data["entity"]
             self.state.apply(ev)

@@ -8,8 +8,6 @@ from .model import Board, hero_power_effect, is_passive_hero_power, parse_effect
 from .policy_actions import Action, apply_action
 from .policy_threat import board_threat, unit_threat
 
-
-# ---------------------------------------------------------------- 抢血 / 解场
 def _hand_burst(board: Board, side: int, cards) -> float:
     """手里能直接打脸的伤害（斩杀时能一次性砸出去的量）。"""
     me = board.sides[side]

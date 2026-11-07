@@ -11,14 +11,12 @@ import unittest
 
 from hsai import cards, powerlog, state
 
-
 class StateResetTest(unittest.TestCase):
     def setUp(self) -> None:
         self.db = cards.load()
         self.st = state.GameState(self.db)
         self.st.our_id = 1
 
-    # ---------------------------------------------------------------- 工具
     def _hand(self, eid: int, ctrl: int, card_id: str = "CORE_CS2_108") -> None:
         self.st.entities[eid] = state.Entity(
             id=eid, card_id=card_id, controller=ctrl, zone=state.ZONE_HAND
@@ -37,7 +35,6 @@ class StateResetTest(unittest.TestCase):
             )
         )
 
-    # ---------------------------------------------------------------- 用例
     def test_reset_clears_id_by_hand_done(self) -> None:
         """翻面标记必须跨局清零 —— 否则第二局起这条兜底永远提前 return。"""
         self._hand(20, 2)                 # 只有玩家 2 的手牌可见
@@ -167,7 +164,6 @@ class StateResetTest(unittest.TestCase):
         """同一个 `elif kind == "..."` 只能有一个：重复的那个静默不可达。"""
         src = pathlib.Path(state.__file__).read_text(encoding="utf-8")
         self.assertEqual(src.count('elif kind == "block_start"'), 1)
-
 
 if __name__ == "__main__":
     unittest.main()
