@@ -30,13 +30,30 @@ SCOPE_TYPES = frozenset({"MINION", "SPELL", "WEAPON", "LOCATION", "HERO"})
 # 英雄皮肤和制作人员名单混在卡牌库里，但根本不是对局中的牌
 SKIP_SETS = frozenset({"HERO_SKINS", "CREDITS"})
 
+# 审计 #13：「对战开始时：破碎成6份精华」的本体是系统牌，玩家抽不到也打不出，
+# 不该占一行空标签；真正会抽到并施放的是由它生成的 6 份精华（法术，各有独立
+# 效果文本）。这些精华 id 结尾是 T2..T7，会被 is_token 当成普通衍生物，故显式放行。
+SYSTEM_ONLY_IDS = frozenset({"CATA_EVENT_110"})
+PLAYABLE_TOKEN_IDS = frozenset({
+    "CATA_EVENT_110T2", "CATA_EVENT_110T3", "CATA_EVENT_110T4",
+    "CATA_EVENT_110T5", "CATA_EVENT_110T6", "CATA_EVENT_110T7",
+})
+
 
 def in_scope(card: Card, db: CardDB) -> bool:
-    """这张牌要不要打标签：可打出场、非衍生物、非皮肤/名单。"""
+    """这张牌要不要打标签：可打出场、非衍生物、非皮肤/名单。
+
+    两个显式例外见 `SYSTEM_ONLY_IDS` / `PLAYABLE_TOKEN_IDS`（审计 #13）。
+    """
+    cid = (card.id or "").upper()
+    if cid in SYSTEM_ONLY_IDS:
+        return False
     if card.type not in SCOPE_TYPES:
         return False
     if (card.set or "").upper() in SKIP_SETS:
         return False
+    if cid in PLAYABLE_TOKEN_IDS:
+        return True
     return not db.is_token(card.id)
 
 

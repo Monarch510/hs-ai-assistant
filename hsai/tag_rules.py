@@ -344,10 +344,25 @@ def _hp_replacement_damage(card: Card) -> tuple[bool, bool]:
     return False, False
 
 
+# 「对一个随从投掷你的武器」：伤害量取决于当前装备的武器，卡面没数值、
+# 也没写「造成等同于…伤害」，_damage_hits 认不到（CONTEXT 审计 #16，用户拍板 B1）。
+# 但动作确定 —— 对一个随从造成一次武器伤害 —— 与「造成等同于…攻击力的伤害」
+# 先例同类（BT_354 刃舞=群解、CAP_001 静默打击=单解），按单解打。
+# 全库只此 2 张（CORE_ICC_233 / ICC_233 末日回旋镖）；不收 WW_006 飞镖投掷
+# （它走 _PROJECTILE_RE，已有单解+资源+斩杀），也不碰「移回你的手牌」族
+# —— _bounce_hits 明确把回自己手牌当保护/回收跳过。
+_THROW_WEAPON_RE = re.compile(r"投掷[^。；]{0,10}武器")
+
+
+def _throws_weapon(card: Card) -> bool:
+    """投掷武器对一个随从造成一次伤害：目标单体、动作确定，按单解打。"""
+    return bool(_THROW_WEAPON_RE.search(plain_text(card)))
+
+
 # ---------------------------------------------------------------- 10 条规则
 def rule_single_removal(card: Card) -> bool:
-    """能处理对面一只随从：单体伤害 / 消灭 / 变形 / 回手 / 夺控。"""
-    if _hp_replacement_damage(card)[0]:
+    """能处理对面一只随从：单体伤害 / 消灭 / 变形 / 回手 / 夺控 / 投掷武器。"""
+    if _hp_replacement_damage(card)[0] or _throws_weapon(card):
         return True
     text = plain_text(card)
     return any((
@@ -429,9 +444,10 @@ def _owns_plus(card: Card) -> bool:
 # 「让后续伤害 +N」整族统一算增益（CONTEXT 审计 #5，用户拍板 D）。
 # 连卡面单独一行「法术伤害+1」也收 —— 这是 §3「不许拿关键词打标」的显式例外：
 # 不再区分有没有施动句、挂在谁身上（「双方玩家拥有法术伤害+2」也算）。
-# 不收：「伤害翻倍」（倍数不是增量）、「变为/替换为『造成N点伤害』」（改写技能本身）
-# —— 这两类另开一轮。原本并列不收的「能够以随从为目标」（改目标）已在审计 #7
-# 按用户拍板收编为增益，见 _unlocks_target()。
+# 原本不收的「伤害翻倍」（倍数不是增量）已在审计 #14 按用户拍板收编为增益，
+# 见 _doubles_output()；「能够以随从为目标」（改目标）已在审计 #7 收编，
+# 见 _unlocks_target()。仍不收「变为/替换为『造成N点伤害』」—— 改写技能本身，
+# #9 已改判单解+斩杀，仍不算增益。
 _DAMAGE_BONUS_RES = tuple(re.compile(p) for p in (
     r"法术伤害\+\d+",
     r"英雄技能[^。，；]{0,10}伤害增加\d+点",
@@ -493,6 +509,32 @@ def _hero_owns_keyword(card: Card) -> bool:
                for clause in _effect_clauses(plain_text(card)))
 
 
+# 「法术施放两次」与「输出型伤害/治疗翻倍」都让后续效果变强，方向明确，按增益打
+# （CONTEXT 审计 #14，用户拍板 C）。这推翻了 #5「倍数不是增量、不算增益」的边界：
+# _BUFF_FIGURE_RE 早就收「攻击力/生命值/属性值翻倍」，唯独伤害/治疗这一支被 #5
+# 点名排除（EX1_350 先知维伦 / GIL_646 发条自动机）；#14 一并收编。
+# 不收：「受到…伤害翻倍」—— 可能让己方挨打更多，方向不明（诅咒之刃、量子反稳定机、
+# 焦油飞溅等 12 张）；「圣物/本牌/发现并施放两次」等非「法术…施放两次」句式另开一轮。
+_SPELL_TWICE_RE = re.compile(r"[^。，；]{0,14}法术[^。，；]{0,10}(?:将|会)?施放两次")
+_OUTPUT_DOUBLE_RE = re.compile(r"(?:伤害|治疗效果?)[^。，；]{0,8}翻倍")
+_TAKE_DAMAGE_RE = re.compile(r"受到[^。，；]{0,8}(?:的)?(?:所有)?伤害")
+
+
+def _repeats_spell(card: Card) -> bool:
+    """后续法术施放两次：效果次数增量，方向明确，按增益打。"""
+    return any(_SPELL_TWICE_RE.search(clause)
+               for clause in _effect_clauses(plain_text(card)))
+
+
+def _doubles_output(card: Card) -> bool:
+    """伤害/治疗效果翻倍：#5 曾按「倍数不是增量」排除，#14 收编为增益。
+
+    「受到…伤害翻倍」方向不明（也可能让己方挨打更多），仍不收。
+    """
+    return any(_OUTPUT_DOUBLE_RE.search(clause) and not _TAKE_DAMAGE_RE.search(clause)
+               for clause in _effect_clauses(plain_text(card)))
+
+
 # 「摧毁/移除…牌库」让一方或双方损失资源，按减益处理（CONTEXT 审计 #6）。
 # 原有判据只认「摧毁…(敌方|对手)」，漏了「双方」「你的」；按 #3 归属不决定标签，
 # 削弱己方牌库也算减益。只认带「的」的归属写法：「摧毁你牌库中的一张牌」
@@ -525,11 +567,28 @@ def _drains_opponent_crystals(card: Card) -> bool:
                for clause in _effect_clauses(plain_text(card)))
 
 
+# 「选择一个友方随从，交给你的对手」按减益处理（CONTEXT 审计 #15，用户拍板 B1）。
+# 宾语和动作被逗号拆到两个从句，_effect_clauses 按单句判不到，必须用 plain_text
+# 全串匹配；正则刻意容忍逗号、但不跨句号/分号，避免把前后两句拼起来误命中。
+# 只收「友方/一个…随从…交给(你的)对手」：把「牌」交给对手的
+# JAIL_206 / JAM_036 / TRL_096 是送资源还是塞废牌，方向模糊，B2 的宽口径不收；
+# 「获得/夺取控制权」（拥抱黑暗）方向相反，本就归单解，不在此列。
+_HANDOVER_MINION_RE = re.compile(
+    r"(?:友方|一个)[^。；]{0,12}随从[^。；]{0,12}交给(?:你的)?对手"
+)
+
+
+def _hands_over_friendly_minion(card: Card) -> bool:
+    """把友方随从移交给对手：己方场面缩水、对手白得一个随从，按减益打。"""
+    return bool(_HANDOVER_MINION_RE.search(plain_text(card)))
+
+
 def rule_buff(card: Card) -> bool:
     """让身材/关键词变强：加身材、贴关键词、给手牌/牌库/武器/英雄加值（护甲除外）。"""
     if (_steals_figure(card) or _owns_plus(card) or _damage_bonus(card)
             or _unlocks_target(card) or _hero_immune(card)
-            or _hero_owns_keyword(card)):
+            or _hero_owns_keyword(card) or _repeats_spell(card)
+            or _doubles_output(card)):
         return True
     for clause in _effect_clauses(plain_text(card)):
         if (_BUFF_GAIN_RE.search(clause) or _BUFF_KEYWORD_RE.search(clause)
@@ -546,11 +605,13 @@ def rule_debuff(card: Card) -> bool:
     「冻结敌人后」是触发条件，都不是本牌施加的效果。
     """
     text = plain_text(card)
-    # 偷取身材、摧毁牌库、削对方法力水晶都有一方变弱，归属不影响方向
-    # （CONTEXT 审计 #3/#6/#11）；放在循环前，免得被下面「友方从句跳过」的
-    # 保守分支拦掉 —— 实测 21 张牌库摧毁里有 14 张会被 _is_own_clause 误拦。
+    # 偷取身材、摧毁牌库、削对方法力水晶、移交友方随从都有一方变弱，
+    # 归属不影响方向（CONTEXT 审计 #3/#6/#11/#15）；放在循环前，免得被下面
+    # 「友方从句跳过」的保守分支拦掉 —— 实测 21 张牌库摧毁里有 14 张
+    # 会被 _is_own_clause 误拦，变节整句也带「友方」。
     if (_steals_figure(card) or _destroys_deck(card)
-            or _drains_opponent_crystals(card)):
+            or _drains_opponent_crystals(card)
+            or _hands_over_friendly_minion(card)):
         return True
     # 「检视对手手牌并秘密选择一张 / 亡语：弃掉所选的牌」把宾语拆到两句，
     # 单句判不到；整牌同时命中这两段才算减益（弃自己的手牌不算）。

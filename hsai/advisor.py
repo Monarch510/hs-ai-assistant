@@ -351,6 +351,9 @@ class Advisor:
             "turn": st.turn,
             "is_our_turn": st.effective_turn_owner() == st.our_id,
             "turn_known": st.effective_turn_owner() in (1, 2),
+            # 结束回合阶段比回合归属切换早到：界面要立刻撤掉上一回合的建议
+            "end_turn_seq": st.end_turn_seq,
+            "turn_ending": st.next_step == "MAIN_END" and st.phase == "playing",
             "our": ours.as_dict(),
             "opp": opp.as_dict(),
             "prediction": self._prediction_dict(pred),

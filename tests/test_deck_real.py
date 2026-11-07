@@ -167,6 +167,48 @@ class DeckSyntheticTest(unittest.TestCase):
         self.assertEqual(st._side(1).deck_count, 0)
         self.assertEqual(st._side(2).deck_count, 0)
 
+    # 洗入牌库：我方 / 对面两侧都要 +1（用户要求，2026-11-07）
+    def _shuffled(self, pid: int, eid: int, spawn_in_deck: bool) -> str:
+        """生成一张带 card_id 的牌并洗入牌库。
+
+        spawn_in_deck=False：先生成在 SETASIDE，再 TAG_CHANGE 进 DECK（洗入效果常见形态）；
+        spawn_in_deck=True ：生成时直接 zone=DECK（另一类洗入效果，没有 TAG_CHANGE）。
+        """
+        tail = ["TAG_CHANGE Entity=1 tag=20 value=1"]  # TURN=1，封口
+        if spawn_in_deck:
+            tail += [
+                f"FULL_ENTITY - Creating ID={eid} CardID=SHUFFLED",
+                "tag=49 value=2",       # 自带 ZONE=DECK
+                f"tag=50 value={pid}",
+            ]
+        else:
+            tail += [
+                f"FULL_ENTITY - Creating ID={eid} CardID=SHUFFLED",
+                "tag=49 value=7",       # ZONE=SETASIDE
+                f"tag=50 value={pid}",
+                f"TAG_CHANGE Entity={eid} tag=49 value=2",  # 洗入 DECK
+            ]
+        text, _ = _synth(30, {1: 3, 2: 4}, tail=tail)
+        return text
+
+    def test_shuffle_tag_change_counts_for_both_sides(self):
+        """TAG_CHANGE 洗入：我方 27→28、对面 26→27。"""
+        st1 = state.replay_log_text(self._shuffled(1, 901, False))
+        st2 = state.replay_log_text(self._shuffled(2, 902, False))
+        self.assertEqual(st1._side(1).deck_count, 28)
+        self.assertEqual(st1._side(2).deck_count, 26)
+        self.assertEqual(st2._side(1).deck_count, 27)
+        self.assertEqual(st2._side(2).deck_count, 27)
+
+    def test_spawn_in_deck_counts_for_both_sides(self):
+        """生成时直接 zone=DECK 的洗入：有 card_id，我方/对面都要 +1。"""
+        st1 = state.replay_log_text(self._shuffled(1, 903, True))
+        st2 = state.replay_log_text(self._shuffled(2, 904, True))
+        self.assertEqual(st1._side(1).deck_count, 28)
+        self.assertEqual(st1._side(2).deck_count, 26)
+        self.assertEqual(st2._side(1).deck_count, 27)
+        self.assertEqual(st2._side(2).deck_count, 27)
+
 
 if __name__ == "__main__":
     unittest.main()

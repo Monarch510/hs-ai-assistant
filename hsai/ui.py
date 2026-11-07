@@ -578,6 +578,7 @@ class Overlay:
         return (
             self.font_size,
             snap.get("phase"), snap.get("turn"), snap.get("is_our_turn"),
+            snap.get("end_turn_seq"), snap.get("turn_ending"),
             pred.get("name"), round(float(pred.get("confidence") or 0), 2),
             round(float(pred.get("aoe_risk") or 0), 2),
             round(float(pred.get("removal_risk") or 0), 2),
@@ -783,6 +784,9 @@ class Overlay:
     def _maybe_ai(self, snap: dict[str, Any], st: GameState | None = None) -> None:
         """每回合最多请求一次 AI 解释，不跟着 320ms 的刷新跑。"""
         if not ai_mod.is_ready():
+            return
+        if snap.get("turn_ending"):
+            # 回合已经结束，算出来的路线到不了手上
             return
         if snap.get("phase") == "mulligan":
             # 留牌交给引擎（mulligan.py 的权重表），不再调用 AI
@@ -1113,6 +1117,7 @@ class Overlay:
         # 局面一变：作废旧建议，并把这条建议记进 advice_log.jsonl
         sig = (
             snap.get("turn"),
+            snap.get("end_turn_seq"),
             ((snap.get("our") or {}).get("mana")),
             tuple(str(c.get("id") or c.get("name")) for c in ((snap.get("our") or {}).get("hand") or [])),
             tuple(str(m.get("id") or m.get("name")) for m in ((snap.get("our") or {}).get("board") or [])),
@@ -1248,9 +1253,15 @@ class Overlay:
             tk.Label(self.body, text=f"{passive.get('name') or '被动'} · 已 {played} 只 · {tip}",
                      bg=BG, fg=MUTED, font=(FONT, self.font_size - 3), anchor="w").pack(fill="x")
 
-        inner_advice = self._render_advice(snap.get("advice") or {})
+        # 结束回合阶段比回合归属切换早到：这时 advisor 可能仍认为是我方回合，
+        # 建议得先撤掉，否则看起来还像「现在该这么打」。
+        turn_ending = bool(snap.get("turn_ending"))
+        advice = {} if turn_ending else (snap.get("advice") or {})
+        if turn_ending:
+            self._strip("回合已结束", fg=MUTED, bg=PANEL)
+        inner_advice = self._render_advice(advice)
 
-        defense = (snap.get("advice") or {}).get("defense") or []
+        defense = advice.get("defense") or []
         # 只有「本回合建议」这张卡片真的画出来了，才往里加内容
         if defense and inner_advice is not None:
             tk.Frame(inner_advice, bg="#30363d", height=1).pack(fill="x", pady=(7, 4))

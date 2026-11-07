@@ -182,6 +182,11 @@ class GameState:
         self._id_by_hand_done = False
         self.turn = 0
         self.turn_owner: int | None = None
+        # NEXT_STEP 预告下一阶段；MAIN_END 比 TURN/CURRENT_PLAYER 早到，
+        # 是「结束回合生效」的第一个信号。按回合号幂等：两条管线各打一遍。
+        self.next_step: str | None = None
+        self.end_turn_seq = 0
+        self._end_turn_last_turn: int | None = None
         self.playstate = 0
         self.phase = "idle"
         self.game_started = False
@@ -478,6 +483,16 @@ class GameState:
                         self.turn_owner = None
                 return
 
+        # 回合结束：留牌/开局流程也会走一次 MAIN_END，只认对局中；
+        # GameState 与 PowerTaskList 各打一遍，按回合号只算一次。
+        if tag == "NEXT_STEP" and eid == 1:
+            self.next_step = val if isinstance(val, str) else None
+            if (val == "MAIN_END" and self.phase == "playing"
+                    and self.turn != self._end_turn_last_turn):
+                self._end_turn_last_turn = self.turn
+                self.end_turn_seq += 1
+                self._note("回合结束")
+
         e = self._entity(eid)
         prev_zone = e.zone
         e.tags[tag] = val
@@ -529,6 +544,9 @@ class GameState:
             # 含义不同（那个玩家的第几个回合），读错会把回合数搞乱。
             if eid == 1 and val != self.turn:
                 self.turn = val
+                # 新回合开始就清掉 MAIN_END：日志缺下一条 NEXT_STEP 时，
+                # 不能让界面一直挂着「回合已结束」、把后面的建议全屏蔽。
+                self.next_step = None
                 self._note(f"第 {val} 回合")
             elif self.turn == 0:
                 self.turn = val
@@ -655,7 +673,11 @@ class GameState:
             return
         sealed = self.mulligan_done or self.turn >= 1
         if sealed and prev_zone in (0, ZONE_DECK):
-            return
+            # 封口后「生成时直接 zone=DECK」的实体分两种：带 card_id 的是洗入
+            # 牌库的真实牌（如炸弹/疫病/洗入的衍生物），空 CardID 的只是客户端
+            # 凭空造的占位实体（实测会虚高到 31/34），不能算进牌库。
+            if not e.card_id:
+                return
         ids.add(e.id)
 
     def _effect_text(self, card_id: str | None) -> tuple[str, bool]:

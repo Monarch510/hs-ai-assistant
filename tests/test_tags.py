@@ -79,6 +79,17 @@ class ScopeTest(unittest.TestCase):
             with self.subTest(cid=cid):
                 self.assertFalse(self._scope(cid))
 
+    def test_event_system_card_and_essences(self) -> None:
+        # 审计 #13：本体抽不到也打不出，不打标；6 份精华是会施放的法术，纳入范围
+        cards = [_card("CATA_EVENT_110", type="SPELL", text="对战开始时：破碎成6份精华。")]
+        cards += [_card(cid, type="SPELL", text="精华") for cid in sorted(tags.PLAYABLE_TOKEN_IDS)]
+        db = CardDB(cards)
+        self.assertFalse(tags.in_scope(db.get("CATA_EVENT_110"), db))
+        for cid in tags.PLAYABLE_TOKEN_IDS:
+            with self.subTest(cid=cid):
+                self.assertTrue(db.is_token(cid), "id 结尾 T2..T7 本会被判衍生物")
+                self.assertTrue(tags.in_scope(db.get(cid), db))
+
 
 class ClassifyTest(unittest.TestCase):
     def test_result_follows_tag_order(self) -> None:
@@ -118,6 +129,16 @@ class BuildTest(unittest.TestCase):
         self.assertNotIn("DDD_TOKEN", payload["rows"])
         self.assertNotIn("EEE_SKIN", payload["rows"])
         self.assertEqual(list(payload["rows"]), sorted(payload["rows"]))
+
+    def test_event_essences_are_built_but_system_card_is_not(self) -> None:
+        # 审计 #13：范围纠正后，本体不落盘、精华按规则打标落盘
+        db = CardDB([
+            _card("CATA_EVENT_110", type="SPELL", text="对战开始时：破碎成6份精华。"),
+            _card("CATA_EVENT_110T2", type="SPELL", text="造成单体伤害"),
+        ])
+        rows = tags.build(db)["rows"]
+        self.assertNotIn("CATA_EVENT_110", rows)
+        self.assertEqual(rows["CATA_EVENT_110T2"], {"tags": ["单解"], "src": "rule"})
 
     def test_rule_tags(self) -> None:
         payload = tags.build(self.db)
