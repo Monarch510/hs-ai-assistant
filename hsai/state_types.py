@@ -129,6 +129,7 @@ class Side:
     graveyard: list[dict[str, Any]] = field(default_factory=list)   # 已死的随从
     weapon: dict[str, Any] | None = None
     hero_power: dict[str, Any] | None = None
+    hero_power_used: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -148,6 +149,7 @@ class Side:
             "ongoing": self.ongoing,
             "weapon": self.weapon,
             "hero_power": self.hero_power,
+            "hero_power_used": self.hero_power_used,
             # 只给数量：墓地内容在 advisor 里按需查（复活推荐/亡语池），
             # 面板上只关心「死了几个」，整份列表塞进快照没必要
             "graveyard_count": len(self.graveyard),

@@ -282,10 +282,14 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         name, cost, eff = hero_power_effect(me.hero_class, me.hero_power)
         me.mana -= cost
         me.hero_power_used = True
-        if eff.damage and (u := _find_unit(nb, side, "enemy:0")):
-            nb.damage_unit(foe, u, eff.damage)
-        elif eff.damage:
-            nb.damage_hero(foe, eff.damage)
+        if eff.damage:
+            # 按动作目标分流：打脸别落到随从身上，目标找不到也别把伤害丢了
+            u = (_find_unit(nb, side, action.target)
+                 if (action.target or "").startswith("enemy:") else None)
+            if u is not None:
+                nb.damage_unit(foe, u, eff.damage)
+            else:
+                nb.damage_hero(foe, eff.damage)
         elif eff.heal:
             me.hero_hp = min(30, me.hero_hp + eff.heal)
         elif eff.summon_atk or eff.summon_hp:

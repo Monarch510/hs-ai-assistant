@@ -24,7 +24,7 @@ def cmd_setup_log(args: argparse.Namespace) -> int:
 
     results = setup_log_config(extra, dry_run=args.dry_run)
     changed = [r for r in results if r[1].startswith(("已创建", "已覆盖"))]
-    if args.auto and not changed and not args.dry_run:
+    if args.auto and not args.dry_run and all("已开启" in r[1] for r in results):
         print(f"日志开关：已开启（{targets[0]}）")
         return 0
 

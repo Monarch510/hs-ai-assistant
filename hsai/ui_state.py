@@ -15,7 +15,8 @@ from typing import Any
 def _load_state() -> dict[str, Any]:
     from . import ui
     try:
-        return json.loads(ui.STATE_PATH.read_text(encoding="utf-8"))
+        data = json.loads(ui.STATE_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from . import logutil
 from .cards import Card, CardDB
 from .model import Unit
 

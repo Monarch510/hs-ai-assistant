@@ -29,7 +29,10 @@ def hud_row(side: dict[str, Any], label: str) -> str:
     weapon_atk = weapon.get("atk") or 0
     # 对手没有抽牌标签时牌库是粗估，界面上要看得出来，别当成实测值
     deck = side.get("deck_count")
-    deck_text = f"约{deck}" if side.get("deck_estimated") else str(deck)
+    if deck is None:
+        deck_text = "未知"          # 读不到就显示未知，别把 None 摆上面板
+    else:
+        deck_text = f"约{deck}" if side.get("deck_estimated") else str(deck)
     parts = [f"{label} {live}", f"手牌 {side.get('hand_count')}",
              f"牌库 {deck_text}", f"场攻 {atk + weapon_atk}"]
     gy = side.get("graveyard_count")

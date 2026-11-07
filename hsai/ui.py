@@ -71,7 +71,8 @@ COLLAPSED_H = 28
 
 def _load_state() -> dict[str, Any]:
     try:
-        return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+        data = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
 
@@ -430,6 +431,7 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             self._effect_done.clear()
             self._case_buf = []
             self._cases_flushed = False
+            self._ai_reviewed = False             # 复盘标志按局清零，否则第二局不再起复盘线程
             self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
 
         phase = snap.get("phase")

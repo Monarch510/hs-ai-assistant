@@ -55,7 +55,9 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
         if not card.is_spell or card.cost > mana:
             continue
         eff = parse_effect(card)
-        if eff.damage and eff.scope in ("target", "enemy_hero", "random_enemy"):
+        # random_enemy 有存活随从时打随从，只有空场才打脸，和 apply_effect 同口径
+        if eff.damage and (eff.scope in ("target", "enemy_hero")
+                           or (eff.scope == "random_enemy" and not any(u.alive for u in foe.board))):
             face_spells.append((card.cost, eff.damage, card.name))
     for cost, dmg, name in face_spells:
         if cost <= mana:

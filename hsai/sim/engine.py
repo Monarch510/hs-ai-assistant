@@ -97,6 +97,12 @@ def _mulligan_phase(
             side.hand.append(replacement)
             side.deck.append(card)
 
+def _reset_attacks(side: SideState) -> None:
+    # 攻击次数只放 hero_attacks_left：斩杀估算也只认它，
+    # 两个计数器都置位会让 apply_action 每回合多打一次
+    side.weapon_attacks_left = 0
+    side.hero_attacks_left = 2 if (side.weapon is not None and side.weapon.windfury) else 1
+
 def run_game(
     deck_a: Sequence[Card],
     deck_b: Sequence[Card],
@@ -146,6 +152,7 @@ def run_game(
         side.max_mana = max(1, min(10, own_turn))
         side.mana = side.max_mana
         side.hero_power_used = False
+        _reset_attacks(side)
         for u in side.board:
             if not u.alive:
                 continue

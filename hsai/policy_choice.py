@@ -63,7 +63,7 @@ def score_choice(card, effect, board: Board, side: int, mana: int,
 
     mult = CTHUN_MULTIPLIER if tripled else 1
     if effect.known:
-        if effect.damage and effect.scope in ("any", "minion", "enemy", "target", "enemy_minion"):
+        if effect.damage and effect.scope in ("any", "enemy", "target", "enemy_minions"):
             killable = [u for u in foe.board
                         if u.alive and u.hp <= effect.damage * mult + spell_damage]
             if killable:

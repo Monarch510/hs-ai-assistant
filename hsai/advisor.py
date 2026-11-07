@@ -231,6 +231,8 @@ class Advisor:
         # 任务信息因此进不了复盘。取我方仍在 SECRET 区的第一个任务；
         # 进度读不到就别塞 None，让展示层降级成「?」。
         our_view = ours.as_dict()
+        # 日志没有可靠的「技能已用」信号，取引擎同源的布尔降级值，别让读取方拿到 None
+        our_view["hero_power_used"] = board.sides[0].hero_power_used
         quest_now = (our_view.get("quests") or [{}])[0]
         quest = {"name": quest_now.get("name") or ""}
         if quest_now.get("progress") is not None:

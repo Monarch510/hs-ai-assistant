@@ -323,11 +323,13 @@ class AiWorkers:
                     "reason": [l.get("reason") for l in lines],
                 }
                 # 同一回合的建议留一份在内存里，局后被标「不赞同」时要拿它对照
-                self._advice_by_turn[int(rec["turn"] or 0)] = {
+                # _update 先写进来的 actions 要留住，所以只补字段不整桶覆盖
+                bucket = self._advice_by_turn.setdefault(int(rec["turn"] or 0), {})
+                bucket.update({
                     "advice": rec["advice"], "hand": rec["hand"],
                     "board": rec["board"], "foe_board": rec["foe_board"],
                     "mana": rec["mana"],
-                }
+                })
                 # 路径会被测试在 ui 模块上改道，运行时回查
                 from . import ui as _ui
                 path = _ui.ADVICE_LOG_JSONL

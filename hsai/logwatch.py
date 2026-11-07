@@ -230,7 +230,7 @@ def tail_start_offset(path: Path, limit: int = READ_LIMIT) -> int:
         if start == 0:
             break
         end = start + 32          # 稍微重叠，避免把一个标记切断
-    return 0
+    return size
 
 class PowerLogWatcher:
     """把「文件增长」变成「状态更新」。"""

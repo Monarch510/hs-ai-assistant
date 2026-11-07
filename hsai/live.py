@@ -38,7 +38,7 @@ class ReplaySource:
     def __init__(self, path: Path, cards: CardDB, *, lines_per_tick: int = 3, loop: bool = True) -> None:
         self.path = path
         self.cards = cards
-        self.lines = path.read_text(encoding="utf-8").splitlines()
+        self.lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         self.lines_per_tick = lines_per_tick
         self.loop = loop
         self.idx = 0

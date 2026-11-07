@@ -102,33 +102,53 @@ def _cards_to_json(cards: dict[str, int], db: CardDB | None) -> list[dict[str, A
     return rows
 
 
-def _cards_from_json(raw: Any) -> dict[str, int]:
-    """读两种写法：新的是 `[{id,name,cost,count}]`，老的是 `{id: 张数}`。"""
+def _cards_from_json(raw: Any) -> dict[str, int] | None:
+    """读两种写法：新的是 `[{id,name,cost,count}]`，老的是 `{id: 张数}`。
+
+    张数不是数值就返回 None，让整份坏文件被当成解析失败保留，别让 int() 抛穿到 load。
+    """
+    if not isinstance(raw, (dict, list)):
+        return None
     if isinstance(raw, dict):
+        if not all(isinstance(v, (int, float)) for v in raw.values()):
+            return None
         return {str(k): int(v) for k, v in raw.items()}
     out: dict[str, int] = {}
-    for row in raw or []:
+    for row in raw:
         if not isinstance(row, dict) or not row.get("id"):
             continue
+        count = row.get("count") or 1
+        if not isinstance(count, (int, float)):
+            return None
         cid = str(row["id"])
-        out[cid] = out.get(cid, 0) + int(row.get("count") or 1)
+        out[cid] = out.get(cid, 0) + int(count)
     return out
 
 
 def _archetype_from_dict(d: dict[str, Any]) -> Archetype | None:
     if not isinstance(d, dict) or not d.get("id"):
         return None
+    prior = d.get("prior", 1.0)
+    unexpected = d.get("unexpected", 1e-4)
     base = d.get("prior_base")
+    # 手改把数值写成中文/数组时别让 float() 抛穿，整份当解析失败留着给人看
+    if not all(isinstance(v, (int, float)) for v in (prior, unexpected)):
+        return None
+    if base is not None and not isinstance(base, (int, float)):
+        return None
+    cards = _cards_from_json(d.get("cards") or [])
+    if cards is None:
+        return None
     return Archetype(
         id=str(d["id"]),
         name=d.get("name") or str(d["id"]),
         card_class=d.get("class") or "NEUTRAL",
-        prior=float(d.get("prior", 1.0)),
-        cards=_cards_from_json(d.get("cards") or []),
+        prior=float(prior),
+        cards=cards,
         tags=list(d.get("tags") or []),
         source=d.get("source") or "file",
         note=d.get("note") or "",
-        unexpected=float(d.get("unexpected", 1e-4)),
+        unexpected=float(unexpected),
         # 老文件没有这个字段 —— 留 None，校准时会退化用当前 prior 当起点
         prior_base=float(base) if base is not None else None,
     )

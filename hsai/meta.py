@@ -104,9 +104,9 @@ class MetaDB:
             # 静默删掉等于吞掉用户的数据
             try:
                 payload = json.loads(f.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                continue
-            if _archetype_from_dict(payload) is None:
+                if _archetype_from_dict(payload) is None:
+                    continue
+            except (OSError, ValueError, TypeError):
                 continue
             try:
                 f.unlink()
@@ -158,9 +158,9 @@ def _load_dir(path: Path) -> list[Archetype]:
     for f in sorted(path.glob("*.json")):
         try:
             d = json.loads(f.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+            a = _archetype_from_dict(d)
+        except (OSError, ValueError, TypeError):
             continue
-        a = _archetype_from_dict(d)
         if a is not None:
             out.append(a)
     return out
