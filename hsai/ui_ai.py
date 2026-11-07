@@ -232,7 +232,10 @@ class AiWorkers:
             self._log(f"feedback worker failed: {exc}")
 
     def _ai_review_worker(self, snap: dict[str, Any]) -> None:
-        """对局结束：让 AI 总结教训，写进本地 lessons.jsonl（不进仓库）。"""
+        """对局结束：AI 总结教训（lessons.jsonl）+ 参数建议（advice_tuning.jsonl）。
+
+        参数建议只落盘、不自动改权重，攒够局数后由人看过汇总再决定。
+        """
         try:
             our = (snap.get("our") or {}).get("class_cn") or "?"
             opp = (snap.get("opp") or {}).get("class_cn") or "?"
@@ -250,17 +253,21 @@ class AiWorkers:
                 "否则只做不亏的交换。请只针对「打法选择」给建议，不要编造伤害数字。"
             )
             missed = any("有斩杀没斩" in str(x) for x in (snap.get("review") or []))
-            lessons = ai_mod.review(snap, summary, missed_lethal=missed)
+            lessons, tunings = ai_mod.review(snap, summary, missed_lethal=missed)
             self._ai_lessons = list(lessons or [])
+            meta = {
+                "our_class": str((snap.get("our") or {}).get("class_en") or ""),
+                "opp_class": str((snap.get("opp") or {}).get("class_en") or ""),
+                "archetype": str((snap.get("prediction") or {}).get("name") or ""),
+                "result": str(snap.get("result") or ""),
+            }
+            if tunings:
+                # 只落盘，不自动改权重：单局样本撑不起全局调整
+                memory.add_tunings(tunings, meta)
             if self._disagree_turns:
                 threading.Thread(target=self._feedback_worker, daemon=True).start()
             if lessons:
-                memory.add_lessons(lessons, {
-                    "our_class": str((snap.get("our") or {}).get("class_en") or ""),
-                    "opp_class": str((snap.get("opp") or {}).get("class_en") or ""),
-                    "archetype": str((snap.get("prediction") or {}).get("name") or ""),
-                    "result": str(snap.get("result") or ""),
-                })
+                memory.add_lessons(lessons, meta)
         except Exception as exc:
             self._note_soft_failure("review", exc)
 

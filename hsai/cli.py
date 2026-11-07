@@ -31,7 +31,7 @@ from .cli_mulligan import cmd_mulligan  # noqa: E402
 from .cli_review import cmd_review  # noqa: E402
 from .cli_setup_log import cmd_setup_log  # noqa: E402
 from .cli_sim import cmd_sim  # noqa: E402
-from .cli_stats import cmd_stats  # noqa: E402
+from .cli_stats import cmd_stats, cmd_tunings  # noqa: E402
 from .cli_tags import cmd_tags  # noqa: E402
 from .cli_ui import cmd_ui  # noqa: E402
 
@@ -109,6 +109,13 @@ def main(argv: list[str] | None = None) -> int:
 
     st = sub.add_parser("stats", help="对局统计")
     st.set_defaults(func=cmd_stats)
+
+    tn = sub.add_parser("tunings", help="AI 复盘攒下的参数建议（只读，--apply 才写权重）")
+    tn.add_argument("--min-count", type=int, default=3,
+                    help="只显示被至少这么多局提到的参数（默认 3）")
+    tn.add_argument("--apply", action="store_true",
+                    help="把达标且方向一致的建议写进权重文件（会先备份）")
+    tn.set_defaults(func=cmd_tunings)
 
     sl = sub.add_parser("setup-log", help="一键开启炉石日志（写 log.config）")
     sl.add_argument("--dir", default="", help="手动指定炉石安装目录")

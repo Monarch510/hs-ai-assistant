@@ -71,6 +71,9 @@ ADVICE_FEEDBACK_JSONL = DATA_DIR / "advice_feedback.jsonl"  # 「不赞同」回
 LESSONS_JSONL = DATA_DIR / "lessons.jsonl"          # AI 总结的教训（带对局标签）
 CASES_JSONL = DATA_DIR / "cases.jsonl"              # 具体局面 → 打法 → 结果
 OPP_HISTORY_JSONL = DATA_DIR / "opp_history.jsonl"  # 对手形态历史
+# AI 局末复盘给出的「可执行调整建议」，一条一行。只是建议，不自动生效：
+# 同一参数要积累够次数才值得谈，避免拿单局噪声去改全局权重。
+ADVICE_TUNING_JSONL = DATA_DIR / "advice_tuning.jsonl"
 
 
 # ---------- 权重 ----------

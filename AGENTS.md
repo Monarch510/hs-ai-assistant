@@ -32,7 +32,7 @@ hsai/model.py      局面模型 + 卡牌效果解释（parse_effect / apply_effe
 hsai/policy.py     动作枚举、评分、斩杀检测、抢血-解场判断、发现/抉择
 hsai/advisor.py    组装快照（窗口唯一数据源）
 hsai/ui.py         悬浮窗（tkinter）
-hsai/ai.py         AI 客户端（复盘、补规则）
+hsai/ai.py         AI 客户端（局末复盘 / 参数建议）
 hsai/effects_ai.py AI 规则的验证器（三道闸门）
 
 # 上面 7 个原文件现在是「门面」：函数按职责拆进同名前缀的子模块，
@@ -87,6 +87,29 @@ hsai/tags.py       标签构建 / 查询 / 报告
 hsai/paths.py      data/ 下所有路径的唯一出处
 hsai/logutil.py    诊断日志写入（data/hsai.log，超 1 MB 自动截断）
 ```
+
+## AI 复盘产出的两类东西
+
+局末 `ai.review()` 返回 `(lessons, tunings)`，两者分开走：
+
+- **lessons**（自然语言教训）→ `data/lessons.jsonl`，只回流给下一次 AI 的 prompt，
+  **不影响引擎决策**。
+- **tunings**（参数增量）→ `data/advice_tuning.jsonl`，由 `python -m hsai tunings`
+  汇总给人看。默认**只读**；只有人显式加 `--apply` 才写权重。
+
+tunings 的 `param` 只能是 `ai._TUNABLE`（= `DEFAULT_WEIGHTS` 的键 + `TAG_ORDER`
+去掉「未知」）：模型编一个不存在的参数名或给 5.0 这种量级，会在
+`ai._tuning_row()` 被丢掉 / 夹到 ±0.3。加新旋钮时三处一起改。
+
+为什么不自动学：AI 每局只看一局，样本是 1；拿它直接改全局权重等于用单局噪声
+训练（`review.py` 开头就是这么写的）。即便走 `--apply` 也要过三道闸：
+`summarize_tunings(min_count=3)` 要求同一参数至少被 3 局独立提出、方向一致性
+≥0.75（摇摆的不采纳）、单步只挪 ±0.15（不会一次跳变），且**从当前权重出发**
+不冲掉自对弈结果、只改目标键、先备份 `*.json.bak`。
+**真要大幅改权重，走 `hsai learn` 的自对弈，不靠 AI 一句话。**
+
+坑：`advice_tuning.jsonl` 有写入方（`memory.add_tunings`）也必须有读取方
+（`cmd_tunings`），别只写不读。
 
 ## 硬规则
 

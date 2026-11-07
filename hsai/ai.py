@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import urllib.error
@@ -243,9 +244,16 @@ def chat(messages: list[dict[str, str]], cfg: dict[str, Any], max_tokens: int = 
 
 REVIEW_SYSTEM = (
     "你在复盘一局炉石传说。只能根据用户给出的摘要做判断，"
-    "不要编造数字、不要写「第X回合有Y点斩杀」这类你没有依据的结论。"
-    "每条教训必须可执行、针对具体卡组或具体打法，不超过 30 字。"
-    "只输出 JSON 数组，元素是字符串。"
+    "不要编造数字、不要写「第X回合有Y点斩杀」这类你没有依据的结论。\n"
+    "只输出 JSON 数组，元素是对象，两种二选一：\n"
+    '  {"lesson": "可执行的教训，不超过 30 字"}\n'
+    '  {"param": "参数名", "delta": 数值, "why": "为什么，不超过 30 字"}\n'
+    "param 只能取这些（这是决策引擎真实存在的旋钮）：\n"
+    "  权重类 tempo/face/hand/health/taunt/aoe_risk/fatigue —— 表示「这类因素"
+    "这局应该更重(正)还是更轻(负)」，delta 在 -0.3~0.3 之间。\n"
+    "  标签类 单解/群解/站场/增益/减益/治疗/护甲/资源/抽牌/斩杀/保护 —— 同上，"
+    "表示这类牌这局该更重视(正)还是更不重视(负)，delta 在 -0.3~0.3 之间。\n"
+    "一条都没有就输出空数组 []。多数局应该只有 lesson，别硬凑 param。"
 )
 
 
@@ -260,19 +268,83 @@ def _lesson_is_sound(text: str, missed_lethal: bool) -> bool:
     return True
 
 
+def _tuning_row(name: str, delta: Any, why: Any) -> dict[str, Any] | None:
+    """把一条 AI 建议收成可存的行；参数名不认识或数值越界就丢掉。
+
+    为什么要在这里卡死：这些 delta 以后会被拿去改引擎权重，
+    模型编一个不存在的参数名（比如 "aggression"）或给 5.0 这种量级，
+    下游会静默当成有效建议累积。
+    """
+    param = str(name or "").strip()
+    if param not in _TUNABLE:
+        return None
+    try:
+        amount = float(delta)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(amount):
+        return None
+    # 单局建议幅度必须很小，否则一眼就是模型在放飞
+    amount = max(-0.3, min(0.3, amount))
+    if abs(amount) < 0.02:
+        return None
+    return {"kind": "param", "param": param, "delta": round(amount, 3),
+            "why": str(why or "").strip()[:60]}
+
+
+# 引擎真实存在的旋钮：权重键 + 标签名。加新旋钮时这里和 DEFAULT_WEIGHTS /
+# TAG_ORDER 一起改，否则 AI 提了也没人认。
+def _tunable_params() -> set[str]:
+    from .model import DEFAULT_WEIGHTS
+    from .tag_rules import TAG_ORDER
+
+    return set(DEFAULT_WEIGHTS) | {t for t in TAG_ORDER if t != "未知"}
+
+
+_TUNABLE = _tunable_params()
+
+
+def parse_review(text: str, *, missed_lethal: bool = False) -> tuple[list[str], list[dict[str, Any]]]:
+    """把模型回复拆成 (教训列表, 调整建议列表)。
+
+    两者分开存：教训是给人/AI 看的自然语言，调整建议是给引擎的参数增量。
+    """
+    lessons: list[str] = []
+    tunings: list[dict[str, Any]] = []
+    for row in json_array(text):
+        if isinstance(row, str):
+            # 兼容模型仍按旧格式吐裸字符串
+            if _lesson_is_sound(row, missed_lethal):
+                lessons.append(str(row)[:60])
+            continue
+        if not isinstance(row, dict):
+            continue
+        if row.get("param"):
+            item = _tuning_row(row.get("param"), row.get("delta"), row.get("why"))
+            if item is not None:
+                tunings.append(item)
+            continue
+        text_ = str(row.get("lesson") or "")
+        if _lesson_is_sound(text_, missed_lethal):
+            lessons.append(text_[:60])
+    return lessons[:3], tunings[:3]
+
+
 def review(snap: dict[str, Any], summary: str,
            cfg: dict[str, Any] | None = None, *,
-           missed_lethal: bool = False) -> list[str]:
-    """对局结束后总结 1-3 条具体教训。失败返回空列表。"""
+           missed_lethal: bool = False) -> tuple[list[str], list[dict[str, Any]]]:
+    """对局结束后总结 1-3 条教训，外加至多 3 条引擎参数调整建议。
+
+    返回 (lessons, tunings)；失败返回两个空列表。
+    """
     cfg = cfg or load_config()
     if not enabled(cfg):
-        return []
+        return [], []
     text = chat([
         {"role": "system", "content": REVIEW_SYSTEM},
         {"role": "user", "content": summary},
-    ], cfg, max_tokens=200)
-    out = [str(x)[:60] for x in json_array(text) if isinstance(x, str)]
-    return [x for x in out if _lesson_is_sound(x, missed_lethal)][:3]
+    ], cfg, max_tokens=400)
+    return parse_review(text, missed_lethal=missed_lethal)
 
 
 class Conversation:

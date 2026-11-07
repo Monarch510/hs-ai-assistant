@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .paths import CASES_JSONL, LESSONS_JSONL, OPP_HISTORY_JSONL
+from .paths import ADVICE_TUNING_JSONL, CASES_JSONL, LESSONS_JSONL, OPP_HISTORY_JSONL
 
 LESSONS_PATH = LESSONS_JSONL
 CASES_PATH = CASES_JSONL
@@ -176,3 +176,57 @@ def query_cases(our_class: str, opp_class: str, archetype: str,
     scored = [x for x in scored if x[0] >= 3]
     scored.sort(key=lambda x: -x[0])
     return [row for _, row in scored[:limit]]
+
+
+# ---------------------------------------------------------------- 调整建议
+# AI 局末复盘给出的参数增量只落盘、不自动生效：一局的样本量撑不起改全局权重。
+# 攒够若干局、同一个方向被反复提出，才值得人去看一眼（或以后接自对弈验证）。
+MAX_TUNINGS = 500
+ADVICE_TUNING_PATH = ADVICE_TUNING_JSONL
+
+
+def add_tunings(tunings: list[dict[str, Any]], meta: dict[str, Any]) -> int:
+    """把一局的调整建议连对局标签一起记下来，返回实际写入条数。"""
+    rows = []
+    for t in tunings:
+        row = dict(t)
+        row.update({
+            "our_class": meta.get("our_class") or "",
+            "opp_class": meta.get("opp_class") or "",
+            "archetype": meta.get("archetype") or "",
+            "result": meta.get("result") or "",
+        })
+        rows.append(row)
+    _append_jsonl(ADVICE_TUNING_PATH, rows, MAX_TUNINGS)
+    return len(rows)
+
+
+def summarize_tunings(*, min_count: int = 3) -> dict[str, dict[str, Any]]:
+    """按参数汇总：出现几次、平均增量、方向是否一致。
+
+    只有同一参数累积到 min_count 局才返回 —— 低于这个数就是单局噪声。
+    「方向是否一致」看正负号是否一边倒，来回摇摆说明 AI 自己也没想清楚。
+    """
+    rows = _read_jsonl(ADVICE_TUNING_PATH)
+    grouped: dict[str, list[float]] = {}
+    for row in rows:
+        param = str(row.get("param") or "")
+        try:
+            delta = float(row.get("delta"))
+        except (TypeError, ValueError):
+            continue
+        if param:
+            grouped.setdefault(param, []).append(delta)
+    out: dict[str, dict[str, Any]] = {}
+    for param, deltas in grouped.items():
+        if len(deltas) < min_count:
+            continue
+        pos = sum(1 for d in deltas if d > 0)
+        neg = len(deltas) - pos
+        out[param] = {
+            "count": len(deltas),
+            "mean": round(sum(deltas) / len(deltas), 3),
+            "direction": "up" if pos > neg else "down" if neg > pos else "mixed",
+            "agree": round(max(pos, neg) / len(deltas), 2),
+        }
+    return out
