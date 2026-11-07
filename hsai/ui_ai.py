@@ -1,0 +1,388 @@
+"""AI 线程组：问 AI 复盘 / 补效果规则 / 记录反馈。
+
+这些方法只通过 self 上的队列式字段与主循环共享状态
+（_ai_result / _effect_result / _ai_busy …），所以能安全做成 Mixin。"""
+
+from __future__ import annotations
+
+import json
+import tkinter as tk
+
+import threading
+from datetime import datetime
+from typing import Any
+
+from .advisor import board_from_state
+from . import ai as ai_mod
+from . import effects_ai
+from . import feedback as feedback_mod
+from . import logutil
+from . import memory
+from . import policy as policy_mod
+from . import cards as cards_mod
+from .state import GameState
+
+
+class AiWorkers:
+    """AI 线程与规则补充。Overlay 继承它。"""
+
+    # ------------------------------------------------------------ 是否值得问 AI
+    @staticmethod
+    def _has_options(snap: dict[str, Any]) -> bool:
+        our = snap.get("our") or {}
+        mana = our.get("mana") or 0
+        if any((c.get("cost") or 0) <= mana for c in (our.get("hand") or [])):
+            return True
+        if any(m.get("can_attack") for m in (our.get("board") or [])):
+            return True
+        hp = our.get("hero_power") or {}
+        if not our.get("hero_power_used") and (hp.get("cost") or 0) <= mana:
+            return True
+        return False
+
+    def _maybe_ai(self, snap: dict[str, Any], st: GameState | None = None) -> None:
+        """每回合最多请求一次 AI 解释，不跟着 320ms 的刷新跑。"""
+        if not ai_mod.is_ready():
+            return
+        if snap.get("turn_ending"):
+            # 回合已经结束，算出来的路线到不了手上
+            return
+        if snap.get("phase") == "mulligan":
+            # 留牌交给引擎（mulligan.py 的权重表），不再调用 AI
+            return
+        if snap.get("phase") == "game_over":
+            # 这一局的复盘已经写入文件，重新读一遍，
+            # 否则等待界面会一直显示程序启动时读到的那一份
+            self._last_review = self._load_last_review()
+            self._last_review_shown = False
+            if not self._ai_reviewed:
+                self._ai_reviewed = True
+                threading.Thread(target=self._ai_review_worker, args=(snap,),
+                                 daemon=True).start()
+            return
+        # 只在我方回合请求：对手回合的场面会被他自己的出牌改掉，
+        # 提前算出来的建议到你这回合就过期了，白白消耗 token。
+        if not (snap.get("turn_known") and snap.get("is_our_turn")):
+            return
+        choice = snap.get("choice") or {}
+        choice_sig = tuple(str(o.get("name")) for o in (choice.get("options") or []))
+        # 局面签名：手牌/场面/法力一变（你打了一张牌、换了一只怪、用了一张法术），
+        # 就当作「下一步该干什么」重新问一次，而不是整回合只算一次
+        our = snap.get("our") or {}
+        board_sig = (
+            our.get("mana"),
+            tuple(sorted(str(c.get("id") or c.get("name")) for c in (our.get("hand") or []))),
+            tuple(sorted(str(m.get("id") or m.get("name")) for m in (our.get("board") or []))),
+            our.get("health"),
+        )
+        # 没费、没牌可出、随从都打过 —— 这回合只能结束，问 AI 纯属浪费 token
+        if not choice_sig and not self._has_options(snap):
+            return
+        if choice_sig and st is not None:
+            # 发现/抉择完全由引擎打分决定，不调用 AI
+            try:
+                board_now = board_from_state(st)
+                auto = getattr(self.advisor, "_auto_deck", None)
+                deck_cards = None
+                if auto is not None and getattr(auto, "cards", None):
+                    deck_cards = [self.cards.get(cid) for cid in auto.cards]
+                idx, why, gap = policy_mod.pick_choice(
+                    choice.get("options") or [], board_now, self.cards, 0,
+                    board_now.sides[0].mana, deck_cards=deck_cards,
+                    tripled=bool((snap.get("cthun") or {}).get("tripled")))
+                self._ai_pick = (str((choice.get("options") or [{}])[idx].get("name")), why)
+                self._pick_gap = float(gap)
+                self._pick_source = "引擎"
+                self._ai_route = None
+                self._ai_text = ""
+                self._ai_turn = (int(snap.get("turn") or 0), True, choice_sig, None)
+                return
+            except Exception as exc:
+                self._note_soft_failure("choice", exc)
+
+        # 逐回合的 AI 路线默认关闭：一局要调 20 多次，性价比低。
+        # 想开就在 data/ai.json 里设 turn_advice=true
+        if not choice_sig and not ai_mod.load_config().get("turn_advice"):
+            return
+        key = (int(snap.get("turn") or 0), True, choice_sig, board_sig)
+        if key == self._ai_turn:
+            return
+        self._ai_turn = key
+        self._ai_text = ""
+        self._ai_busy = True
+        # 等 1.5 秒再请求：刚抽到的牌要过一会儿才进日志，
+        # 立刻发出去会让 AI 基于不完整的手牌做决策
+        # 发现/抉择的选项一出现就是完整的，不需要等日志稳定；
+        # 用更短的延迟，避免「选项都弹出来了还没有建议」
+        delay = 300 if choice_sig else 1500
+        self.root.after(delay, lambda: self._ai_fire(key, snap, st))
+
+    def _ai_fire(self, key: tuple, snap: dict[str, Any],
+                 st: GameState | None = None) -> None:
+        if self._ai_turn != key:
+            return          # 期间回合已经变了，这次请求作废
+        threading.Thread(target=self._ai_worker, args=(snap, st), daemon=True).start()
+
+    def _ai_worker(self, snap: dict[str, Any], st: GameState | None = None) -> None:
+        pick = None
+        text = ""
+        # 先要决策（它才影响你怎么打），解释随后补 —— 不要串行等两倍时间
+        try:
+            # 能斩杀时不问 AI：斩杀线路是确定性的，不能让模型推翻
+            choice = snap.get("choice") or {}
+            options = [str(o.get("name")) for o in (choice.get("options") or [])]
+            actions: list[str] = []
+            if len(options) >= 2:
+                # 发现/抉择期间只问「选哪个」，不出整回合路线 ——
+                # 选项只能选一个，列成多步会让人以为要全打出去
+                got = ai_mod.decide_and_explain(snap, options)
+                if got is not None:
+                    pick = (options[got["pick"]], got["reason"])
+                    self._ai_result = (got["explain"], pick, None)
+                return
+            elif st is not None and not (snap.get("advice") or {}).get("lethal"):
+                board = board_from_state(st)
+                actions = [a.desc for a in policy_mod.legal_actions(board, 0, self.cards)]
+            else:
+                actions = []
+            if actions:
+                # 要一整回合的路线（含站位），不是单步
+                route = ai_mod.plan_route(snap, actions, conv=self._ai_conv)
+                if route is not None:
+                    text = route["explain"]
+                    steps = route["steps"]
+                    # 按顺序模拟一遍：费用不够的步骤要标出来，
+                    # 否则会出现「3+3+3 费但只有 5 费」这种排不下来的路线
+                    if st is not None:
+                        try:
+                            board_now = board_from_state(st)
+                            checked = policy_mod.validate_sequence(
+                                board_now, [x["text"] for x in steps], self.cards)
+                            for step, chk in zip(steps, checked):
+                                if not chk["ok"]:
+                                    step["matched"] = False
+                                    step["why"] = chk["why"]
+                        except Exception as exc:
+                            # 校验失败不影响展示，但要留下痕迹，否则「AI 建议突然变空」查不出来
+                            self._log(f"路线校验失败: {exc}")
+                    pick = (steps[0]["text"], route["reason"]) if steps else None
+                    self._ai_result = (text, pick, steps)
+                    return
+                # 路线解析失败就退回「单步建议」，别让面板什么都不显示
+                self._log("plan_route 返回空，退回单步决策")
+                got = ai_mod.decide_and_explain(snap, actions)
+                if got is not None:
+                    pick = (actions[got["pick"]], got["reason"])
+                    self._ai_result = (got["explain"], pick, None)
+                else:
+                    self._log("decide_and_explain 也失败，本次无 AI 建议")
+                    self._ai_result = ("", None, None)
+                return
+        except Exception as exc:
+            self._note_soft_failure("advice", exc)
+        text = ""
+        self._ai_result = (text, pick, None)
+
+    def _maybe_effects(self, snap: dict[str, Any]) -> None:
+        """发现新的未建模牌就立刻补规则，不等对局结束。"""
+        names = [str(n) for n in (snap.get("unmodelled") or [])
+                 if str(n) and str(n) not in self._effect_done]
+        if not names or self._effect_busy:
+            return
+        self._effect_busy = True
+        batch = names[:6]
+        # 不在这里标记「已处理」——失败要能重试
+        threading.Thread(target=self._effects_worker,
+                         args=(batch,), daemon=True).start()
+
+    def _effects_worker(self, names: list[str]) -> None:
+        try:
+            self._effect_result = self._auto_effects({"unmodelled": names})
+            # 只有真正跑完（无论通过/被拒）才算处理过；抛异常则下一帧重试
+            self._effect_done.update(names)
+        except Exception as exc:
+            self._log(f"effects worker failed: {exc}")
+            self._effect_result = []
+        self._effect_busy = False
+
+    def _auto_effects(self, snap: dict[str, Any]) -> list[str]:
+        """对局结束：把本局未建模的牌交给 AI 补规则，验证通过才入库。"""
+        names = list(snap.get("unmodelled") or [])[:4]
+        if not names:
+            return []
+        items = []
+        for name in names:
+            card = next((c for c in self.cards.by_id.values() if c.name == name), None)
+            if card is not None:
+                items.append({"name": card.name, "type": card.type, "text": card.text or ""})
+        if not items:
+            return []
+        rules = ai_mod.effects_rules(items)
+        report: list[str] = []
+        for rule in rules:
+            targets = [cid for cid, c in self.cards.by_id.items() if c.name == rule.get("name")]
+            if not targets:
+                continue
+            ok, why = effects_ai.validate_rule(self.cards, rule, targets)
+            if ok and effects_ai.commit_rule(rule):
+                report.append(f"已自动补规则：{rule['name']}（{why}）")
+            else:
+                detail = f"规则被拒：{rule['name']} — {why}"
+                self._log(detail)          # 写进 data/hsai.log，方便事后查
+                report.append(detail[:80])
+        return report[:3]
+
+    def _feedback_worker(self) -> None:
+        """对被标「不赞同」的回合做一次复盘，写进 advice_feedback.jsonl。"""
+        cases = []
+        for turn in sorted(self._disagree_turns):
+            rec = self._advice_by_turn.get(turn) or {}
+            if not rec:
+                continue
+            cases.append({
+                "turn": turn,
+                "mana": rec.get("mana"),
+                "board": rec.get("board"),
+                "foe_board": rec.get("foe_board"),
+                "hand": rec.get("hand"),
+                "advice": rec.get("advice"),
+                "played": rec.get("actions") or [],
+            })
+        if not cases:
+            return
+        try:
+            summary = feedback_mod.build_summary(cases)
+            items = feedback_mod.feedback(summary)
+            if not items:
+                return
+            self._feedback_items = list(items)
+            rec = {"ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "cases": cases, "items": items}
+            # 路径会被测试在 ui 模块上改道，运行时回查
+            from . import ui as _ui
+            with open(_ui.ADVICE_FEEDBACK_JSONL, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        except Exception as exc:
+            self._log(f"feedback worker failed: {exc}")
+
+    def _ai_review_worker(self, snap: dict[str, Any]) -> None:
+        """对局结束：让 AI 总结教训，写进本地 lessons.jsonl（不进仓库）。"""
+        try:
+            our = (snap.get("our") or {}).get("class_cn") or "?"
+            opp = (snap.get("opp") or {}).get("class_cn") or "?"
+            deck = (snap.get("deck") or {}).get("name") or "未知"
+            arch = (snap.get("prediction") or {}).get("name") or "未知"
+            findings = "；".join(snap.get("review") or []) or "无机器检测到的失误"
+            issues = "；".join(snap.get("issues") or []) or "无"
+            turns = len(getattr(self.advisor, "_game_turns", []) or [])
+            summary = (
+                f"对局：我方 {our}（卡组 {deck}）vs 对手 {opp}（预判 {arch}），"
+                f"共 {snap.get('turn')} 回合，记录了 {turns} 个我方回合。"
+                f"机器复盘：{findings}。"
+                f"引擎自身问题：{issues}。"
+                "引擎这局按「抢血/解场」两种模式决策：能更快打死对方就打脸，"
+                "否则只做不亏的交换。请只针对「打法选择」给建议，不要编造伤害数字。"
+            )
+            missed = any("有斩杀没斩" in str(x) for x in (snap.get("review") or []))
+            lessons = ai_mod.review(snap, summary, missed_lethal=missed)
+            self._rule_report = list(self._effect_report)
+            self._ai_lessons = list(lessons or [])
+            if self._disagree_turns:
+                threading.Thread(target=self._feedback_worker, daemon=True).start()
+            if lessons:
+                memory.add_lessons(lessons, {
+                    "our_class": str((snap.get("our") or {}).get("class_en") or ""),
+                    "opp_class": str((snap.get("opp") or {}).get("class_en") or ""),
+                    "archetype": str((snap.get("prediction") or {}).get("name") or ""),
+                    "result": str(snap.get("result") or ""),
+                })
+        except Exception as exc:
+            self._note_soft_failure("review", exc)
+
+    def _ai_done(self, text: str, pick: tuple[str, str] | None = None,
+                 steps: list[dict] | None = None) -> None:
+        self._ai_busy = False
+        self._ai_text = text
+        self._ai_route = steps
+        if steps:
+            snap_now = self._last_snap or {}
+            self._case_buf.append({
+                "turn": snap_now.get("turn") or 0,
+                "mana": ((snap_now.get("our") or {}).get("mana")),
+                "our_board_n": len(((snap_now.get("our") or {}).get("board") or [])),
+                "action": steps[0].get("text") or "",
+            })
+        if pick is not None:
+            self._ai_pick = pick
+        self._last_sig = None
+
+    def _flush_cases(self, snap: dict[str, Any]) -> None:
+        """对局结束：把本局记下的决策案例一次性入库，供下次相似局面检索。
+
+        这条链路以前是断的 —— `_case_buf` 只进不出、`memory.add_cases` 没有调用方，
+        于是 `cases.jsonl` 从未生成，而 `ai.py` 那边一直在读它，永远读到空。
+        """
+        if self._cases_flushed or not self._case_buf:
+            return
+        self._cases_flushed = True
+        try:
+            memory.add_cases(self._case_buf, {
+                "our_class": str((snap.get("our") or {}).get("class_en") or ""),
+                "opp_class": str((snap.get("opp") or {}).get("class_en") or ""),
+                "archetype": str((snap.get("prediction") or {}).get("name") or ""),
+                "result": str(snap.get("result") or ""),
+            })
+            self._case_buf = []
+        except Exception as exc:
+            self._log(f"案例入库失败: {exc}")
+
+    def _log_advice(self, snap: dict[str, Any]) -> None:
+            """把每一条给出去的建记录到 data/advice_log.jsonl，方便事后对账。
+
+            只在我们回合、且有建议时记，避免刷屏。
+            """
+            try:
+                lines = (snap.get("advice") or {}).get("lines") or []
+                if not lines:
+                    return
+                our = snap.get("our") or {}
+                opp = snap.get("opp") or {}
+                rec = {
+                    "ts": datetime.now().strftime("%H:%M:%S"),
+                    "turn": snap.get("turn"),
+                    "mana": our.get("mana"),
+                    "hand": [f"{c.get('name')}({c.get('cost')})" for c in (our.get("hand") or [])],
+                    "board": [f"{m.get('name')} {m.get('atk')}/{m.get('health')}" for m in (our.get("board") or [])],
+                    "foe_board": [f"{m.get('name')} {m.get('atk')}/{m.get('health')}" for m in (opp.get("board") or [])],
+                    "advice": [l.get("title") for l in lines],
+                    "reason": [l.get("reason") for l in lines],
+                }
+                # 同一回合的建议留一份在内存里，局后被标「不赞同」时要拿它对照
+                self._advice_by_turn[int(rec["turn"] or 0)] = {
+                    "advice": rec["advice"], "hand": rec["hand"],
+                    "board": rec["board"], "foe_board": rec["foe_board"],
+                    "mana": rec["mana"],
+                }
+                # 路径会被测试在 ui 模块上改道，运行时回查
+                from . import ui as _ui
+                path = _ui.ADVICE_LOG_JSONL
+                with open(path, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                # 超过 400 行就只留最近 400
+                rows = path.read_text(encoding="utf-8").splitlines()
+                if len(rows) > 400:
+                    path.write_text("\n".join(rows[-400:]) + "\n", encoding="utf-8")
+            except Exception as exc:
+                self._log(f"advice log failed: {exc}")
+
+    def _drain_ai_results(self) -> None:
+        """把工作线程算好的结果搬到界面上（只在主线程做）。"""
+
+        if self._effect_result is not None:
+            self._effect_report.extend(self._effect_result)
+            self._effect_result = None
+
+        res = self._ai_result
+        if res is not None:
+            self._ai_result = None
+            text, pick, steps = res
+            self._ai_done(text, pick, steps)

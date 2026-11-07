@@ -39,110 +39,25 @@ from .paths import (
 from .state import GameState
 from .tag_weights import Situation, explain, tag_weights
 
+# 路径别名。被测试 mock.patch 的是 TAG_WEIGHTS_JSON / LAST_REVIEW_JSON / DATA_DIR /
+# META_DIR（在 __init__ 与 _finish_game 里读），所以它们必须物理留在这个模块。
 OBSERVATIONS_PATH = OBSERVATIONS_JSONL
 WEIGHTS_PATH = POLICY_WEIGHTS_JSON
 MULLIGAN_WEIGHTS_PATH = MULLIGAN_WEIGHTS_JSON
 OUR_DECK_PATH = OUR_DECK_JSON
 
 
-def _load_json(path: Path) -> dict[str, Any]:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-
-
-def _positive_scale(value: Any, default: float) -> float:
-    """配置里的缩放系数只认有限正数；坏值/缺失一律回退模块常量。
-
-    手写文件里写错一个 0 或负数，会让留牌/出牌的低权重整项消失或反号 ——
-    这种错误没有任何报错，只能在这里挡住。
-    """
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return default
-    value = float(value)
-    return value if math.isfinite(value) and value > 0 else default
-
-
-def _attacks_left(card, view: dict[str, Any]) -> int:
-    """这回合还能攻击几次。风怒 2 次，普通 1 次，要减掉已经打过的。"""
-    if _woke_this_turn(card, view):
-        return 0
-    if view.get("woke_turn") is not None and view.get("woke_turn") == view.get("turn_now"):
-        return 0
-    if not (view.get("attackable") or view.get("can_attack")):
-        # 客户端说不能攻击时，风怒且已打过一次的还可能剩一次
-        used = int(view.get("attacks_used") or 0)
-        total = 2 if (card is not None and card.has("WINDFURY")) else 1
-        return max(0, total - used) if used else 0
-    total = 2 if (card is not None and card.has("WINDFURY")) else 1
-    used = int(view.get("attacks_used") or 0)
-    return max(0, total - used)
-
-
-def _woke_this_turn(card, view: dict[str, Any]) -> bool:
-    """休眠随从是不是本回合刚醒——刚醒的这回合不能攻击。"""
-    text = (card.text or "") if card is not None else ""
-    m = re.search(r"(\d+)\s*(?:或\s*\d+\s*)?回合后唤醒", text)
-    played = view.get("played_turn")
-    now = view.get("turn_now")
-    if not m or played is None or not isinstance(now, int):
-        return False
-    return (now - int(played)) == int(m.group(1))
-
-
-def _still_dormant(card, view: dict[str, Any]) -> bool:
-    """还没到唤醒回合的休眠随从。
-
-    卡面写「N回合后唤醒」，入场回合记为 T，那么到 T+N 才醒。
-    """
-    text = (card.text or "") if card is not None else ""
-    # 文本不一定写「休眠」，但只要有「N回合后唤醒」就是休眠牌
-    m = re.search(r"(\d+)\s*(?:或\s*\d+\s*)?回合后唤醒", text)
-    if not m:
-        return False
-    played = view.get("played_turn")
-    now = view.get("turn_now")
-    if played is None or not isinstance(now, int):
-        return bool(view.get("dormant"))
-    return (now - int(played)) < int(m.group(1))
-
-
-def _unit_from_view(view: dict[str, Any], cards: CardDB) -> Unit:
-    card = cards.get(view.get("id") or "")
-    keyword = view.get("keyword") or ""
-    return Unit(
-        card_id=view.get("id") or "",
-        name=view.get("name") or "?",
-        atk=max(0, int(view.get("atk") or 0)),
-        hp=max(1, int(view.get("health") or 1)),
-        max_hp=max(1, int(view.get("health") or 1)),
-        taunt=bool(view.get("taunt")),
-        divine=bool(view.get("divine_shield")),
-        charge=bool(card and card.has("CHARGE")),
-        rush=bool(card and card.has("RUSH")),
-        # 突袭刚入场：这回合能打随从，不能打脸
-        rush_only=bool(card and card.has("RUSH") and view.get("fresh")),
-        dormant=bool(view.get("dormant")) or _still_dormant(card, view),
-        windfury=bool(card and card.has("WINDFURY")),
-        lifesteal=bool(card and card.has("LIFESTEAL")),
-        poisonous=bool(card and card.has("POISONOUS")),
-        spell_damage=0,
-        attacks_left=_attacks_left(card, view),
-    )
-
-
-UNKNOWN = Card(id="__unknown__", name="未知牌", cost=99)
-
-
-def _unknown_cards(n: int) -> list[Card]:
-    """占位牌：只为「张数」和「摸牌不会疲劳」服务，费用 99 保证永远不会被当成可出的牌。"""
-    return [UNKNOWN for _ in range(max(0, n))]
-
-
-def _log_err(msg: str) -> None:
-    """把复盘/记录阶段的异常写进 data/hsai.log，别再静默吞掉。"""
-    logutil.log(msg)
+# ---- 拆出去的纯工具（这里 re-export，外部照旧从 advisor 取） ----
+from .advisor_board_helpers import (  # noqa: E402
+    UNKNOWN,
+    _attacks_left,
+    _log_err,
+    _still_dormant,
+    _unit_from_view,
+    _unknown_cards,
+    _woke_this_turn,
+)
+from .advisor_config import _load_json, _positive_scale  # noqa: E402
 
 
 _PASSIVE_RULE: dict = {}
@@ -864,14 +779,12 @@ def observation_row(
         "our_hand": list(st.our_hand_ids),
     }
 
-
 def _new_game_id() -> str:
     """一局一个 id，用来把 observations / games.jsonl / cases.jsonl 串起来。
 
     以前三份数据没有任何公共键，复盘数据挂不到观察上，只能按时间猜。
     """
     return datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
-
 
 def load_observations(path: Path = OBSERVATIONS_PATH) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []

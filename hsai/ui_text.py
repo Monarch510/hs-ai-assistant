@@ -1,0 +1,87 @@
+"""HUD / 标签权重的纯展示函数：无 self、无窗口状态，从 ui.py 拆出。
+
+门面会 re-export 这些名字（hud_row / _weight_summary 被测试直接 import）。
+依赖的主题常量与 TAG_ORDER 都在本模块顶层解析，不反向依赖 ui 模块。
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from .tag_rules import TAG_ORDER
+from .ui_theme import WEIGHT_REASON_WORDS, WEIGHT_TOP_N
+
+
+def hud_row(side: dict[str, Any], label: str) -> str:
+    """面板上那一行「对手 27 血 · 手牌 5 · 牌库 18 · 场攻 3 · 墓地 25」。
+
+    抽成模块级函数是为了能直接测：以前它是 _render 里的闭包，只能靠截图看。
+    """
+    hp = side.get("health") or 0
+    armor = side.get("armor") or 0
+    live = f"{hp + armor} 血"
+    if armor:
+        live += f"（{hp}+{armor}甲）"
+    board = [m for m in (side.get("board") or []) if m.get("atk")]
+    atk = sum(int(m.get("atk") or 0) for m in board)
+    weapon = side.get("weapon") or {}
+    weapon_atk = weapon.get("atk") or 0
+    # 对手没有抽牌标签时牌库是粗估，界面上要看得出来，别当成实测值
+    deck = side.get("deck_count")
+    deck_text = f"约{deck}" if side.get("deck_estimated") else str(deck)
+    parts = [f"{label} {live}", f"手牌 {side.get('hand_count')}",
+             f"牌库 {deck_text}", f"场攻 {atk + weapon_atk}"]
+    gy = side.get("graveyard_count")
+    if isinstance(gy, int):
+        parts.append(f"墓地 {gy}")
+    secrets = side.get("secrets") or []
+    if secrets:
+        parts.append(f"奥秘 {len(secrets)}")
+    if weapon_atk:
+        dur = weapon.get("durability")
+        parts.append(f"武器 {weapon_atk}/{dur if isinstance(dur, int) else 1}")
+    return " · ".join(parts)
+
+
+def _fmt_weight(value: float) -> str:
+    text = f"{value:.2f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _weight_summary(tag_weights: Any) -> tuple[list[str], list[str]]:
+    """快照里的 tag_weights → (偏重前 3 类, 最多 2 行解释)。
+
+    只做展示选择，不改权重本身：「未知」恒 0 且没有实际含义，负数是降权不是偏重，
+    两类都过滤。缺字段/坏形状返回空，_render 据此不画卡片。
+    """
+    if not isinstance(tag_weights, dict):
+        return [], []
+    weights = tag_weights.get("weights")
+    if not isinstance(weights, dict):
+        return [], []
+    order = {tag: i for i, tag in enumerate(TAG_ORDER)}
+    picked: list[tuple[float, int, str]] = []
+    for tag, value in weights.items():
+        if tag == "未知":
+            continue
+        try:
+            weight = float(value)
+        except (TypeError, ValueError):
+            continue
+        if weight <= 0:
+            continue
+        picked.append((weight, order.get(tag, len(order)), tag))
+    # 同分按 TAG_ORDER 兜底：输出顺序不能随 dict 遍历/哈希变
+    picked.sort(key=lambda item: (-item[0], item[1]))
+    tops = [f"{tag} {_fmt_weight(weight)}" for weight, _, tag in picked[:WEIGHT_TOP_N]]
+
+    reasons = tag_weights.get("reasons")
+    lines: list[str] = []
+    if isinstance(reasons, list):
+        for reason in reasons:
+            text = str(reason or "").strip()
+            if text and any(word in text for word in WEIGHT_REASON_WORDS):
+                lines.append(text)
+            if len(lines) >= 2:
+                break
+    return tops, lines

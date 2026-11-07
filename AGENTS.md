@@ -33,8 +33,54 @@ hsai/ui.py         悬浮窗（tkinter）
 hsai/ai.py         AI 客户端（复盘、补规则）
 hsai/effects_ai.py AI 规则的验证器（三道闸门）
 
+# 上面 7 个原文件现在是「门面」：函数按职责拆进同名前缀的子模块，
+# 门面把符号原样 re-export，所以 import 面不变、测试不改。
+# 改哪一块就去改对应子模块，别在门面里加实现。
+hsai/model_effects.py   Effect / parse_effect / warden_buff / 英雄技能
+hsai/model_units.py     Unit / SideState / Board（含 apply_effect / 亡语）
+hsai/model_eval.py      evaluate / resource_score / DEFAULT_WEIGHTS
+hsai/policy_consts.py   常量（EPS / PRIORITY_BONUS / CTHUN_* …）
+hsai/policy_threat.py   被动技能与威胁估算（最底层）
+hsai/policy_actions.py  legal_actions / apply_action / best_action / 克苏恩技能
+hsai/policy_lethal.py   斩杀检测
+hsai/policy_race.py     抢血 / 解场判断
+hsai/policy_choice.py   发现 / 抉择
+hsai/policy_plan.py     plan_turn / advice_lines / validate_sequence
+hsai/state_types.py     Entity / Side / ZONE_* / T_* / 效果摘要缓存
+hsai/advisor_config.py  读 json / 比例值兜底
+hsai/advisor_board_helpers.py  日志视图 → Unit 的纯翻译（board_from_state 本体留在 advisor.py）
+hsai/ui_theme.py        配色与布局常量
+hsai/ui_text.py         hud_row / _weight_summary
+hsai/ui_state.py        window.json 读写
+hsai/ui_ai.py           AI 线程组（Mixin）
+hsai/ui_review.py       上一局复盘展示（Mixin）
+hsai/ui_widgets.py      区块 / 分隔线 / 折叠 / 几何（Mixin）
+hsai/ui_render.py       主渲染与分区渲染（Mixin）
+hsai/cli_boot.py        _db / 控制台编码 / pythonw 流兜底
+hsai/cli_*.py           各命令族（cards / meta / deck / live / ui / sim / learn /
+                        setup_log / review / stats / mulligan / tags）
+hsai/learn_weights.py   权重读写
+hsai/learn_calibrate.py 先验校准 / 真值回填
+hsai/learn_optimize.py  自对弈优化
+hsai/learn_absorb.py    增量学习 / 重建 / 统计
+hsai/meta_types.py      Archetype 与序列化
+hsai/meta_naming.py     关键牌挑选 / 命名 / 相似度
+hsai/meta_cluster.py    聚类 / 导入
+hsai/infer_types.py     Candidate / Prediction / RetroTruth
+
+# 拆模块时有三条不能破（破了不报错，只是行为悄悄不对）：
+# 1. 可写模块全局必须留在门面：model._EFFECT_TABLE / effect_table() / _DB /
+#    set_card_db()、state._EFFECT_CACHE、advisor._PASSIVE_RULE，以及 ui 上被
+#    tests/_ui_support.py 赋值的 STATE_PATH / LAST_REVIEW_JSON / ADVICE_LOG_JSONL。
+#    子模块读它们要在函数内部 `from . import <门面>` 回查，不能 import 时拷值。
+# 2. 测试有源码切片/文本断言：test_advisor_board.py 用 src.index("def board_from_state")
+#    切片，所以 board_from_state 必须物理留在 advisor.py，且它后面还得有个 `\ndef `；
+#    test_state_reset.py 数 state.py 里 `elif kind == "block_start"` 的次数。
+# 3. 依赖方向单向：model → {state, policy} → advisor；policy 内部
+#    consts/threat → actions → lethal/race → choice → plan。别反向 import 门面。
+
 # 横切各层的纯工具
-hsai/tag_rules.py  11 类卡牌功能标签规则
+hsai/tag_rules.py  12 类卡牌功能标签规则
 hsai/tags.py       标签构建 / 查询 / 报告
 hsai/paths.py      data/ 下所有路径的唯一出处
 hsai/logutil.py    诊断日志写入（data/hsai.log，超 1 MB 自动截断）

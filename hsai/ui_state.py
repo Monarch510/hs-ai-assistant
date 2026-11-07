@@ -1,0 +1,29 @@
+"""窗口状态的读写：从 ui.py 拆出的模块级函数，门面会 re-export。
+
+★ 这些函数读的 STATE_PATH / DATA_DIR 是 ui 模块上「会被测试赋值」的名字：
+  必须函数内 `from . import ui` 回查，不能在 import 时把值拷进来，否则
+  tests/_ui_support.py 里 `ui.STATE_PATH = 临时目录/window.json` 就静默失效，
+  测试会把窗口摆位写回真实 data/。
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+
+def _load_state() -> dict[str, Any]:
+    from . import ui
+    try:
+        return json.loads(ui.STATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_state(data: dict[str, Any]) -> None:
+    from . import ui
+    try:
+        ui.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        ui.STATE_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    except OSError:
+        pass
