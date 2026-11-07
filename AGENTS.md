@@ -34,7 +34,8 @@ hsai/ai.py         AI 客户端（复盘、补规则）
 hsai/effects_ai.py AI 规则的验证器（三道闸门）
 
 # 横切各层的纯工具
-hsai/classify.py   卡牌文本分类（is_aoe / is_single_removal / is_taunt / is_heal）
+hsai/tag_rules.py  11 类卡牌功能标签规则
+hsai/tags.py       标签构建 / 查询 / 报告
 hsai/paths.py      data/ 下所有路径的唯一出处
 hsai/logutil.py    诊断日志写入（data/hsai.log，超 1 MB 自动截断）
 ```

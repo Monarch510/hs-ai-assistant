@@ -38,6 +38,7 @@ from .paths import (
     ADVICE_FEEDBACK_JSONL, ADVICE_LOG_JSONL, DATA_DIR, LAST_REVIEW_JSON, WINDOW_JSON,
 )
 from .state import GameState
+from .tag_rules import TAG_ORDER
 
 STATE_PATH = WINDOW_JSON
 
@@ -109,6 +110,56 @@ def hud_row(side: dict[str, Any], label: str) -> str:
         dur = weapon.get("durability")
         parts.append(f"武器 {weapon_atk}/{dur if isinstance(dur, int) else 1}")
     return " · ".join(parts)
+
+
+# 「本回合偏重」最多列几类：一眼扫过的信息，列多了反而要读。
+WEIGHT_TOP_N = 3
+# 解释行只留带实质变化的，跳过「留牌阶段：只看职业…」这类元说明。
+WEIGHT_REASON_WORDS = ("加权", "降权", "偏低", "血线", "场攻", "置顶")
+
+
+def _fmt_weight(value: float) -> str:
+    text = f"{value:.2f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _weight_summary(tag_weights: Any) -> tuple[list[str], list[str]]:
+    """快照里的 tag_weights → (偏重前 3 类, 最多 2 行解释)。
+
+    只做展示选择，不改权重本身：「未知」恒 0 且没有实际含义，负数是降权不是偏重，
+    两类都过滤。缺字段/坏形状返回空，_render 据此不画卡片。
+    """
+    if not isinstance(tag_weights, dict):
+        return [], []
+    weights = tag_weights.get("weights")
+    if not isinstance(weights, dict):
+        return [], []
+    order = {tag: i for i, tag in enumerate(TAG_ORDER)}
+    picked: list[tuple[float, int, str]] = []
+    for tag, value in weights.items():
+        if tag == "未知":
+            continue
+        try:
+            weight = float(value)
+        except (TypeError, ValueError):
+            continue
+        if weight <= 0:
+            continue
+        picked.append((weight, order.get(tag, len(order)), tag))
+    # 同分按 TAG_ORDER 兜底：输出顺序不能随 dict 遍历/哈希变
+    picked.sort(key=lambda item: (-item[0], item[1]))
+    tops = [f"{tag} {_fmt_weight(weight)}" for weight, _, tag in picked[:WEIGHT_TOP_N]]
+
+    reasons = tag_weights.get("reasons")
+    lines: list[str] = []
+    if isinstance(reasons, list):
+        for reason in reasons:
+            text = str(reason or "").strip()
+            if text and any(word in text for word in WEIGHT_REASON_WORDS):
+                lines.append(text)
+            if len(lines) >= 2:
+                break
+    return tops, lines
 
 
 class Overlay:
@@ -1148,6 +1199,7 @@ class Overlay:
                      fg=TEXT if label == "对手" else TEXT_SOFT,
                      font=(FONT, self.font_size - 1), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x", pady=1)
+        self._render_tag_weights(snap.get("tag_weights"))
         self._render_mulligan(snap.get("mulligan") or {})
         if self._ai_route:
             inner_r = self._section("AI 路线", "这回合怎么打")
@@ -1335,6 +1387,21 @@ class Overlay:
             tk.Label(inner, text=f"{label}：{c.get('name')}{cost_txt}{tag}",
                      bg=PANEL, fg=MUTED, font=(FONT, self.font_size - 2),
                      anchor="w", justify="left", wraplength=self.width - 46).pack(fill="x", pady=(3 if i == 0 else 1, 0))
+
+    # --- 本回合偏重（动态标签权重）
+    def _render_tag_weights(self, tag_weights: Any) -> None:
+        """只显示权重最高的几类和一句解释；快照里没有这个字段就什么都不画。"""
+        tops, reasons = _weight_summary(tag_weights)
+        if not tops:
+            return
+        inner = self._section("本回合偏重", "标签权重")
+        tk.Label(inner, text=" · ".join(tops), bg=PANEL, fg=GOLD,
+                 font=(FONT, self.font_size - 2, "bold"), anchor="w", justify="left",
+                 wraplength=self.width - 46).pack(fill="x")
+        for line in reasons:
+            tk.Label(inner, text=line, bg=PANEL, fg=MUTED,
+                     font=(FONT, self.font_size - 3), anchor="w", justify="left",
+                     wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
 
     # --- 留牌
     def _render_mulligan(self, mul: dict[str, Any]) -> None:

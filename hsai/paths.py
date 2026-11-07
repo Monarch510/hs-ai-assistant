@@ -37,6 +37,13 @@ def cards_cache(locale: str = "zhCN") -> Path:
 EFFECTS_JSON = DATA_DIR / "effects.json"
 EFFECTS_BACKUP = DATA_DIR / "effects.json.bak"
 
+# 卡牌功能标签（11 类）。card_tags.json 可重生成；ai/manual 是补标输入，
+# pending 是规则拿不准、等人/AI 补的清单。
+CARD_TAGS_JSON = DATA_DIR / "card_tags.json"
+CARD_TAGS_AI_JSON = DATA_DIR / "card_tags_ai.json"
+CARD_TAGS_MANUAL_JSON = DATA_DIR / "card_tags_manual.json"
+CARD_TAGS_PENDING_JSONL = DATA_DIR / "card_tags_pending.jsonl"
+
 
 # ---------- 卡组与环境 ----------
 
@@ -70,6 +77,9 @@ OPP_HISTORY_JSONL = DATA_DIR / "opp_history.jsonl"  # 对手形态历史
 
 POLICY_WEIGHTS_JSON = DATA_DIR / "policy_weights.json"
 MULLIGAN_WEIGHTS_JSON = DATA_DIR / "mulligan_weights.json"
+# 动态标签权重的局外覆盖表（缺/坏文件由调用方降级成空表）
+# 格式：{"weights": {...}, "mulligan_scale": 3.0, "play_scale": 1.0}
+TAG_WEIGHTS_JSON = DATA_DIR / "tag_weights.json"
 
 
 # ---------- 配置与运行状态 ----------

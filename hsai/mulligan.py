@@ -11,12 +11,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Any, Iterable
 
 from .cards import CLASS_CN, Card, CardDB
-from .classify import is_aoe, is_heal, is_single_removal, is_taunt
 from .infer import Prediction
+from .tag_rules import RULES, TAG_ORDER
+from .tag_weights import Situation, explain, tag_weights
 
 # 可学习权重：名字 -> 默认值
 DEFAULT_WEIGHTS: dict[str, float] = {
@@ -62,6 +63,37 @@ CONTROL_TAGS = {"控制", "清场", "后期", "护甲", "治疗"}
 
 KEEP_THRESHOLD = 55.0
 
+# 动态标签权重的缩放：单牌标签权重和一般 1~4，×3 后附加分约 3~12 分。
+# 极端局面（斩杀信号 + 多标签牌）可能超过 15，所以整项再钳一次，保证附加分落在
+# ±15 区间、不超过相邻费用档差（4~16 分），只做排序微调，不推翻费用基础分。
+MULLIGAN_SCALE = 3.0
+MULLIGAN_BONUS_CAP = 15.0
+
+# explain 的这几句是在讲阶段/无信号，不是本局加权的理由
+_EXPLAIN_SKIP = ("留牌阶段", "出牌阶段", "没有额外的")
+
+
+def _as_situation(value: Situation | dict | None) -> Situation | None:
+    """dict 也收：调用方从 JSON/配置拼局势时不用先转 dataclass。
+
+    按 dataclass 字段反射取值，快照里多出来的键直接忽略（快照常带额外字段），
+    也不写死 A 的字段清单，免得 A 改接口时这边漏改。
+    """
+    if value is None or isinstance(value, Situation):
+        return value
+    names = {f.name for f in fields(Situation)}
+    return Situation(**{k: v for k, v in value.items() if k in names})
+
+
+def _tag_reason(s: Situation | None) -> str:
+    """动态权重的人话理由，取自 explain；没有额外对位/局势信号时返回空串。"""
+    if s is None:
+        return ""
+    for line in explain(s):
+        if not line.startswith(_EXPLAIN_SKIP):
+            return line
+    return ""
+
 
 @dataclass
 class MulliganEntry:
@@ -105,13 +137,24 @@ def advise(
     is_first: bool = True,
     weights: dict[str, float] | None = None,
     opp_class: str = "",
+    situation: Situation | dict | None = None,
+    tag_weight_overrides: dict[str, float] | None = None,
+    tag_scale: float = MULLIGAN_SCALE,
 ) -> list[dict[str, Any]]:
     """返回每张牌的留/换决策与理由，按分数从高到低。
 
     opp_class 是兜底：当预判是「未知卡组」时，按该职业最常见的形态来留牌，
     否则所有对局都会退化成同一套通用建议。
+
+    situation 传入后按当前局势追加动态标签权重（DYNAMIC-WEIGHTS.md §3），
+    不传则与旧行为逐字节一致；tag_weight_overrides 只覆盖权重基础表，
+    且只在传了 situation 时生效；tag_scale 缩放附加分（默认 MULLIGAN_SCALE，
+    配置由 advisor 读 data/tag_weights.json 后传入）。
     """
     w = {**DEFAULT_WEIGHTS, **(weights or {})}
+    sit = _as_situation(situation)
+    tag_w = tag_weights(sit, tag_weight_overrides) if sit is not None else None
+    tag_note = _tag_reason(sit)
     opp_tags = set(_opp_style(prediction))
     style_note = ""
     if not opp_tags and opp_class:
@@ -130,6 +173,9 @@ def advise(
             continue
         score = _cost_score(card.cost, w)
         reasons: list[str] = []
+        # 一张牌只算一次标签，别在分支里反复扫卡面。口径见 hsai/tag_rules.py 与
+        # docs/card-tagging/CONTEXT.md。
+        tags = {t for t in TAG_ORDER if RULES[t](card)}
 
         if vs_aggro:
             if card.cost <= 2:
@@ -138,19 +184,19 @@ def advise(
             elif card.cost >= 5:
                 score += w["vs_aggro_expensive"]
                 reasons.append("对快攻，高费牌起手太拖")
-            if is_aoe(card):
+            if "群解" in tags:
                 if card.cost <= 5:
                     score += w["keep_aoe_vs_aggro"]
                     reasons.append("清场是打快攻的关键牌")
                 else:
                     reasons.append("清场虽好，但这个费用起手会卡死")
-            elif is_single_removal(card):
+            elif "单解" in tags:
                 score += w["keep_removal_vs_aggro"]
                 reasons.append("单解能处理对方前期核心")
-            if is_taunt(card):
+            if card.has("TAUNT"):  # 嘲讽是关键词（mechanics），不是 11 类功能标签
                 score += w["keep_taunt_vs_aggro"]
                 reasons.append("嘲讽能挡住打脸")
-            if is_heal(card):
+            if tags & {"治疗", "护甲"}:  # 回血和叠甲都算稳血线
                 score += w["keep_heal_vs_aggro"]
                 reasons.append("回复能撑过爆发")
         elif vs_control:
@@ -160,7 +206,7 @@ def advise(
             elif card.cost <= 2:
                 score += w["vs_control_cheap"]
                 reasons.append("对控制，纯前期的低费牌没那么急")
-            if card.cost >= 4 and not is_aoe(card) and not is_single_removal(card):
+            if card.cost >= 4 and not (tags & {"群解", "单解"}):
                 score += w["keep_value_vs_control"]
                 reasons.append("往后拖需要价值")
 
@@ -178,6 +224,14 @@ def advise(
         if n >= 1:
             score += w["duplicate_penalty"] * n
             reasons.append("同名牌留一张就够")
+
+        if tag_w is not None and tags:
+            # 按 TAG_ORDER 求和：set 遍历顺序随哈希种子变，浮点尾数要稳定。
+            bonus = tag_scale * sum(tag_w[t] for t in TAG_ORDER if t in tags)
+            bonus = max(-MULLIGAN_BONUS_CAP, min(MULLIGAN_BONUS_CAP, bonus))
+            score += bonus
+            if tag_note and bonus:
+                reasons.append(tag_note)
 
         score = max(0.0, min(100.0, score))
         action = "keep" if score >= KEEP_THRESHOLD else "toss"

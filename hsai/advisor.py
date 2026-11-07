@@ -7,38 +7,37 @@
 from __future__ import annotations
 
 import dataclasses
-
-import re
-
 import json
+import math
+import re
 import uuid
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from . import mulligan, policy
-from collections import Counter
-
 from . import cards as cards_mod
 from . import decks as decks_mod
-from . import model as model_mod
 from . import logutil
+from . import model as model_mod
+from . import mulligan, policy
 from . import review as review_mod
-
 from .cards import DATA_DIR, Card, CardDB
 from .infer import DeckPredictor, Prediction, RetroTruth
 from .meta import MetaDB
-from .paths import META_DIR
 from .model import Board, SideState, Unit
 from .paths import (
     LAST_REVIEW_JSON,
+    META_DIR,
     MULLIGAN_WEIGHTS_JSON,
     OBSERVATIONS_JSONL,
     OUR_DECK_JSON,
     POLICY_WEIGHTS_JSON,
+    TAG_WEIGHTS_JSON,
 )
 from .state import GameState
+from .tag_weights import Situation, explain, tag_weights
 
 OBSERVATIONS_PATH = OBSERVATIONS_JSONL
 WEIGHTS_PATH = POLICY_WEIGHTS_JSON
@@ -51,6 +50,18 @@ def _load_json(path: Path) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def _positive_scale(value: Any, default: float) -> float:
+    """配置里的缩放系数只认有限正数；坏值/缺失一律回退模块常量。
+
+    手写文件里写错一个 0 或负数，会让留牌/出牌的低权重整项消失或反号 ——
+    这种错误没有任何报错，只能在这里挡住。
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    value = float(value)
+    return value if math.isfinite(value) and value > 0 else default
 
 
 def _attacks_left(card, view: dict[str, Any]) -> int:
@@ -275,6 +286,16 @@ class Advisor:
         self.predictor = DeckPredictor(self.meta, self.cards)
         self.policy_weights = _load_json(WEIGHTS_PATH).get("weights", {})
         self.mulligan_weights = _load_json(MULLIGAN_WEIGHTS_PATH).get("weights", {})
+        # 动态标签权重的覆盖配置：手写文件，坏形状（weight 不是 dict）跟坏 JSON 一样按没配处理
+        tag_cfg = _load_json(TAG_WEIGHTS_JSON)
+        raw_tag_weights = tag_cfg.get("weights")
+        self.tag_weight_overrides: dict[str, float] = (
+            raw_tag_weights if isinstance(raw_tag_weights, dict) else {})
+        # 缩放系数同样来自这份配置；坏值回退到各模块自己的常量
+        self.tag_mulligan_scale = _positive_scale(
+            tag_cfg.get("mulligan_scale"), mulligan.MULLIGAN_SCALE)
+        self.tag_play_scale = _positive_scale(
+            tag_cfg.get("play_scale"), policy.TAG_WEIGHT_SCALE)
         deck = _load_json(OUR_DECK_PATH)
         self.our_deck: list[str] = deck.get("cards", [])
         self.saved_decks = decks_mod.load(self.cards)
@@ -314,6 +335,13 @@ class Advisor:
 
         pred = self._predict(st, opp)
         collected.prediction = pred
+
+        # 动态标签权重（DYNAMIC-WEIGHTS.md §3）：先按当前局势算一份，留牌/出牌各取所需。
+        # 结算/未开局阶段没有「本回合」可言，按留牌口径（只看职业对位）降级。
+        board = board_from_state(st)
+        own_phase = "mulligan" if st.phase == "mulligan" else "playing"
+        situation = self._situation(st, pred, board, phase=own_phase)
+        tag_weight_table = tag_weights(situation, self.tag_weight_overrides)
 
         # 牌库张数：state 层按初始牌库实体计数给出真实读数，这里不再重算。
         snap: dict[str, Any] = {
@@ -357,6 +385,9 @@ class Advisor:
         if (st.phase == "mulligan" or need_fallback) and ours.hand:
             hand = [c for c in (self.cards.get(v.get("id") or "") for v in ours.hand)
                     if c and not self.cards.is_token(c.id) and c.name != "幸运币"]
+            # 起手没场面，留牌阶段要忽略局面信号；对局内补的那次留牌同理。
+            mulligan_situation = situation if own_phase == "mulligan" else dataclasses.replace(
+                situation, phase="mulligan")
             snap["mulligan"] = {
                 "advice": mulligan.advise(
                     hand,
@@ -366,6 +397,9 @@ class Advisor:
                     is_first=st.our_id == 1,
                     weights=self.mulligan_weights,
                     opp_class=opp.class_en or "",
+                    situation=mulligan_situation,
+                    tag_weight_overrides=self.tag_weight_overrides,
+                    tag_scale=self.tag_mulligan_scale,
                 )
             }
             self._mulligan_shown = True
@@ -374,7 +408,9 @@ class Advisor:
         snap["deck"] = self._deck_context(st)
         if st.phase == "playing":
             if opp.health > 0:
-                snap["advice"] = self._advice(st, pred)
+                snap["advice"] = self._advice(
+                    st, pred, board=board, tag_weights=tag_weight_table,
+                    tag_scale=self.tag_play_scale)
                 self._last_advice = snap["advice"]
             else:
                 # 伤害已经结算完、PLAYSTATE 还没到的那一帧：对面已经死了，
@@ -387,6 +423,18 @@ class Advisor:
                 "lethal": False, "lethal_damage": 0, "lines": []}
         else:
             snap["advice"] = {"lethal": False, "lethal_damage": 0, "lines": []}
+
+        # 能斩杀时权重要「斩杀置顶」；plan_turn 已先按斩杀路线算过，这里只为把
+        # 同一套权重和解释暴露给界面，不改已经算出来的路线。
+        if snap["advice"].get("lethal") and not situation.lethal:
+            situation = dataclasses.replace(situation, lethal=True)
+            tag_weight_table = tag_weights(situation, self.tag_weight_overrides)
+        snap["tag_weights"] = {
+            "weights": tag_weight_table,
+            "reasons": explain(situation),
+            "mulligan_scale": self.tag_mulligan_scale,
+            "play_scale": self.tag_play_scale,
+        }
 
         snap["advice"]["defense"] = self._defense(st, pred, snap)
         snap["warning"] = self._warning(st, pred, snap["advice"])
@@ -421,6 +469,41 @@ class Advisor:
             snap["review"] = list(getattr(self, "last_findings", []))
             snap["issues"] = list(self._issues)
         return snap
+
+    def _situation(self, st: GameState, pred: Prediction, board: Board, *,
+                   phase: str, lethal: bool = False) -> Situation:
+        """当前局面 → 权重层的 Situation（DYNAMIC-WEIGHTS.md §2）。
+
+        数字全部来自 board_from_state 的 SideState 和 st.sides() 的展示视图；
+        读到什么就传什么，缺的字段留给 dataclass 默认值，不猜。
+        """
+        ours, opp = st.sides()
+        me, them = board.sides[0], board.sides[1]
+        style = frozenset(pred.candidates[0].tags) if pred.candidates else frozenset()
+        return Situation(
+            our_class=ours.class_en or "",
+            opp_class=opp.class_en or "",
+            our_archetype=self.our_deck_name or self.our_archetype,
+            opp_archetype=pred.name,
+            opp_style=style,
+            our_tags=frozenset(self.our_tags),
+            our_hp=me.hero_hp,
+            our_armor=me.armor,
+            opp_hp=them.hero_hp,
+            opp_armor=them.armor,
+            our_board_attack=me.board_attack,
+            opp_board_attack=them.board_attack,
+            our_board_count=len(me.board),
+            opp_board_count=len(them.board),
+            our_hand_count=len(me.hand),
+            opp_hand_count=len(them.hand),
+            our_mana=me.mana,
+            turn=max(1, st.turn),
+            aoe_risk=float(pred.aoe_risk or 0.0),
+            removal_risk=float(pred.removal_risk or 0.0),
+            lethal=lethal,
+            phase=phase,
+        )
 
     def _collect_issues(self, st: GameState, snap: dict[str, Any]) -> None:
         """记下本局「识别失败」的地方，结束时会告诉用户。"""
@@ -457,10 +540,14 @@ class Advisor:
         return d
 
     # ------------------------------------------------------------ 建议
-    def _advice(self, st: GameState, pred: Prediction) -> dict[str, Any]:
+    def _advice(self, st: GameState, pred: Prediction, *, board: Board | None = None,
+                tag_weights: dict[str, float] | None = None,
+                tag_scale: float | None = None) -> dict[str, Any]:
         if not self.cards:
             return {"lethal": False, "lethal_damage": 0, "lines": []}
-        board = board_from_state(st)
+        board = board if board is not None else board_from_state(st)
+        if tag_scale is None:
+            tag_scale = self.tag_play_scale
         # 用推断出来的回合归属：turn_owner 在日志里常常是 None，
         # 直接比较会让引擎永远以为「对手回合」，从而不给任何出牌建议
         # 日志里的 TURN 标签最权威；拿不到时才用推断值。
@@ -478,6 +565,8 @@ class Advisor:
             aoe_risk=pred.aoe_risk,
             weights=self.policy_weights,
             side=0,
+            tag_weights=tag_weights,
+            tag_scale=tag_scale,
         )
         lethal = result["lethal"]
         lines = policy.advice_lines(result)

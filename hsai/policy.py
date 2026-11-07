@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from . import tag_rules
 from .cards import Card, CardDB
 from .model import (
     warden_buff,
@@ -31,6 +32,11 @@ from .model import (
 )
 
 EPS = 0.35          # 提升小于这个值就不算改进
+
+# 动态标签权重的出牌缩放（DYNAMIC-WEIGHTS §3）：11 类权重是「局面 → 每类多值多少」
+# 的相对分，乘这个系数才和 gain 同一档。一张牌通常命中 1-3 类、基础权重 0.4-1.0，
+# 叠加分约 1-3 分 —— 低于「推进场面」的 3.0，只改同档排序，不推翻评分主序。
+TAG_WEIGHT_SCALE = 1.0
 
 # 用户定的优先级：斩杀 > 对场面有帮助 > 过牌 > 发现 > 防斩杀。
 # 用「分类加分」实现：它不会推翻明显更好的选择，但同档收益时按这个顺序偏向。
@@ -719,6 +725,31 @@ def _lethal_sequence(board: Board, side: int, cards: CardDB) -> list[Action] | N
     return seq if work.sides[1 - side].hero_hp <= 0 else None
 
 
+def _tag_bonus(
+    action: Action,
+    before: Board,
+    side: int,
+    tag_weights: dict[str, float] | None,
+    tag_scale: float,
+) -> float:
+    """打出一张手牌能拿到的标签排序分；主路线和备选路线共用同一个口径。
+
+    只加给 kind=="play"：标签是打出的那张牌的功能属性，攻击/英雄技能/结束回合
+    没有对应手牌。标签用纯规则 RULES 现算，绝不读 data/card_tags.json 缓存
+    （缓存可能没 build 过，会静默变 0）。
+    """
+    if tag_weights is None or action.kind != "play":
+        return 0.0
+    hand = before.sides[side].hand
+    card = hand[action.card_idx] if 0 <= action.card_idx < len(hand) else None
+    if card is None:
+        return 0.0
+    return tag_scale * sum(
+        tag_weights.get(t, 0.0)
+        for t in tag_rules.TAG_ORDER if tag_rules.RULES[t](card)
+    )
+
+
 def plan_turn(
     board: Board,
     cards: CardDB,
@@ -729,8 +760,14 @@ def plan_turn(
     steps: int = MAX_STEPS,
     with_alternatives: bool = True,
     opp_coeff: float = 1.5,
+    tag_weights: dict[str, float] | None = None,
+    tag_scale: float = TAG_WEIGHT_SCALE,
 ) -> dict[str, Any]:
-    """贪心规划一整回合，返回路线 + 备选。"""
+    """贪心规划一整回合，返回路线 + 备选。
+
+    `tag_weights` 是局势算出的 11 类标签权重（hsai/tag_weights.py），只给
+    「打出手牌」的动作加同档排序分；不传（None）时行为与接标签权重之前一致。
+    """
     working = board.clone()
     working.active = side
     baseline = evaluate(working, weights, aoe_risk, side)
@@ -773,6 +810,7 @@ def plan_turn(
             if raw <= 0.01 and nb.sides[1 - side].hero_hp > 0:
                 continue          # 什么也没改变的动作（例如没有效果的英雄技能）不参与排序
             gain = raw + PRIORITY_BONUS.get(categorize(act, working, nb, side), 0.0)
+            gain += _tag_bonus(act, working, side, tag_weights, tag_scale)
             # 抽到的牌比看起来值钱：一张牌 ≈ 1.2，比 1 点血量（0.55）更该被看重
             if act.kind == "play":
                 before = len(working.sides[side].hand) - 1      # 打出去那张不在手里
@@ -855,8 +893,10 @@ def plan_turn(
         gain = evaluate(nb, weights, aoe_risk, side) - baseline
         if nb.sides[1 - side].hero_hp <= 0:
             gain += 5_000
+        # 首个备选动作本身也要算标签分；后续动作由递归的 sub 负责，别重复加
+        gain += _tag_bonus(act, board, side, tag_weights, tag_scale)
         sub = plan_turn(nb, cards, aoe_risk=aoe_risk, weights=weights, side=side, steps=2,
-                        with_alternatives=False)
+                        with_alternatives=False, tag_weights=tag_weights, tag_scale=tag_scale)
         if gain + sub.get("gain", 0) <= 0.01 and nb.sides[1 - side].hero_hp > 0:
             continue          # 负收益动作不进备选，否则会出现「建议打幸运币」这种
         alts.append({

@@ -29,9 +29,16 @@ data/lessons.jsonl*
 data/cases.jsonl
 data/opp_history.jsonl
 
+# 卡牌功能标签：可重生成；ai/manual 是本地补标输入，同样不进仓库
+data/card_tags.json
+data/card_tags_ai.json
+data/card_tags_manual.json
+data/card_tags_pending.jsonl
+
 # 权重
 data/policy_weights.json
 data/mulligan_weights.json
+data/tag_weights.json
 
 # 运行状态与诊断
 data/window.json

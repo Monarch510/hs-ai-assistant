@@ -199,7 +199,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
         infer / mulligan / policy / model ──────┘
                     （AI 只旁挂在这条链路外侧）
 
-横切各层的纯工具：classify.py（卡牌文本分类）、paths.py（data/ 路径）、logutil.py（诊断日志）
+横切各层的纯工具：tag_rules.py / tags.py（11 类卡牌功能标签）、paths.py（data/ 路径）、logutil.py（诊断日志）
 ```
 
 **入口与界面**
@@ -226,7 +226,8 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 | 文件 | 用途 |
 |---|---|
 | `cards.py` | 卡牌库：从 HearthstoneJSON 抓取、规范化、缓存到 `data/cards_zhCN.json`，加载 8000+ 张约 100ms |
-| `classify.py` | 卡牌文本分类：`is_aoe` / `is_single_removal` / `is_taunt` / `is_heal`。纯函数、只依赖 `cards.Card`，预判和留牌都从这里取，避免下层依赖上层的私有实现 |
+| `tag_rules.py` | 11 类卡牌功能标签的纯文本规则：`TAG_ORDER` + `rule_*` 判定函数。只读卡面（type/mechanics 优先，文本补「动作+对象」），不碰 IO；拿不准的由 `pending_reason` 送待定清单 |
+| `tags.py` | 卡牌标签层：范围筛选 `in_scope`、规则打标、AI/人工补标合并、落盘 `data/card_tags.json` 与查询 `card_tags`。查询只读缓存，**不在查询时重建**，否则界面每问一张牌都要扫一遍卡牌库 |
 | `logutil.py` | 运行时诊断日志的唯一写入口：`log()` 统一时间戳、超 1 MB 自动截断保留最后 2000 行。此前 advisor / state / ui 三处各写各的、格式不一且无轮转 |
 | `paths.py` | **`data/` 下所有路径的唯一出处**，也是唯一允许写文件名的地方。此前 `lessons.jsonl`、`effects.json`、`hsai.log` 各有 2–3 份重复定义，改一处忘一处就会「记了但查不到」且不报错 |
 | `deckcode.py` | 卡组代码（`AAEC...`）编解码：LEB128 varint + base64，格式在文件头写全了 |

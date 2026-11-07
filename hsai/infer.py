@@ -25,9 +25,18 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
-from .cards import CLASS_CN, CardDB
-from .classify import is_aoe, is_single_removal
+from .cards import CLASS_CN, Card, CardDB
 from .meta import DECK_MAX_CARDS, Archetype, MetaDB
+from .tag_rules import RULES
+
+# 旧 classify 的 is_aoe/is_single_removal 已删，功能标签口径见 hsai/tag_rules.py
+# （CONTEXT.md 的 11 类）。单解排除群解：同一张牌不能同时进 aoe_risk 和 removal_risk 两行。
+_is_aoe = RULES["群解"]
+
+
+def _is_single_removal(card: Card) -> bool:
+    return RULES["单解"](card) and not _is_aoe(card)
+
 
 # 观测权重：越早打出越能说明形态；太晚的牌可能只是补位
 EARLY_TURNS = 3
@@ -289,8 +298,8 @@ class DeckPredictor:
                 f"已出现 {self.cards.display_name(cid)}" for cid, _ in obs[:4]
             ]
             mix, has_lib = self.class_mix(opp_class)
-            pred.aoe_risk = self._risk(mix, deck_count, hand_count, is_aoe, opp_mana)
-            pred.removal_risk = self._risk(mix, deck_count, hand_count, is_single_removal, opp_mana)
+            pred.aoe_risk = self._risk(mix, deck_count, hand_count, _is_aoe, opp_mana)
+            pred.removal_risk = self._risk(mix, deck_count, hand_count, _is_single_removal, opp_mana)
             pred.likely_hand = (
                 self._likely_hand(mix, hand_count, deck_count, opp_mana) if has_lib else []
             )
@@ -316,8 +325,8 @@ class DeckPredictor:
         pred.remaining = mixture
         pred.next_threats = self._threats(mixture, opp_mana)
         pred.likely_hand = self._likely_hand(mixture, hand_count, deck_count, opp_mana)
-        pred.aoe_risk = self._risk(mixture, deck_count, hand_count, is_aoe, opp_mana)
-        pred.removal_risk = self._risk(mixture, deck_count, hand_count, is_single_removal, opp_mana)
+        pred.aoe_risk = self._risk(mixture, deck_count, hand_count, _is_aoe, opp_mana)
+        pred.removal_risk = self._risk(mixture, deck_count, hand_count, _is_single_removal, opp_mana)
         if pred.prior_only:
             pred.note = "还没有足够证据，这里只是该职业的常见形态先验"
         return pred
@@ -467,9 +476,9 @@ class DeckPredictor:
                 tag = ""
                 if card.type == "MINION":
                     tag = f" ({card.atk}/{card.health})"
-                elif is_aoe(card):
+                elif _is_aoe(card):
                     tag = " [清场]"
-                elif is_single_removal(card):
+                elif _is_single_removal(card):
                     tag = " [单解]"
                 rows.append((card.cost, f"{card.cost} 费：{card.name}{tag}"))
         rows.sort()
@@ -500,7 +509,7 @@ class DeckPredictor:
                 continue
             if card.cost is not None and card.cost > mana:
                 continue          # 这回合根本打不出来，不列
-            impact = 1.6 if is_aoe(card) else 1.3 if is_single_removal(card) else 1.0
+            impact = 1.6 if _is_aoe(card) else 1.3 if _is_single_removal(card) else 1.0
             out.append(
                 {
                     "name": card.name,
@@ -551,5 +560,5 @@ class DeckPredictor:
                     mix[cid] = mix.get(cid, 0.0) + a.prior * n
             return mix, True
         mix = {c.id: 0.5 for c in self.cards.standard_pool(opp_class)
-               if is_aoe(c) or is_single_removal(c)}
+               if _is_aoe(c) or _is_single_removal(c)}
         return mix, False
