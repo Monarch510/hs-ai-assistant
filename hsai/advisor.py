@@ -537,6 +537,7 @@ class Advisor:
             "name": name,
             "class_cn": class_cn,
             "left": left,
+            "cards": cards,
             "key_cards": key,
             "source": source,
         }

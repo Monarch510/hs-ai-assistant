@@ -39,8 +39,9 @@ from .ui_widgets import Widgets
 
 from .ui_text import _fmt_weight, _weight_summary, hud_row  # noqa: F401
 from .ui_theme import (  # noqa: F401
-    BG, BLUE, BORDER, COLLAPSED_H, DEFAULT_WIDTH, FONT, GOLD, GREEN, LAYOUT_VERSION,
-    MUTED, PANEL, RED, TEXT, TEXT_SOFT, WEIGHT_REASON_WORDS, WEIGHT_TOP_N, YELLOW,
+    BG, BLUE, BORDER, COLLAPSED_H, DEFAULT_COLLAPSED, DEFAULT_WIDTH, FONT, GOLD,
+    GREEN, LAYOUT_VERSION, MUTED, PANEL, RED, TEXT, TEXT_SOFT, WEIGHT_REASON_WORDS,
+    WEIGHT_TOP_N, YELLOW,
 )
 from .ui_state import _as_float, _as_int, _as_set, _load_state, _save_state  # noqa: F401
 
@@ -98,7 +99,13 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         # 折叠状态的区块标题（存在 window.json 的 collapsed_sections 里）。
         # 不能和窗口自身的 collapsed 共用一个键：那个是布尔，这里读成列表，
         # 上次退出时窗口是收起的就会 set(True) 崩在启动阶段。
-        self._collapsed: set[str] = _as_set(saved.get("collapsed_sections"))
+        # 没存过折叠意愿就用新默认；存过（哪怕空表）就完全尊重用户手动展开/收起的结果
+        if "collapsed_sections" in saved:
+            self._collapsed: set[str] = _as_set(saved["collapsed_sections"])
+        else:
+            self._collapsed: set[str] = set(DEFAULT_COLLAPSED)
+        self._deck_cards: list[dict] = []
+        self._deck_scroll = 0
         self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
         self._last_review = self._load_last_review()
         self._last_review_shown = False
@@ -467,6 +474,7 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             len(((snap.get("opp") or {}).get("board") or [])),
             (snap.get("opp") or {}).get("health"),
             (snap.get("deck") or {}).get("left"),
+            tuple((c.get("id"), c.get("count")) for c in ((snap.get("deck") or {}).get("cards") or [])),
             tuple(c.get("name") for c in ((snap.get("deck") or {}).get("key_cards") or [])),
             # SECRET 区三类：任务进度、奥秘数变化都要触发重绘，否则面板停在旧值
             tuple(

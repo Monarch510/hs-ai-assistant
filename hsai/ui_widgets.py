@@ -25,22 +25,30 @@ class Widgets:
         if getattr(self, "_last_state", None) is not None:
             self._render(self._last_state)
 
-    def _section(self, title: str, kicker: str = "") -> tk.Frame:
+    def _section(self, title: str, kicker: str = "", *, accent: bool = False,
+                 display_title: str = "") -> tk.Frame:
         """一张带标题的卡片。
 
         标题必须和内容在同一个 PANEL 底色的框里 —— 背景改成透明后，
         浮在 BG 上的标题会直接压在游戏画面上，亮色场景里根本看不清。
+        title 是折叠状态的键，display_title 才是画给用户看的那一行
+        （标题上要挂张数/置信度时用，折叠也认得出来）。
         """
         wrap = tk.Frame(self.body, bg=BG)
         wrap.pack(fill="x", pady=(6, 0))
         card = tk.Frame(wrap, bg=PANEL, highlightthickness=1, highlightbackground=BORDER)
         card.pack(fill="x")
+        if accent:
+            # 置顶建议卡左侧的金色竖条：3px，宽一点就会挤掉文字
+            accent_bar = tk.Frame(card, bg=GOLD, width=3)
+            accent_bar.pack(side="left", fill="y")
         head = tk.Frame(card, bg=PANEL)
         head.pack(fill="x", padx=9, pady=(7, 0))
         folded = title in self._collapsed
         mark = "▸ " if folded else "▾ "
-        lbl = tk.Label(head, text=mark + title, bg=PANEL, fg=GOLD, cursor="hand2",
-                       font=(FONT, self.font_size - 1, "bold"), anchor="w")
+        size = self.font_size - 1 + (2 if accent else 0)
+        lbl = tk.Label(head, text=mark + (display_title or title), bg=PANEL, fg=GOLD,
+                       cursor="hand2", font=(FONT, size, "bold"), anchor="w")
         lbl.pack(side="left")
         lbl.bind("<Button-1>", lambda _e, t=title: self._toggle_section(t))
         if kicker and kicker not in ("核心", "决策"):

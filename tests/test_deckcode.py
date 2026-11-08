@@ -122,23 +122,25 @@ class OverlayStructureTest(unittest.TestCase):
         而且是**第二次启动**才炸，第一次永远是干净的。
         """
         from hsai import ui
+        from hsai.ui_theme import DEFAULT_COLLAPSED
 
         ui._save_state({"collapsed": True, "layout": ui.LAYOUT_VERSION, "x": 10, "y": 20})
         ov = self._overlay()
         try:
-            self.assertEqual(ov._collapsed, set())
+            # 没存过 collapsed_sections 就套新默认，不能把布尔 collapsed 当列表读崩
+            self.assertEqual(ov._collapsed, set(DEFAULT_COLLAPSED))
         finally:
             ov.quit()
 
     def test_section_collapse_survives_restart(self) -> None:
         """区块折叠状态要能跨重启记住：_persist 是整体覆盖写，不能把它冲掉。"""
         ov = self._overlay()
-        ov._toggle_section("对手预判")
+        ov._toggle_section("对战信息")   # 默认摊开的块，手动收起才有得记
         ov.quit()
 
         again = self._overlay()
         try:
-            self.assertIn("对手预判", again._collapsed)
+            self.assertIn("对战信息", again._collapsed)
         finally:
             again.quit()
 
