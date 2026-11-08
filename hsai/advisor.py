@@ -95,11 +95,8 @@ def board_from_state(st: GameState) -> Board:
                          atk=max(0, int(w.get("atk") or 0)),
                          hp=dur, max_hp=dur,
                          windfury=bool(wcard is not None and wcard.has("WINDFURY")))
-    if me.weapon is not None:
-        hero = st.hero(st.our_id)
-        can_hit = hero is not None and st.can_attack(hero)
-        windfury_hero = "风怒" in str((ours.weapon or {}).get("keyword") or "")
-        me.weapon_attacks_left = (2 if windfury_hero else 1) if can_hit else 0
+    # 攻击次数只放 hero_attacks_left（下面按英雄标签算）：斩杀估算也只认它，
+    # 两个计数器都置位会让 apply_action 多打一次（和 sim/engine.py 同口径）
     # 帝国之眼在场：每回合 2 次技能，已用过的不能重复（进度来自日志）
     if any("帝国之眼" in (u.name or "") for u in me.board):
         me.cthun_uses_left = 2

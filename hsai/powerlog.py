@@ -132,7 +132,8 @@ def tag_key(raw: str) -> str | None:
     if not raw:
         return None
     if raw.isdigit():
-        return TAG_NAMES.get(int(raw))
+        name = TAG_NAMES.get(int(raw))
+        return name if name in KNOWN_TAGS else None
     key = raw.upper()
     return key if key in KNOWN_TAGS else None
 

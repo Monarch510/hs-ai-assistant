@@ -42,7 +42,7 @@ from .ui_theme import (  # noqa: F401
     BG, BLUE, BORDER, COLLAPSED_H, DEFAULT_WIDTH, FONT, GOLD, GREEN, LAYOUT_VERSION,
     MUTED, PANEL, RED, TEXT, TEXT_SOFT, WEIGHT_REASON_WORDS, WEIGHT_TOP_N, YELLOW,
 )
-from .ui_state import _load_state, _save_state  # noqa: F401
+from .ui_state import _as_float, _as_int, _as_set, _load_state, _save_state  # noqa: F401
 
 STATE_PATH = WINDOW_JSON
 
@@ -54,15 +54,15 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self.manager = SourceManager(cards, demo=demo, log_path=log_path)
 
         saved = _load_state()
-        same_layout0 = int(saved.get("layout", 0)) == LAYOUT_VERSION
-        self.alpha = float(saved.get("alpha", 0.90)) if same_layout0 else 0.90
+        same_layout0 = _as_int(saved.get("layout", 0), 0) == LAYOUT_VERSION
+        self.alpha = _as_float(saved.get("alpha", 0.90), 0.90) if same_layout0 else 0.90
         # 背景模式：solid（整窗半透明，看得清） / key（把底色抠成真透明，缝隙能看见游戏）
         self.bg_mode = saved.get("bg_mode", "solid") if same_layout0 else "solid"
-        self.font_size = int(saved.get("font_size", 10))
-        self.pos = (int(saved.get("x", 40)), int(saved.get("y", 60)))
+        self.font_size = _as_int(saved.get("font_size", 10), 10)
+        self.pos = (_as_int(saved.get("x", 40), 40), _as_int(saved.get("y", 60), 60))
         self.collapsed = bool(saved.get("collapsed", False))
-        same_layout = int(saved.get("layout", 0)) == LAYOUT_VERSION
-        self.width = int(saved.get("w", DEFAULT_WIDTH)) if same_layout else DEFAULT_WIDTH
+        same_layout = _as_int(saved.get("layout", 0), 0) == LAYOUT_VERSION
+        self.width = _as_int(saved.get("w", DEFAULT_WIDTH), DEFAULT_WIDTH) if same_layout else DEFAULT_WIDTH
         self._last_sig: tuple | None = None
         self._game_over_since: float | None = None
         self._f8_down = False
@@ -98,9 +98,12 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         # 折叠状态的区块标题（存在 window.json 的 collapsed_sections 里）。
         # 不能和窗口自身的 collapsed 共用一个键：那个是布尔，这里读成列表，
         # 上次退出时窗口是收起的就会 set(True) 崩在启动阶段。
-        self._collapsed: set[str] = set(saved.get("collapsed_sections") or [])
+        self._collapsed: set[str] = _as_set(saved.get("collapsed_sections"))
         self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
         self._last_review = self._load_last_review()
+        self._last_review_shown = False
+        self._last_state: GameState | None = None
+        self._last_game_ts = ""
         self._ai_lessons: list[str] = []
         # 被点了「不赞同」的回合（局后交给 AI 分析）
         self._disagree_turns: set[int] = set()
@@ -121,6 +124,7 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         if getattr(self, "_last_review", None):
             self.collapsed = False
             self._render_last_review()
+            self._last_review_shown = True
         self.root.deiconify()
         self.root.after(50, self._tick)
 
@@ -370,20 +374,24 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             self._f8_down = False
 
     def _update(self, st: GameState) -> None:
+        # 新局判定：日志 watcher 每局重建 GameState，回放循环也会换对象；
+        # 回放里原地的 create_game 靠 _create_ts 变化兜住。不能只挂 mulligan——
+        # 半途接入或日志静止时拿不到留牌阶段，第二局就不会重置，复盘线程不再起。
+        game_ts = str(getattr(st, "_create_ts", "") or "")
+        new_game = self._last_state is not st or game_ts != self._last_game_ts
         self._last_state = st
-        self._last_review_shown = False
+        self._last_game_ts = game_ts
 
         self._last_render = time.time()
         snap = self.advisor.snapshot(st)
         snap["demo"] = self.manager.is_demo
-        snap["source"] = self.manager.name
         self._last_snap = snap
         self._cur_turn = int(snap.get("turn") or 0)
         _acts = snap.get("actions") or []
         if _acts and self._cur_turn:
             rec = self._advice_by_turn.setdefault(self._cur_turn, {})
             rec["actions"] = list(_acts)
-        if snap.get("phase") == "mulligan" and (snap.get("turn") or 0) <= 1:
+        if new_game:
             self._ai_lessons = []                # 上一局的 AI 教训不能带到这局
             self._disagree_turns = set()          # 不赞同标记也只属于一局
             self._advice_by_turn = {}
@@ -392,6 +400,9 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             self._cases_flushed = False
             self._ai_reviewed = False             # 复盘标志按局清零，否则第二局不再起复盘线程
             self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
+            self._ai_result = None               # 上局还没送到的 AI 结果别贴到新局
+            self._ai_turn = None                 # 「本回合已问过」也只属于一局
+            self._last_review_shown = False      # 局末回到待机时重画一次复盘
 
         phase = snap.get("phase")
         if phase == "game_over":

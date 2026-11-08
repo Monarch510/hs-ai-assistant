@@ -51,6 +51,8 @@ if not exist "data\cards_zhCN.json" (
 
 rem ---------- 日志开关 ----------
 %PY% -m hsai setup-log --auto
+rem 写不进去只警告不退出：助手仍能退回示例回放，别让日志开关挡住整个程序
+if errorlevel 1 echo   [警告] 日志开关没写成功，助手会退回示例回放；请右键以管理员身份重新运行本文件。
 
 rem ---------- 环境预检（出错会停在这里，而不是启动后什么都没出现）----------
 %PY% -m hsai ui --check

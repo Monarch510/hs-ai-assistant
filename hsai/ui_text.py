@@ -33,7 +33,8 @@ def hud_row(side: dict[str, Any], label: str) -> str:
         deck_text = "未知"          # 读不到就显示未知，别把 None 摆上面板
     else:
         deck_text = f"约{deck}" if side.get("deck_estimated") else str(deck)
-    parts = [f"{label} {live}", f"手牌 {side.get('hand_count')}",
+    hand = side.get("hand_count")
+    parts = [f"{label} {live}", f"手牌 {'未知' if hand is None else hand}",
              f"牌库 {deck_text}", f"场攻 {atk + weapon_atk}"]
     gy = side.get("graveyard_count")
     if isinstance(gy, int):

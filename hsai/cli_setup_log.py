@@ -37,4 +37,5 @@ def cmd_setup_log(args: argparse.Namespace) -> int:
         print("之后 Power.log 会出现在安装目录的 Logs 子目录里，助手会自动接上。")
     found = find_power_log(extra)
     print(f"当前找到的日志：{found}" if found else "当前还没有 Power.log（重启游戏后会出现）。")
-    return 0
+    # 写不进去不能报成功：启动脚本靠 errorlevel 决定要不要提醒用户
+    return 1 if any("写入失败" in r[1] for r in results) else 0

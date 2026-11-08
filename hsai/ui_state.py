@@ -21,6 +21,26 @@ def _load_state() -> dict[str, Any]:
         return {}
 
 
+def _as_int(value: Any, default: int) -> int:
+    # window.json 是用户可改的文件，坏值降级成默认，别让整窗起不来
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_set(value: Any) -> set[str]:
+    # 字符串/数字不能拿 set() 拆成字符，只认真正的序列
+    return set(value) if isinstance(value, (list, tuple, set)) else set()
+
+
 def _save_state(data: dict[str, Any]) -> None:
     from . import ui
     try:
