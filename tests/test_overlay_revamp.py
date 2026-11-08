@@ -46,6 +46,22 @@ def _texts(widget):
     return out
 
 
+def _bound(widget, seq="<MouseWheel>") -> bool:
+    """控件上是否挂了滚轮回调：替身查 _binds，真 tkinter 用 bind() 查询。"""
+    if hasattr(widget, "_binds"):
+        return seq in widget._binds
+    try:
+        return bool(widget.bind(seq))
+    except Exception:
+        return False
+
+
+def _walk(widget):
+    for c in widget.winfo_children():
+        yield c
+        yield from _walk(c)
+
+
 class _Case(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -204,13 +220,51 @@ class DeckScrollTest(_Case):
         self.assertFalse(any("第12张牌" in t for t in texts),
                          "不该把全部牌一次画出来，窗口会越撑越高")
 
-        for _ in range(6):
+        for _ in range(12 - DECK_VISIBLE_ROWS):
             self.ov._on_deck_wheel(types.SimpleNamespace(delta=-120))
         self.assertLessEqual(self.ov._deck_scroll, 12 - DECK_VISIBLE_ROWS)
         self.assertTrue(any("第12张牌" in t for t in _texts(self.ov.root)))
 
         self.ov._on_deck_wheel(types.SimpleNamespace(delta=120))
-        self.assertTrue(any("第6张牌" in t for t in _texts(self.ov.root)))
+        self.assertTrue(any("第11张牌" in t for t in _texts(self.ov.root)))
+
+    def test_every_row_is_wheel_bound(self) -> None:
+        # 复现「很难滚动」：滚轮事件不冒泡，铺满宽度的行 Label 没绑定时，
+        # 鼠标停在牌名上父 Frame 收不到，只有缝隙/指示条能滚
+        snap = self._deck_snap(12)
+        self.ov._collapsed.discard("牌库剩余")
+        self.ov._render(snap)
+        rows = list(_walk(self.ov._deck_list))
+        self.assertTrue(rows, "得先有可见行")
+        for w in rows:
+            self.assertTrue(_bound(w), "每一行都得挂滚轮，不能只绑容器 Frame")
+        self.assertTrue(_bound(self.ov._deck_list), "容器本身也要挂")
+        self.assertTrue(_bound(self.ov._deck_bar), "右侧指示条也要挂")
+
+    def test_scroll_position_survives_rerender(self) -> None:
+        # _update 每秒重画一帧：牌没变就别把人弹回顶部
+        snap = self._deck_snap(12)
+        self.ov._collapsed.discard("牌库剩余")
+        self.ov._render(snap)
+        for _ in range(4):
+            self.ov._on_deck_wheel(types.SimpleNamespace(delta=-120))
+        self.assertEqual(self.ov._deck_scroll, 4)
+        self.ov._render(snap)
+        self.assertEqual(self.ov._deck_scroll, 4, "同一副牌重画后滚动位置要留住")
+        # 换了一副牌才回到顶部
+        snap2 = self._deck_snap(12)
+        snap2["deck"]["cards"] = list(reversed(snap2["deck"]["cards"]))
+        self.ov._render(snap2)
+        self.assertEqual(self.ov._deck_scroll, 0)
+
+    def test_linux_wheel_buttons(self) -> None:
+        from hsai.ui_render import _wheel_dir
+
+        self.assertEqual(_wheel_dir(types.SimpleNamespace(num=4, delta=0)), -1)
+        self.assertEqual(_wheel_dir(types.SimpleNamespace(num=5, delta=0)), 1)
+        self.assertEqual(_wheel_dir(types.SimpleNamespace(delta=-120)), 1)
+        self.assertEqual(_wheel_dir(types.SimpleNamespace(delta=120)), -1)
+        self.assertEqual(_wheel_dir(types.SimpleNamespace(delta=0)), 0)
 
     def test_no_deck_no_section(self) -> None:
         snap = self._deck_snap()
@@ -250,10 +304,13 @@ class AdviceScrollTest(_Case):
         self.assertIn("步骤1", _texts(self.ov.root))
         self.assertNotIn("提防牌8", " ".join(_texts(self.ov.root)),
                          "超出的行不该一次全画出来")
-        for _ in range(6):
+        # 一格一行：多滚几格才到底（原来一格跳半屏）
+        for _ in range(len(self.ov._advice_rows)):
             self.ov._on_advice_wheel(types.SimpleNamespace(delta=-120))
         self.assertIn("提防牌8", " ".join(_texts(self.ov.root)),
                       "下滑后能看到后面的行")
+        self.assertTrue(all(_bound(w) for w in _walk(self.ov._advice_list)),
+                        "建议卡的每一行也要挂滚轮（同一个冒泡坑）")
         self.ov._on_advice_wheel(types.SimpleNamespace(delta=120))
         self.assertLess(self.ov._advice_scroll, len(self.ov._advice_rows))
 

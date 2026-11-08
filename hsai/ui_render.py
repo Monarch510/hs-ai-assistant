@@ -15,8 +15,29 @@ from .ui_theme import (
     PANEL, RED, TEXT, TEXT_SOFT, YELLOW,
 )
 
+
+def _wheel_dir(event) -> int:
+    """滚轮方向：+1 往下、-1 往上、0 忽略。Windows 看 delta，Linux 看 Button num。"""
+    num = getattr(event, "num", 0) or 0
+    if num == 4:
+        return -1
+    if num == 5:
+        return 1
+    delta = getattr(event, "delta", 0) or 0
+    return (-1 if delta > 0 else 1) if delta else 0
+
+
 class Renderer:
     """主渲染与各分区。Overlay 继承它。"""
+
+    def _bind_wheel_tree(self, widget, handler) -> None:
+        # Tk 的滚轮事件不会从子控件冒泡到父 Frame：只绑容器时，鼠标停在
+        # 铺满宽度的行 Label 上父级收不到，只有缝隙能滚。行每次重画都会重建，
+        # 所以在画完之后把整棵子树都绑一遍（顺带覆盖 Linux 的 Button-4/5）。
+        for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            widget.bind(seq, handler)
+        for child in widget.winfo_children():
+            self._bind_wheel_tree(child, handler)
 
     def _render(self, snap: dict[str, Any]) -> None:
         self._cur_turn = int(snap.get("turn") or 0)
@@ -135,12 +156,18 @@ class Renderer:
         每行先收成一个「画法」再按可见窗口重画：内容再长也不会把窗口越撑越高。
         """
         self._advice_rows = []
-        self._advice_scroll = 0
         lines = advice.get("lines") or []
         route = getattr(self, "_ai_route", None)
         pick = getattr(self, "_ai_pick", None)
         defense = advice.get("defense") or []
         lethal_on = bool(advice.get("lethal"))
+        # 局面每次刷新都会整块重画：内容没变就留住滚动位置，别把人弹回顶部
+        key = (tuple(l.get("title") for l in lines),
+               tuple(s.get("text") for s in (route or [])),
+               pick[0] if pick else None, tuple(defense))
+        if key != getattr(self, "_advice_key", None):
+            self._advice_scroll = 0
+        self._advice_key = key
         if not lines and not route and not pick and not lethal_on and not defense:
             return None
         inner = self._section("本回合建议", accent=True)
@@ -210,8 +237,6 @@ class Renderer:
         self._advice_list.pack(side="left", fill="x", expand=True)
         self._advice_bar = tk.Frame(row, bg="#21262d", width=4)
         self._advice_bar.pack(side="right", fill="y")
-        self._advice_list.bind("<MouseWheel>", self._on_advice_wheel)
-        self._advice_bar.bind("<MouseWheel>", self._on_advice_wheel)
         self._draw_advice_rows()
         return inner
 
@@ -268,18 +293,20 @@ class Renderer:
         left = deck.get("left")
         tail = "未知" if left is None else str(left)
         inner = self._section("牌库剩余", display_title=f"牌库剩余 · {tail} 张")
+        # 牌没变就留住滚动位置：日志静止时 _update 每秒都会重画一帧，
+        # 每次清零的话刚滚下去就被弹回顶部
+        key = tuple((c.get("id"), c.get("count")) for c in cards)
+        if key != getattr(self, "_deck_key", None):
+            self._deck_scroll = 0
+        self._deck_key = key
         self._deck_cards = cards
         self._deck_left = left
-        self._deck_scroll = 0
         row = tk.Frame(inner, bg=PANEL)
         row.pack(fill="x")
         self._deck_list = tk.Frame(row, bg=PANEL)
         self._deck_list.pack(side="left", fill="x", expand=True)
         self._deck_bar = tk.Frame(row, bg="#21262d", width=4)
         self._deck_bar.pack(side="right", fill="y")
-        # 滚轮只绑在局部容器上，别碰全局的左键拖窗绑定
-        self._deck_list.bind("<MouseWheel>", self._on_deck_wheel)
-        self._deck_bar.bind("<MouseWheel>", self._on_deck_wheel)
         self._draw_deck_rows()
 
     def _draw_deck_rows(self) -> None:
@@ -312,17 +339,16 @@ class Renderer:
             max_start = total - DECK_VISIBLE_ROWS
             top = int((track_h - h) * start / max_start) if max_start else 0
             cv.create_rectangle(0, top, 4, top + h, fill=GOLD, width=0)
+        self._bind_wheel_tree(box, self._on_deck_wheel)
+        self._bind_wheel_tree(bar, self._on_deck_wheel)
 
     def _on_deck_wheel(self, event) -> None:
         cards = getattr(self, "_deck_cards", None) or []
         total = len(cards)
         if total <= DECK_VISIBLE_ROWS:
             return
-        delta = getattr(event, "delta", 0)
-        step = max(1, DECK_VISIBLE_ROWS - 1)
-        shift = -step if delta > 0 else step
         self._deck_scroll = max(0, min(total - DECK_VISIBLE_ROWS,
-                                       self._deck_scroll + shift))
+                                       self._deck_scroll + _wheel_dir(event)))
         self._draw_deck_rows()
 
     def _draw_advice_rows(self) -> None:
@@ -348,17 +374,16 @@ class Renderer:
             max_start = total - ADVICE_VISIBLE_ROWS
             top = int((track_h - h) * start / max_start) if max_start else 0
             cv.create_rectangle(0, top, 4, top + h, fill=GOLD, width=0)
+        self._bind_wheel_tree(box, self._on_advice_wheel)
+        self._bind_wheel_tree(bar, self._on_advice_wheel)
 
     def _on_advice_wheel(self, event) -> None:
         rows = getattr(self, "_advice_rows", None) or []
         total = len(rows)
         if total <= ADVICE_VISIBLE_ROWS:
             return
-        delta = getattr(event, "delta", 0)
-        step = max(1, ADVICE_VISIBLE_ROWS - 1)
-        shift = -step if delta > 0 else step
         self._advice_scroll = max(0, min(total - ADVICE_VISIBLE_ROWS,
-                                         self._advice_scroll + shift))
+                                         self._advice_scroll + _wheel_dir(event)))
         self._draw_advice_rows()
 
     def _render_prediction(self, pred: dict[str, Any]) -> None:
