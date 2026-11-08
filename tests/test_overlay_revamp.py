@@ -24,7 +24,7 @@ prepare()                       # 没有 tkinter 就装替身
 
 import hsai.ui as ui_mod        # noqa: E402  必须在 prepare() 之后
 from hsai.ui import Overlay     # noqa: E402
-from hsai.ui_theme import DEFAULT_COLLAPSED, DECK_VISIBLE_ROWS
+from hsai.ui_theme import ADVICE_VISIBLE_ROWS, DEFAULT_COLLAPSED, DECK_VISIBLE_ROWS
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -143,8 +143,21 @@ class DeckContextTest(_Case):
         self.assertEqual(d["left"], 3)
         self.assertEqual(len(d["cards"]), 3)
         self.assertTrue(all({"id", "name", "cost", "count"} <= set(c) for c in d["cards"]))
+        costs = [c["cost"] for c in d["cards"]]
+        self.assertEqual(costs, sorted(costs, reverse=True), "明细要从高费到低费排")
         self.assertIn("key_cards", d, "老字段不能丢")
         self.assertIn("source", d)
+
+    def test_deck_left_matches_battle_info(self) -> None:
+        # 牌库剩余标题张数要服从「对战信息」的真实读数，别两套算法各说各话
+        adv = self.ov.advisor
+        ids = [c.id for c in list(self.db.by_id.values())[:3]]
+        adv.our_deck = ids
+        adv._deck_manual = True
+        adv._auto_deck = None
+        snap = adv.snapshot(self.state_obj)
+        self.assertTrue(snap.get("deck"), "得先认出一套牌才有牌库剩余")
+        self.assertEqual(snap["deck"]["left"], snap["our"]["deck_count"])
 
     def test_signature_tracks_deck_composition(self) -> None:
         snap = self._deck_snap(6)
@@ -157,13 +170,14 @@ class DeckContextTest(_Case):
 
 
 class RenderOrderTest(_Case):
-    def test_advice_pinned_above_info_and_deck(self) -> None:
+    def test_info_above_advice_and_deck(self) -> None:
         self.ov._render(self._deck_snap())
         titles = self._section_titles()
         self.assertIn("本回合建议", titles)
         self.assertIn("牌库剩余", titles)
-        self.assertLess(titles.index("本回合建议"), titles.index("对战信息"))
-        self.assertLess(titles.index("对战信息"), titles.index("牌库剩余"))
+        # 用户要求：先看对战信息，再看建议
+        self.assertLess(titles.index("对战信息"), titles.index("本回合建议"))
+        self.assertLess(titles.index("本回合建议"), titles.index("牌库剩余"))
         self.assertLess(titles.index("牌库剩余"), titles.index("对手预判"))
 
     def test_mulligan_advice_comes_first_in_mulligan_phase(self) -> None:
@@ -204,6 +218,44 @@ class DeckScrollTest(_Case):
         self.ov._render(snap)
         self.assertNotIn("牌库剩余", self._section_titles(),
                          "认不出卡组就整块不画，别编一个牌库出来")
+
+    def test_deck_row_shows_name_count_and_draw_rate(self) -> None:
+        snap = self._deck_snap(12)
+        self.ov._collapsed.discard("牌库剩余")
+        self.ov._render(snap)
+        texts = _texts(self.ov.root)
+        self.assertTrue(any("第1张牌" in t and "×1" in t and "抽" in t for t in texts),
+                        "明细要写名字、数量、抽取率")
+
+    def test_draw_rate_is_zero_when_deck_count_unknown(self) -> None:
+        snap = self._deck_snap(6)
+        snap["deck"]["left"] = None
+        self.ov._collapsed.discard("牌库剩余")
+        self.ov._render(snap)
+        self.assertTrue(any("未知" in t for t in _texts(self.ov.root)),
+                        "牌库读数拿不到时抽取率显示未知，不编一个数")
+
+
+class AdviceScrollTest(_Case):
+    def test_long_advice_is_paged_not_all_drawn(self) -> None:
+        snap = self._deck_snap()
+        snap["advice"] = {
+            "lines": [{"rank": i, "title": f"步骤{i}", "score": 90 - i,
+                       "reason": f"理由{i}"} for i in range(1, 4)],
+            "lethal": False,
+            "defense": [f"提防牌{i}" for i in range(1, 9)],
+        }
+        self.ov._render(snap)
+        self.assertGreater(len(self.ov._advice_rows), ADVICE_VISIBLE_ROWS)
+        self.assertIn("步骤1", _texts(self.ov.root))
+        self.assertNotIn("提防牌8", " ".join(_texts(self.ov.root)),
+                         "超出的行不该一次全画出来")
+        for _ in range(6):
+            self.ov._on_advice_wheel(types.SimpleNamespace(delta=-120))
+        self.assertIn("提防牌8", " ".join(_texts(self.ov.root)),
+                      "下滑后能看到后面的行")
+        self.ov._on_advice_wheel(types.SimpleNamespace(delta=120))
+        self.assertLess(self.ov._advice_scroll, len(self.ov._advice_rows))
 
 
 if __name__ == "__main__":

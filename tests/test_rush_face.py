@@ -57,7 +57,7 @@ class GraveyardCountTest(unittest.TestCase):
 
 
 class HudRowTest(unittest.TestCase):
-    """面板「对战信息」那一行的组装：墓地/奥秘/武器都要出现。"""
+    """面板「对战信息」那一行的组装：血甲分开、不摆墓地，奥秘/武器仍要出现。"""
 
     def _row(self, **kw) -> str:
         from hsai import ui as ui_mod
@@ -71,7 +71,8 @@ class HudRowTest(unittest.TestCase):
         row = self._row()
         self.assertIn("对手 27 血", row)
         self.assertIn("场攻 3", row)
-        self.assertIn("墓地 4", row)
+        self.assertNotIn("墓地", row, "墓地数不再摆上对战信息")
+        self.assertIn("27 血 · 3 甲", self._row(armor=3), "血和甲要拆成两个数")
 
     def test_secrets_and_weapon(self) -> None:
         row = self._row(secrets=["S1", "S2"], weapon={"atk": 3, "durability": 2})

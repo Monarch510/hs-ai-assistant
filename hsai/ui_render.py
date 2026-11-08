@@ -11,8 +11,8 @@ from typing import Any
 
 from .ui_text import _weight_summary, hud_row
 from .ui_theme import (
-    BLUE, DECK_VISIBLE_ROWS, FONT, GOLD, GREEN, MUTED, PANEL, RED, TEXT,
-    TEXT_SOFT, YELLOW,
+    ADVICE_VISIBLE_ROWS, BLUE, DECK_VISIBLE_ROWS, FONT, GOLD, GREEN, MUTED,
+    PANEL, RED, TEXT, TEXT_SOFT, YELLOW,
 )
 
 class Renderer:
@@ -80,8 +80,16 @@ class Renderer:
         if turn_ending:
             self._strip("回合已结束", fg=MUTED, bg=PANEL)
 
-        # 置顶：AI 路线 / 发现抉择 / 引擎建议本来是三张卡，合成一张「本回合建议」
-        inner_advice = self._render_advice_card(advice)
+        # 先看局面再决定怎么打：对战信息放到建议卡上方，别让建议盖住血量/牌库
+        inner_b = self._section("对战信息")
+        for side, label in ((snap.get("opp") or {}, "对手"), (snap.get("our") or {}, "我方")):
+            tk.Label(inner_b, text=hud_row(side, label), bg=PANEL,
+                     fg=TEXT if label == "对手" else TEXT_SOFT,
+                     font=(FONT, self.font_size - 1), anchor="w", justify="left",
+                     wraplength=self.width - 46).pack(fill="x", pady=1)
+
+        # AI 路线 / 发现抉择 / 引擎建议本来是三张卡，合成一张「本回合建议」
+        self._render_advice_card(advice)
         if advice.get("lethal"):
             self._render_lethal_card(advice)
 
@@ -106,14 +114,6 @@ class Renderer:
                          font=(FONT, self.font_size - 2), anchor="w", justify="left",
                          wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
 
-        # 对战信息：对手在上，双方血量/手牌/牌库/场攻/墓地/奥秘/武器
-        inner_b = self._section("对战信息")
-        for side, label in ((snap.get("opp") or {}, "对手"), (snap.get("our") or {}, "我方")):
-            tk.Label(inner_b, text=hud_row(side, label), bg=PANEL,
-                     fg=TEXT if label == "对手" else TEXT_SOFT,
-                     font=(FONT, self.font_size - 1), anchor="w", justify="left",
-                     wraplength=self.width - 46).pack(fill="x", pady=1)
-
         self._render_deck(snap.get("deck") or {})
 
         # 以下都是「参考性」信息，默认折叠，靠后放，别挤掉要动手的块
@@ -124,89 +124,124 @@ class Renderer:
         self._render_passive(snap.get("passive") or {})
         self._render_cthun(snap.get("cthun") or {})
 
-        defense = advice.get("defense") or []
-        # 只有「本回合建议」这张卡片真的画出来了，才往里加内容
-        if defense and inner_advice is not None:
-            tk.Frame(inner_advice, bg="#30363d", height=1).pack(fill="x", pady=(7, 4))
-            tk.Label(inner_advice, text="防对面的牌", bg=PANEL, fg="#8b949e",
-                     font=(FONT, self.font_size - 3), anchor="w").pack(fill="x")
-            for line in defense:
-                tk.Label(inner_advice, text=line, bg=PANEL, fg="#e3b341",
-                         font=(FONT, self.font_size - 2), anchor="w", justify="left",
-                         wraplength=self.width - 46).pack(fill="x", pady=1)
-
         warning = snap.get("warning") or ""
         if warning:
             self._strip(warning, fg="#e3b341", bg="#2d2614")
         self._request_fit()
 
     def _render_advice_card(self, advice: dict[str, Any]) -> Any:
-        """路线 / 发现抉择 / 引擎建议合成一张置顶卡，避免三张卡讲同一件事。"""
+        """路线 / 发现抉择 / 引擎建议 / 防对面的牌合成一张卡，固定高度、滚轮翻页。
+
+        每行先收成一个「画法」再按可见窗口重画：内容再长也不会把窗口越撑越高。
+        """
+        self._advice_rows = []
+        self._advice_scroll = 0
         lines = advice.get("lines") or []
         route = getattr(self, "_ai_route", None)
         pick = getattr(self, "_ai_pick", None)
+        defense = advice.get("defense") or []
         lethal_on = bool(advice.get("lethal"))
-        if not lines and not route and not pick and not lethal_on:
+        if not lines and not route and not pick and not lethal_on and not defense:
             return None
         inner = self._section("本回合建议", accent=True)
+        rows: list = []
         if route:
             pos_cn = {"left": "最左", "right": "最右"}
             for i, step in enumerate(route[:6], 1):
-                row = tk.Frame(inner, bg=PANEL)
-                row.pack(fill="x", pady=1)
-                tk.Label(row, text=str(i), bg="#21262d", fg=GOLD,
-                         font=(FONT, self.font_size - 3, "bold"), width=2).pack(side="left")
                 label = step["text"]
                 if step.get("pos"):
                     p = pos_cn.get(step["pos"], f"第{step['pos']}位")
                     label += f"（放{p}）"
-                tk.Label(row, text=label, bg=PANEL,
-                         fg=TEXT if step.get("matched") else "#c9a05a",
-                         font=(FONT, self.font_size - 1), anchor="w", justify="left",
-                         wraplength=self.width - 70).pack(side="left")
-                if not step.get("matched"):
-                    tip = step.get("why") or "需人工"
-                    tk.Label(row, text=tip, bg=PANEL, fg="#c9a05a",
-                             font=(FONT, self.font_size - 3)).pack(side="right")
+                matched = bool(step.get("matched"))
+                tip = "" if matched else (step.get("why") or "需人工")
+                rows.append(lambda parent, i=i, label=label, tip=tip, matched=matched:
+                            self._advice_route_row(parent, i, label, tip, matched))
         elif pick:
-            from_engine = self._pick_source != "AI"
-            tk.Label(inner, text=pick[0], bg=PANEL, fg=GOLD,
-                     font=(FONT, self.font_size + 1, "bold"), anchor="w",
-                     justify="left", wraplength=self.width - 46).pack(fill="x")
-            tk.Label(inner, text=pick[1], bg=PANEL, fg=MUTED,
-                     font=(FONT, self.font_size - 2), anchor="w", justify="left",
-                     wraplength=self.width - 46).pack(fill="x")
+            rows.append(lambda parent, name=pick[0]: tk.Label(
+                parent, text=name, bg=PANEL, fg=GOLD,
+                font=(FONT, self.font_size + 1, "bold"), anchor="w",
+                justify="left", wraplength=self.width - 46).pack(fill="x"))
+            rows.append(lambda parent, reason=pick[1]: tk.Label(
+                parent, text=reason, bg=PANEL, fg=MUTED,
+                font=(FONT, self.font_size - 2), anchor="w", justify="left",
+                wraplength=self.width - 46).pack(fill="x"))
             # 分差只在真的算过时显示：0 是初值，9.9/99 是规则化选择或只有一个候选
             gap = getattr(self, "_pick_gap", 0.0) or 0.0
             if 0.0 < gap < 9.0:
                 tip = f"与第二名差 {gap:.1f} 分" + ("（咬得紧）" if gap < 1.0 else "")
-                tk.Label(inner, text=tip, bg=PANEL, fg=BLUE,
-                         font=(FONT, self.font_size - 3), anchor="w", justify="left",
-                         wraplength=self.width - 46).pack(fill="x")
+                rows.append(lambda parent, tip=tip: tk.Label(
+                    parent, text=tip, bg=PANEL, fg=BLUE,
+                    font=(FONT, self.font_size - 3), anchor="w", justify="left",
+                    wraplength=self.width - 46).pack(fill="x"))
         # AI 与引擎不一致时留一行小字对照，别让两个结论看起来是同一件事
         if pick and not lethal_on and lines and (lines[0].get("title") or "") != pick[0]:
-            tk.Label(inner, text="与 AI 决策不一致，供对照" if self._pick_source == "AI"
-                     else "引擎独立评估，仅供参考", bg=PANEL, fg="#c9a05a",
-                     font=(FONT, self.font_size - 3), anchor="w").pack(fill="x", pady=(0, 2))
+            note = "与 AI 决策不一致，供对照" if self._pick_source == "AI" else "引擎独立评估，仅供参考"
+            rows.append(lambda parent, note=note: tk.Label(
+                parent, text=note, bg=PANEL, fg="#c9a05a",
+                font=(FONT, self.font_size - 3), anchor="w").pack(fill="x", pady=(0, 2)))
         for i, line in enumerate(lines[:3]):
             first = i == 0
-            head = tk.Frame(inner, bg=PANEL)
-            head.pack(fill="x", pady=(4 if i else 0, 0))
-            tk.Label(head, text=str(line.get("rank", i + 1)), bg="#21262d", fg=GOLD if first else MUTED,
-                     font=(FONT, self.font_size - 3, "bold"), width=2).pack(side="left")
-            tk.Label(head, text=line.get("title") or "", bg=PANEL, fg=TEXT if first else MUTED,
-                     font=(FONT, self.font_size - 1 + (1 if first else 0), "bold" if first else "normal"),
-                     anchor="w", justify="left", wraplength=self.width - 70).pack(side="left", padx=(5, 0))
-            if first:
-                self._disagree_button(head, int(getattr(self, "_cur_turn", 0) or 0))
-            score = line.get("score")
-            if score:
-                tk.Label(head, text=str(score), bg=PANEL, fg=GOLD if first else MUTED,
-                         font=(FONT, self.font_size - 2)).pack(side="right")
+            rank = line.get("rank", i + 1)
+            rows.append(lambda parent, line=line, first=first, rank=rank:
+                        self._advice_line_head(parent, line, first, rank))
             if first and line.get("reason"):
-                tk.Label(inner, text=line["reason"], bg=PANEL, fg="#8b949e", font=(FONT, self.font_size - 2),
-                         anchor="w", justify="left", wraplength=self.width - 46).pack(fill="x", padx=(24, 0), pady=(2, 0))
+                reason = line["reason"]
+                rows.append(lambda parent, reason=reason: tk.Label(
+                    parent, text=reason, bg=PANEL, fg="#8b949e",
+                    font=(FONT, self.font_size - 2), anchor="w", justify="left",
+                    wraplength=self.width - 46).pack(fill="x", padx=(24, 0), pady=(2, 0)))
+        # 防对面的牌原来挂在卡片外面，一起收进可滚列表
+        defense = advice.get("defense") or []
+        if defense:
+            rows.append(lambda parent: tk.Frame(parent, bg="#30363d", height=1).pack(fill="x", pady=(7, 4)))
+            rows.append(lambda parent: tk.Label(
+                parent, text="防对面的牌", bg=PANEL, fg="#8b949e",
+                font=(FONT, self.font_size - 3), anchor="w").pack(fill="x"))
+            for dline in defense:
+                rows.append(lambda parent, dline=dline: tk.Label(
+                    parent, text=dline, bg=PANEL, fg="#e3b341",
+                    font=(FONT, self.font_size - 2), anchor="w", justify="left",
+                    wraplength=self.width - 46).pack(fill="x", pady=1))
+
+        self._advice_rows = rows
+        row = tk.Frame(inner, bg=PANEL)
+        row.pack(fill="x")
+        self._advice_list = tk.Frame(row, bg=PANEL)
+        self._advice_list.pack(side="left", fill="x", expand=True)
+        self._advice_bar = tk.Frame(row, bg="#21262d", width=4)
+        self._advice_bar.pack(side="right", fill="y")
+        self._advice_list.bind("<MouseWheel>", self._on_advice_wheel)
+        self._advice_bar.bind("<MouseWheel>", self._on_advice_wheel)
+        self._draw_advice_rows()
         return inner
+
+    def _advice_route_row(self, parent, i: int, label: str, tip: str, matched: bool) -> None:
+        row = tk.Frame(parent, bg=PANEL)
+        row.pack(fill="x", pady=1)
+        tk.Label(row, text=str(i), bg="#21262d", fg=GOLD,
+                 font=(FONT, self.font_size - 3, "bold"), width=2).pack(side="left")
+        tk.Label(row, text=label, bg=PANEL,
+                 fg=TEXT if matched else "#c9a05a",
+                 font=(FONT, self.font_size - 1), anchor="w", justify="left",
+                 wraplength=self.width - 70).pack(side="left")
+        if tip:
+            tk.Label(row, text=tip, bg=PANEL, fg="#c9a05a",
+                     font=(FONT, self.font_size - 3)).pack(side="right")
+
+    def _advice_line_head(self, parent, line: dict, first: bool, rank: int) -> None:
+        head = tk.Frame(parent, bg=PANEL)
+        head.pack(fill="x", pady=(0 if first else 4, 0))
+        tk.Label(head, text=str(rank), bg="#21262d", fg=GOLD if first else MUTED,
+                 font=(FONT, self.font_size - 3, "bold"), width=2).pack(side="left")
+        tk.Label(head, text=line.get("title") or "", bg=PANEL, fg=TEXT if first else MUTED,
+                 font=(FONT, self.font_size - 1 + (1 if first else 0), "bold" if first else "normal"),
+                 anchor="w", justify="left", wraplength=self.width - 70).pack(side="left", padx=(5, 0))
+        if first:
+            self._disagree_button(head, int(getattr(self, "_cur_turn", 0) or 0))
+        score = line.get("score")
+        if score:
+            tk.Label(head, text=str(score), bg=PANEL, fg=GOLD if first else MUTED,
+                     font=(FONT, self.font_size - 2)).pack(side="right")
 
     def _render_lethal_card(self, advice: dict[str, Any]) -> None:
         """红条和斩杀步骤原来散在两处，合成一张「能斩」卡。"""
@@ -226,7 +261,7 @@ class Renderer:
                      wraplength=self.width - 70).pack(side="left")
 
     def _render_deck(self, deck: dict[str, Any]) -> None:
-        """牌库剩余：标题只写张数，展开后只画可见行，滚轮翻页，不碰整窗高度。"""
+        """牌库剩余：标题只写张数，明细从高费到低费列名字/数量/抽取率，滚轮翻页。"""
         cards = deck.get("cards") or []
         if not cards:
             return
@@ -234,6 +269,7 @@ class Renderer:
         tail = "未知" if left is None else str(left)
         inner = self._section("牌库剩余", display_title=f"牌库剩余 · {tail} 张")
         self._deck_cards = cards
+        self._deck_left = left
         self._deck_scroll = 0
         row = tk.Frame(inner, bg=PANEL)
         row.pack(fill="x")
@@ -255,8 +291,13 @@ class Renderer:
         start = self._deck_scroll
         for c in list(box.winfo_children()):
             c.destroy()
+        total_left = getattr(self, "_deck_left", None)
         for c in cards[start:start + DECK_VISIBLE_ROWS]:
-            tk.Label(box, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{c.get('count', 1)}",
+            count = c.get("count", 1)
+            # 抽取率 = 这张牌还剩几张 ÷ 牌库还剩几张（下一抽命中率）
+            rate = (f"{min(1.0, count / total_left):.0%}"
+                    if isinstance(total_left, int) and total_left > 0 else "未知")
+            tk.Label(box, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{count}  抽{rate}",
                      bg=PANEL, fg=TEXT_SOFT, font=(FONT, self.font_size - 2),
                      anchor="w", justify="left").pack(fill="x", pady=1)
         for c in list(bar.winfo_children()):
@@ -283,6 +324,42 @@ class Renderer:
         self._deck_scroll = max(0, min(total - DECK_VISIBLE_ROWS,
                                        self._deck_scroll + shift))
         self._draw_deck_rows()
+
+    def _draw_advice_rows(self) -> None:
+        box = getattr(self, "_advice_list", None)
+        bar = getattr(self, "_advice_bar", None)
+        if box is None or bar is None:
+            return
+        rows = self._advice_rows
+        start = self._advice_scroll
+        for c in list(box.winfo_children()):
+            c.destroy()
+        for fn in rows[start:start + ADVICE_VISIBLE_ROWS]:
+            fn(box)
+        for c in list(bar.winfo_children()):
+            c.destroy()
+        total = len(rows)
+        if total > ADVICE_VISIBLE_ROWS:
+            track_h = ADVICE_VISIBLE_ROWS * 18
+            cv = tk.Canvas(bar, width=4, height=track_h, bg="#21262d",
+                           highlightthickness=0, bd=0)
+            cv.pack(fill="y")
+            h = max(8, int(track_h * ADVICE_VISIBLE_ROWS / total))
+            max_start = total - ADVICE_VISIBLE_ROWS
+            top = int((track_h - h) * start / max_start) if max_start else 0
+            cv.create_rectangle(0, top, 4, top + h, fill=GOLD, width=0)
+
+    def _on_advice_wheel(self, event) -> None:
+        rows = getattr(self, "_advice_rows", None) or []
+        total = len(rows)
+        if total <= ADVICE_VISIBLE_ROWS:
+            return
+        delta = getattr(event, "delta", 0)
+        step = max(1, ADVICE_VISIBLE_ROWS - 1)
+        shift = -step if delta > 0 else step
+        self._advice_scroll = max(0, min(total - ADVICE_VISIBLE_ROWS,
+                                         self._advice_scroll + shift))
+        self._draw_advice_rows()
 
     def _render_prediction(self, pred: dict[str, Any]) -> None:
         if not pred:

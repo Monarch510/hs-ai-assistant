@@ -20,9 +20,6 @@ def hud_row(side: dict[str, Any], label: str) -> str:
     """
     hp = side.get("health") or 0
     armor = side.get("armor") or 0
-    live = f"{hp + armor} 血"
-    if armor:
-        live += f"（{hp}+{armor}甲）"
     board = [m for m in (side.get("board") or []) if m.get("atk")]
     atk = sum(int(m.get("atk") or 0) for m in board)
     weapon = side.get("weapon") or {}
@@ -34,11 +31,12 @@ def hud_row(side: dict[str, Any], label: str) -> str:
     else:
         deck_text = f"约{deck}" if side.get("deck_estimated") else str(deck)
     hand = side.get("hand_count")
-    parts = [f"{label} {live}", f"手牌 {'未知' if hand is None else hand}",
-             f"牌库 {deck_text}", f"场攻 {atk + weapon_atk}"]
-    gy = side.get("graveyard_count")
-    if isinstance(gy, int):
-        parts.append(f"墓地 {gy}")
+    # 血量和护甲分开两个数，别把甲加进血里让人误判斩杀线；墓地数不再摆上来
+    parts = [f"{label} {hp} 血"]
+    if armor:
+        parts.append(f"{armor} 甲")
+    parts += [f"手牌 {'未知' if hand is None else hand}",
+              f"牌库 {deck_text}", f"场攻 {atk + weapon_atk}"]
     secrets = side.get("secrets") or []
     if secrets:
         # 隐藏奥秘没有 cardId：数量照算，但标出「认不出是哪张」

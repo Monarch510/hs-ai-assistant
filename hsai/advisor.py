@@ -302,7 +302,12 @@ class Advisor:
             self._mulligan_shown = True
 
         self._ensure_deck(st)
-        snap["deck"] = self._deck_context(st)
+        deck_ctx = self._deck_context(st)
+        if deck_ctx:
+            # 标题张数服从「对战信息」的真实读数：实体计数含洗回牌库的牌，
+            # 明细仍按「卡组 − 手牌 − 已打出」推算，两者口径不同时以读数为准
+            deck_ctx["left"] = snap["our"]["deck_count"]
+        snap["deck"] = deck_ctx
         if st.phase == "playing":
             if opp.health > 0:
                 snap["advice"] = self._advice(

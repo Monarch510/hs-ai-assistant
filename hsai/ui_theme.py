@@ -39,3 +39,5 @@ DEFAULT_COLLAPSED = frozenset({
 })
 # 牌库剩余展开后一次只画几行，其余靠滚轮翻 —— 不碰 _apply_geometry
 DECK_VISIBLE_ROWS = 6
+# 建议卡同理：一次只画几行，一串建议不会把窗口越撑越高
+ADVICE_VISIBLE_ROWS = 6

@@ -39,9 +39,9 @@ from .ui_widgets import Widgets
 
 from .ui_text import _fmt_weight, _weight_summary, hud_row  # noqa: F401
 from .ui_theme import (  # noqa: F401
-    BG, BLUE, BORDER, COLLAPSED_H, DEFAULT_COLLAPSED, DEFAULT_WIDTH, FONT, GOLD,
-    GREEN, LAYOUT_VERSION, MUTED, PANEL, RED, TEXT, TEXT_SOFT, WEIGHT_REASON_WORDS,
-    WEIGHT_TOP_N, YELLOW,
+    ADVICE_VISIBLE_ROWS, BG, BLUE, BORDER, COLLAPSED_H, DEFAULT_COLLAPSED,
+    DEFAULT_WIDTH, DECK_VISIBLE_ROWS, FONT, GOLD, GREEN, LAYOUT_VERSION, MUTED,
+    PANEL, RED, TEXT, TEXT_SOFT, WEIGHT_REASON_WORDS, WEIGHT_TOP_N, YELLOW,
 )
 from .ui_state import _as_float, _as_int, _as_set, _load_state, _save_state  # noqa: F401
 
@@ -106,6 +106,8 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             self._collapsed: set[str] = set(DEFAULT_COLLAPSED)
         self._deck_cards: list[dict] = []
         self._deck_scroll = 0
+        self._advice_rows: list = []
+        self._advice_scroll = 0
         self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
         self._last_review = self._load_last_review()
         self._last_review_shown = False

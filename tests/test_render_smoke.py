@@ -108,7 +108,11 @@ class RenderSmokeTest(unittest.TestCase):
         """没有建议行时，防御块不能引用未定义的 inner。"""
         snap = copy.deepcopy(self.snap)
         snap["advice"] = {"lines": [], "lethal": False, "defense": ["提防 绝命乱斗（62%）"]}
+        # 和 defense 用例同理：拦住 root.update() 触发的重画，否则注入的 defense 被冲掉
+        self.ov._update = lambda *a, **k: None
         self._render(snap)
+        self.assertTrue(any("提防" in t for t in _texts(self.ov.root)),
+                        "只有防御块时建议卡也要画出来")
 
     def test_defense_lines_are_rendered(self) -> None:
         """有建议行时，defense 的每一行都必须画到面板上。"""
