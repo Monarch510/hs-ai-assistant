@@ -907,17 +907,24 @@ class GameState:
         return None
 
     def hero(self, pid: int) -> Entity | None:
-        # 最可靠：玩家实体上的 HERO_ENTITY 直接给出英雄实体 id
+        # _hero_entities 按 controller 建（CREATE_GAME 的 HERO_ENTITY），比玩家实体上
+        # 的同名标签可靠：宠物/玩家名也会带 PLAYER_ID、HERO_ENTITY，盲信玩家实体会把
+        # 双方英雄都指成同一个，实测表现为「对手职业被判成我方」。
+        hero_id = self._hero_entities.get(pid)
+        if isinstance(hero_id, int):
+            e = self.entities.get(hero_id)
+            if e is not None and e.controller in (None, pid):
+                return e
+        # 次选：玩家实体上的 HERO_ENTITY（老日志 / 手工构造的状态走这条），
+        # 同样要校验归属，别让它反过来把正确映射覆盖掉
         pe = self.player_entity(pid)
         if pe is not None:
-            hero_id = pe.tags.get(T_HERO_ENTITY)
-            if isinstance(hero_id, int) and hero_id in self.entities:
-                self._hero_entities[pid] = hero_id
-                return self.entities[hero_id]
-        if pid in self._hero_entities:
-            e = self.entities.get(self._hero_entities[pid])
-            if e is not None:
-                return e
+            hid = pe.tags.get(T_HERO_ENTITY)
+            cand = self.entities.get(hid) if isinstance(hid, int) else None
+            if cand is not None and cand.controller in (None, pid):
+                self._hero_entities[pid] = cand.id
+                return cand
+        # 兜底：按 controller 找在场英雄，脏映射也能自愈
         for e in self.entities.values():
             if e.controller == pid and (e.card_id or "").upper().startswith("HERO"):
                 self._hero_entities[pid] = e.id

@@ -308,6 +308,14 @@ class Renderer:
         self._deck_bar = tk.Frame(row, bg="#21262d", width=4)
         self._deck_bar.pack(side="right", fill="y")
         self._draw_deck_rows()
+        # 自动认出的套牌常是残套（Decks.log 只记到部分牌），明细凑不满标题的
+        # 真实张数；差多少就明说，不编牌名，也不拿残明细冒充完整牌库
+        known = sum(c.get("count", 1) for c in cards)
+        unknown = left - known if isinstance(left, int) and left > known else 0
+        if unknown:
+            tk.Label(inner, text=f"还有 {unknown} 张未识别（明细不完整）",
+                     bg=PANEL, fg=MUTED, font=(FONT, self.font_size - 2),
+                     anchor="w", justify="left").pack(fill="x", pady=(2, 0))
 
     def _draw_deck_rows(self) -> None:
         box = getattr(self, "_deck_list", None)

@@ -289,6 +289,24 @@ class DeckScrollTest(_Case):
         self.assertTrue(any("未知" in t for t in _texts(self.ov.root)),
                         "牌库读数拿不到时抽取率显示未知，不编一个数")
 
+    def test_deck_gap_is_stated_not_faked(self) -> None:
+        # 真实牌库 17 张，但只认出 12 张（残套模板）：差多少要明说，不能编牌名
+        snap = self._deck_snap(12)
+        snap["deck"]["left"] = 17
+        self.ov._collapsed.discard("牌库剩余")
+        self.ov._render(snap)
+        self.assertTrue(any("还有 5 张未识别" in t for t in _texts(self.ov.root)),
+                        "标题与明细对不上时要补一行说明，别让残明细冒充完整牌库")
+        self.assertTrue(any("牌库剩余 · 17 张" in t for t in _texts(self.ov.root)),
+                        "标题仍显示对战信息里的真实张数")
+
+    def test_no_gap_line_when_every_card_is_known(self) -> None:
+        snap = self._deck_snap(12)
+        self.ov._collapsed.discard("牌库剩余")
+        self.ov._render(snap)
+        self.assertFalse(any("未识别" in t for t in _texts(self.ov.root)),
+                         "明细齐了就别画蛇添足")
+
 
 class AdviceScrollTest(_Case):
     def test_long_advice_is_paged_not_all_drawn(self) -> None:
