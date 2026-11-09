@@ -187,15 +187,9 @@ class Advisor:
             tag_cfg.get("mulligan_scale"), mulligan.MULLIGAN_SCALE)
         self.tag_play_scale = _positive_scale(
             tag_cfg.get("play_scale"), policy.TAG_WEIGHT_SCALE)
-        deck = _load_json(OUR_DECK_PATH)
-        self.our_deck: list[str] = deck.get("cards", [])
-        self.saved_decks = decks_mod.load(self.cards)
-        self._auto_deck: decks_mod.SavedDeck | None = None
-        self._deck_manual = bool(self.our_deck)
-        self.our_deck_name: str = deck.get("name", "")
-        self.our_class_cn: str = deck.get("class_cn", "") or deck.get("class", "")
-        self.our_tags: list[str] = deck.get("tags", [])
-        self.our_archetype: str = deck.get("archetype", "")
+        self._deck_game_ts = ""
+        self._deck_state: GameState | None = None
+        self._reload_deck()
         self._recorded = False
         self._mulligan_shown = False
         self._turn_rec: review_mod.TurnRecord | None = None
@@ -209,7 +203,30 @@ class Advisor:
         self._issues: list[str] = []
         self._unknown_turn_seen: set[int] = set()
 
+    def _reload_deck(self) -> None:
+        """每局开始重读卡组：两局之间用户可能改过牌，局内冻结不重读。"""
+        deck = _load_json(OUR_DECK_PATH)
+        self.our_deck: list[str] = deck.get("cards", [])
+        self.saved_decks = decks_mod.load(self.cards)
+        self._auto_deck: decks_mod.SavedDeck | None = None
+        self._deck_manual = bool(self.our_deck)
+        self.our_deck_name: str = deck.get("name", "")
+        self.our_class_cn: str = deck.get("class_cn", "") or deck.get("class", "")
+        self.our_tags: list[str] = deck.get("tags", [])
+        self.our_archetype: str = deck.get("archetype", "")
+
     def snapshot(self, st: GameState) -> dict[str, Any]:
+        # 新局判定跟 ui._update 同源：watcher 每局换对象，回放里靠 _create_ts 变化。
+        # 卡组只在局首重读，局内冻结，免得半局换牌库。
+        game_ts = str(getattr(st, "_create_ts", "") or "")
+        if self._deck_state is None:
+            # 首帧只认基线：__init__ 已经读过，别覆盖调用方刚设的卡组字段。
+            self._deck_state = st
+            self._deck_game_ts = game_ts
+        elif self._deck_state is not st or game_ts != self._deck_game_ts:
+            self._reload_deck()
+            self._deck_state = st
+            self._deck_game_ts = game_ts
         # 卡组张数优先用登记过的（40 张卡组也能算对）。同步给状态层：
         # 抽牌计数的物理上限和这里的牌库反推必须是同一个数。
         deck_total = len(self.our_deck) or 30
