@@ -14,6 +14,7 @@ import argparse
 import io
 import json
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -148,7 +149,11 @@ class AttackPoolConsistencyTest(unittest.TestCase):
 class ReviewRedrawTest(_OverlayCase):
     def test_idle_review_rendered_once_not_every_frame(self) -> None:
         ov = self.ov
+        # 预置成「非新局」，否则首帧 new_game 会把注入的展示窗口清掉
+        ov._last_state = self.st
+        ov._last_game_ts = str(getattr(self.st, "_create_ts", "") or "")
         ov._last_review = {"lessons": ["上一局教训"]}
+        ov._review_deadline = time.time() + 30
         snap = _snap(phase="idle")
         with mock.patch.object(ov, "_render_last_review") as render, \
                 mock.patch.object(ov.advisor, "snapshot", return_value=snap):

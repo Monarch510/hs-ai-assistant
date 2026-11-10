@@ -155,20 +155,22 @@ class RenderSmokeTest(unittest.TestCase):
         self._render(snap)
 
     def test_feedback_items_show_in_review(self) -> None:
-        """重启后等界面那张「上一局」卡片要带上上次点 👎 的复盘。"""
+        """局末展示的复盘要带上本局点 👎 的反馈（不再从文件读旧记录常驻）。"""
         snap = copy.deepcopy(self.snap)
         snap["phase"] = "game_over"
         snap["advice"] = {"lines": [], "lethal": False, "defense": []}
         snap["unmodelled"] = []
-        # 没有上一局记录时 _render_last_review 会直接返回，反馈卡片根本画不出来
+        self._render(snap)
+        # 注入必须放在 _render 之后：真 Tk 的 root.update() 会触发 __init__ 里
+        # 排好的 after(50, _tick)，它拿的是原绑定的 _tick（setUp 的 lambda 替不掉），
+        # 进而 _update 的 new_game 分支把本局反馈清空。定向单跑 50ms 没到才侥幸过。
         self.ov._last_review = {
             "result": "win", "turns": 8, "our_class": "mage", "opp_class": "mage",
             "findings": [], "issues": [],
         }
         self.ov._feedback_items = [
             {"lesson": "别乱铺场", "rule": "对面 3 伤 AOE 时留随从"}]
-        self._render(snap)
-        self.ov._render_last_review()          # 等待对局时展示的就是这一屏
+        self.ov._render_last_review()
         self.assertIn("不赞同复盘：别乱铺场", _texts(self.ov.root))
 
     def _render_with_gap(self, gap: float) -> list[str]:

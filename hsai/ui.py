@@ -23,7 +23,6 @@ from typing import Any
 
 from .advisor import Advisor
 from . import ai as ai_mod
-from . import feedback as feedback_mod
 from . import logutil
 from . import cards as cards_mod
 from .cards import CardDB
@@ -46,6 +45,9 @@ from .ui_theme import (  # noqa: F401
 from .ui_state import _as_float, _as_int, _as_set, _load_state, _save_state  # noqa: F401
 
 STATE_PATH = WINDOW_JSON
+
+# 局末复盘只展示这么久，过了就收成细条：一直挂着上一局会挡视线
+REVIEW_DISPLAY_SECS = 30.0
 
 
 class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
@@ -109,16 +111,17 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self._advice_rows: list = []
         self._advice_scroll = 0
         self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
-        self._last_review = self._load_last_review()
+        # 启动不读旧复盘：等待对局时别一直挂着上一局；局末再重读并限时展示
+        self._last_review: dict | None = None
         self._last_review_shown = False
+        self._review_deadline: float | None = None
         self._last_state: GameState | None = None
         self._last_game_ts = ""
         self._ai_lessons: list[str] = []
         # 被点了「不赞同」的回合（局后交给 AI 分析）
         self._disagree_turns: set[int] = set()
-        # 重启后也要看得到上次点 👎 的复盘：写盘的地方在 _feedback_worker
-        self._feedback_items: list[dict[str, str]] = feedback_mod.load_recent(
-            path=ADVICE_FEEDBACK_JSONL)
+        # 只认本局点 👎 产生的反馈，不再从文件读旧记录常驻；写盘在 _feedback_worker
+        self._feedback_items: list[dict[str, str]] = []
         self._advice_by_turn: dict[int, dict[str, Any]] = {}
         self._effect_done: set[str] = set()      # 已处理过的牌名
         self._ai_turn: tuple[int, bool] | None = None
@@ -129,11 +132,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self._render_collapsed()      # 必须有这一步：panel 才会真正 pack 上去
         self._show_placeholder()
         self._apply_geometry()
-        # 有上一局记录就直接展示复盘（等待对局时用）
-        if getattr(self, "_last_review", None):
-            self.collapsed = False
-            self._render_last_review()
-            self._last_review_shown = True
         self.root.deiconify()
         self.root.after(50, self._tick)
 
@@ -348,12 +346,9 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         try:
             self.bar_label.config(text="渲染出错，按 F8 重载", fg=RED)
             if not self.collapsed:
-                if getattr(self, "_last_review", None):
-                    self.collapsed = False
-                    self._render_last_review()
-                else:
-                    self.collapsed = True
-                    self._render_collapsed()
+                # 出错就收成细条，别翻出旧复盘再挂上去
+                self.collapsed = True
+                self._render_collapsed()
             self.bar_label.config(text="渲染出错，按 F8 重载", fg=RED)
             self._log("连续渲染失败，已切到错误提示")
         except Exception:
@@ -411,21 +406,35 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             self._ai_conv = ai_mod.Conversation(ai_mod.ROUTE_SYSTEM, keep=ai_mod.KEEP_TURNS)
             self._ai_result = None               # 上局还没送到的 AI 结果别贴到新局
             self._ai_turn = None                 # 「本回合已问过」也只属于一局
+            self._feedback_items = []            # 上局的 👎 反馈不带到新局
+            self._last_review = None             # 上局复盘不再常驻
+            self._review_deadline = None         # 展示窗口按局清零
             self._last_review_shown = False      # 局末回到待机时重画一次复盘
 
         phase = snap.get("phase")
+        now = time.time()
         if phase == "game_over":
-            self._game_over_since = self._game_over_since or time.time()
+            self._game_over_since = self._game_over_since or now
             self._flush_cases(snap)     # 案例入库不依赖 AI，AI 关着也要记
+            if self._review_deadline is None:
+                # 只认刚结束这一局：文件里已写好本局复盘，开一个限时展示窗口
+                self._last_review = self._load_last_review()
+                self._last_review_shown = False
+                self._review_deadline = now + REVIEW_DISPLAY_SECS
         else:
             self._game_over_since = None
 
         idle = phase in (None, "idle") or (
-            phase == "game_over" and self._game_over_since and time.time() - self._game_over_since > 8
+            phase == "game_over" and self._game_over_since and now - self._game_over_since > 8
         )
         self._sync_bar("等待对局" if idle else "对局中")
         if idle:
-            if self._last_review:
+            review_open = (
+                self._last_review
+                and self._review_deadline is not None
+                and now < self._review_deadline
+            )
+            if review_open:
                 if not self._last_review_shown:
                     self._last_review_shown = True
                     self._render_last_review()
