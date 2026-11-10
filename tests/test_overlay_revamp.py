@@ -62,6 +62,29 @@ def _walk(widget):
         yield from _walk(c)
 
 
+def _label_text(widget) -> str:
+    """控件上的 Label 文本，真 tkinter 和替身都能用。"""
+    opts = getattr(widget, "_opts", None)
+    t = opts.get("text") if isinstance(opts, dict) else None
+    if not isinstance(t, str):
+        try:
+            t = widget.cget("text")
+        except Exception:
+            return ""
+    return t if isinstance(t, str) else ""
+
+
+def _pack_side(widget) -> str:
+    """pack 的 side：替身查 _layout，真 tkinter 用 pack_info()。"""
+    layout = getattr(widget, "_layout", None)
+    if isinstance(layout, dict):
+        return str(layout.get("side", ""))
+    try:
+        return str(widget.pack_info().get("side", ""))
+    except Exception:
+        return ""
+
+
 class _Case(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -278,8 +301,19 @@ class DeckScrollTest(_Case):
         self.ov._collapsed.discard("牌库剩余")
         self.ov._render(snap)
         texts = _texts(self.ov.root)
-        self.assertTrue(any("第1张牌" in t and "×1" in t and "抽" in t for t in texts),
-                        "明细要写名字、数量、抽取率")
+        names = [t for t in texts if "第1张牌" in t]
+        self.assertTrue(names, "明细要写名字、数量")
+        self.assertIn("×1", names[0])
+        self.assertNotIn("抽", names[0], "抽取率不再紧跟在数量后面")
+        # 百分比单独一个 Label、只写数值、贴在行末（right）
+        rates = [w for w in _walk(self.ov._deck_list)
+                 if _label_text(w).strip().endswith("%")
+                 and "%" in _label_text(w) and "抽" not in _label_text(w)]
+        self.assertTrue(rates, "行末要有单独的百分比 Label")
+        for w in rates:
+            text = _label_text(w).strip()
+            self.assertRegex(text, r"^\d+%$", "只展示百分比，别带「抽」字或别的说明")
+            self.assertEqual(_pack_side(w), "right", "百分比要放到行末尾")
 
     def test_draw_rate_is_zero_when_deck_count_unknown(self) -> None:
         snap = self._deck_snap(6)

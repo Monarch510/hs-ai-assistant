@@ -332,9 +332,14 @@ class Renderer:
             # 抽取率 = 这张牌还剩几张 ÷ 牌库还剩几张（下一抽命中率）
             rate = (f"{min(1.0, count / total_left):.0%}"
                     if isinstance(total_left, int) and total_left > 0 else "未知")
-            tk.Label(box, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{count}  抽{rate}",
+            line = tk.Frame(box, bg=PANEL)
+            line.pack(fill="x", pady=1)
+            # 百分比单独贴行末、只留数值；先打包它才不会被长牌名挤出可视区
+            tk.Label(line, text=rate, bg=PANEL, fg=MUTED,
+                     font=(FONT, self.font_size - 2)).pack(side="right", padx=(0, 2))
+            tk.Label(line, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{count}",
                      bg=PANEL, fg=TEXT_SOFT, font=(FONT, self.font_size - 2),
-                     anchor="w", justify="left").pack(fill="x", pady=1)
+                     anchor="w").pack(side="left", fill="x", expand=True)
         for c in list(bar.winfo_children()):
             c.destroy()
         track_h = DECK_VISIBLE_ROWS * 18
