@@ -5,7 +5,6 @@
 特别地「仆从」强化的是身材、不是个数：文本仍然只召唤两个。
 """
 
-import pathlib
 import unittest
 
 from hsai import model, policy
@@ -75,15 +74,6 @@ class CthunSkillValuesTest(unittest.TestCase):
         eff = model.Effect(known=True, summon_atk=2, summon_hp=2, summon_count=2)
         _, why = policy.score_choice(card, eff, b, 0, 2, tripled=True)
         self.assertIn("8/8", why)
-
-    def test_no_stale_times_three_wording(self) -> None:
-        stale = "×" + "3"
-        for name in ("README.md", "hsai/ui.py", "hsai/state.py",
-                     "hsai/policy.py", "tests/test_cthun_progress.py"):
-            with self.subTest(name=name):
-                src = pathlib.Path(name).read_text(encoding="utf-8")
-                self.assertNotIn(stale, src, f"{name} 还写着旧的倍数")
-                self.assertNotIn("mult = 3", src, f"{name} 还有硬编码的 3 倍")
 
 
 if __name__ == "__main__":

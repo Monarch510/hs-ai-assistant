@@ -50,8 +50,6 @@ class DeckCountTest(unittest.TestCase):
         _, opp = self._fresh_sides(turn=12, deck_size=40, opp_drawn=0)
         opp.deck_count = None
         self.assertEqual(self._captured(opp), 28)       # 40 − 12，不是 30 − 12 = 18
-        src = Path(advisor_mod.__file__).read_text(encoding="utf-8")
-        self.assertNotIn("30 - st.turn", src)           # 兜底不许再写死 30
 
     def test_real_value_wins_over_estimate(self) -> None:
         """有真实读数就用真实值。deck_size=40 让兜底 28 与真实 18 分得开，

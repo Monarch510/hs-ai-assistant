@@ -189,7 +189,10 @@ class PlanningRegressionTest(unittest.TestCase):
         b, ruling, _ = self._board()
         act = next(a for a in legal_actions(b, 0, db())
                    if a.kind == "play" and a.card_id == ruling.id)
-        self.assertEqual(apply_action(b, 0, act, db()).sides[0].mana, 1)
+        nb = apply_action(b, 0, act, db())
+        self.assertEqual(nb.sides[0].mana, 1)
+        self.assertTrue(any("强力裁决：敌方手牌费用 +2" in line for line in nb.log),
+                        "费用修改本回合只记 note，不动法力")
         with mock.patch.object(model, "_EFFECT_TABLE", self._old_table()):
             self.assertEqual(apply_action(b, 0, act, db()).sides[0].mana, 3)
 
@@ -218,14 +221,6 @@ class PlanningRegressionTest(unittest.TestCase):
             self.assertFalse(first == ruling_desc and second == three_desc)
         self.assertLessEqual(result["final"].sides[0].mana, 3)
 
-    def test_apply_action_records_note_without_settling(self):
-        """费用修改作用于后续回合，本回合只记 note，不动法力。"""
-        b, ruling, _ = self._board()
-        act = next(a for a in legal_actions(b, 0, db())
-                   if a.kind == "play" and a.card_id == ruling.id)
-        nb = apply_action(b, 0, act, db())
-        self.assertEqual(nb.sides[0].mana, 1)
-        self.assertTrue(any("强力裁决：敌方手牌费用 +2" in line for line in nb.log))
 
 
 class AiGateTest(unittest.TestCase):

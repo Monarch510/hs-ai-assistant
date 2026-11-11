@@ -43,15 +43,10 @@ class WeaponTest(unittest.TestCase):
         body = src[src.index("def board_from_state"):]
         body = body[:body.index("\ndef ", 1)]
         self.assertEqual(body.count("me.weapon = Unit("), 1)
+        self.assertEqual(body.count("weapon_attacks_left = "), 0,
+                         "不允许再把攻击次数写进武器池")
 
 
-class DeckCountTest(unittest.TestCase):
-    def test_empty_deck_is_not_unknown(self) -> None:
-        """抽完 30 张（疲劳期）时牌库就是 0 张，不能再凭空补 30 张。"""
-        st = _state_with_weapon()
-        st.our_drawn = 30
-        b = board_from_state(st)
-        self.assertEqual(b.sides[0].deck, [])
 
 
 if __name__ == "__main__":

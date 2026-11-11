@@ -104,26 +104,23 @@ class TagAdvisorTest(unittest.TestCase):
         self.assertGreater(weights["护甲"], DEFAULT_TAG_WEIGHTS["护甲"])
         self.assertLess(weights["斩杀"], DEFAULT_TAG_WEIGHTS["斩杀"])
 
-    def test_missing_config_degrades_to_empty(self) -> None:
-        adv = self._advisor(Path("__no_such_tag_weights__.json"))
-        self.assertEqual(adv.tag_weight_overrides, {})
-        snap = adv.snapshot(self._state(mulligan_phase=True))
-        self.assertEqual(len(snap["tag_weights"]["weights"]), len(TAG_ORDER))
-
-    def test_bad_json_degrades_to_empty(self) -> None:
+    def test_bad_configs_degrade_to_empty(self) -> None:
+        # 缺失 / 坏 JSON / 坏形状：三种坏配置都退回空覆盖，且快照仍给全套权重
         with tempfile.TemporaryDirectory() as tmp:
             bad = Path(tmp) / "tag_weights.json"
-            bad.write_text("{not json", encoding="utf-8")
-            adv = self._advisor(bad)
-            self.assertEqual(adv.tag_weight_overrides, {})
-            snap = adv.snapshot(self._state(mulligan_phase=True))
-            self.assertEqual(len(snap["tag_weights"]["weights"]), len(TAG_ORDER))
-
-    def test_bad_shape_degrades_to_empty(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            bad = Path(tmp) / "tag_weights.json"
-            bad.write_text(json.dumps({"weights": ["单解"]}), encoding="utf-8")
-            self.assertEqual(self._advisor(bad).tag_weight_overrides, {})
+            cases = (
+                ("缺失文件", Path("__no_such_tag_weights__.json"), None),
+                ("坏 JSON", bad, "{not json"),
+                ("坏形状", bad, json.dumps({"weights": ["单解"]})),
+            )
+            for name, path, payload in cases:
+                with self.subTest(name=name):
+                    if payload is not None:
+                        path.write_text(payload, encoding="utf-8")
+                    adv = self._advisor(path)
+                    self.assertEqual(adv.tag_weight_overrides, {})
+                    snap = adv.snapshot(self._state(mulligan_phase=True))
+                    self.assertEqual(len(snap["tag_weights"]["weights"]), len(TAG_ORDER))
 
     def test_config_overrides_apply_to_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

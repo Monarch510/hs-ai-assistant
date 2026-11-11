@@ -49,28 +49,22 @@ class ScaleConfigTest(unittest.TestCase):
         self.assertEqual((adv.tag_mulligan_scale, adv.tag_play_scale), (2.0, 0.5))
         self.assertEqual(adv.tag_weight_overrides, {"单解": 1.5})
 
-    def test_bad_values_fall_back_to_constants(self) -> None:
-        for payload in (
-            {"mulligan_scale": 0, "play_scale": -2},            # 非正数
-            {"mulligan_scale": "3.5", "play_scale": True},       # 字符串 / 布尔
-            {"mulligan_scale": float("nan"), "play_scale": float("inf")},  # 非有限
-            {"mulligan_scale": None, "play_scale": [1.0]},       # 坏形状
+    def test_bad_configs_fall_back_to_constants(self) -> None:
+        for name, payload in (
+            ("坏值-非正数", {"mulligan_scale": 0, "play_scale": -2}),
+            ("坏值-字符串布尔", {"mulligan_scale": "3.5", "play_scale": True}),
+            ("坏值-非有限", {"mulligan_scale": float("nan"), "play_scale": float("inf")}),
+            ("坏值-坏形状", {"mulligan_scale": None, "play_scale": [1.0]}),
+            ("缺键", {"weights": {"单解": 1.5}}),
         ):
-            with self.subTest(payload=payload):
+            with self.subTest(name=name):
                 adv = self._advisor(payload)
-                self.assertEqual(adv.tag_mulligan_scale, mulligan.MULLIGAN_SCALE)
-                self.assertEqual(adv.tag_play_scale, policy.TAG_WEIGHT_SCALE)
-
-    def test_missing_keys_fall_back_to_constants(self) -> None:
-        adv = self._advisor({"weights": {"单解": 1.5}})
-        self.assertEqual(adv.tag_mulligan_scale, mulligan.MULLIGAN_SCALE)
-        self.assertEqual(adv.tag_play_scale, policy.TAG_WEIGHT_SCALE)
-
-    def test_bad_json_falls_back_to_constants(self) -> None:
-        adv = self._advisor("{not json")
-        self.assertEqual((adv.tag_mulligan_scale, adv.tag_play_scale),
+                self.assertEqual((adv.tag_mulligan_scale, adv.tag_play_scale),
+                                 (mulligan.MULLIGAN_SCALE, policy.TAG_WEIGHT_SCALE))
+        bad = self._advisor("{not json")
+        self.assertEqual((bad.tag_mulligan_scale, bad.tag_play_scale),
                          (mulligan.MULLIGAN_SCALE, policy.TAG_WEIGHT_SCALE))
-        self.assertEqual(adv.tag_weight_overrides, {})
+        self.assertEqual(bad.tag_weight_overrides, {})
 
 
 class AdviseScaleTest(unittest.TestCase):

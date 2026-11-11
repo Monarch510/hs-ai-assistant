@@ -15,6 +15,7 @@ from unittest import mock
 from hsai import cards, state
 
 from tests._ui_support import prepare
+from tests._ui_support import widget_texts as _texts
 
 prepare()                       # 没有 tkinter 就装替身，别整组跳过
 
@@ -92,23 +93,6 @@ class WeightSummaryTest(unittest.TestCase):
         # 另一个 worker 正在补 mulligan_scale/play_scale，未落地时不能影响展示
         payload = dict(SAMPLE, mulligan_scale=1.0, play_scale=1.0)
         self.assertEqual(_weight_summary(payload), _weight_summary(SAMPLE))
-
-
-def _texts(widget) -> list[str]:
-    """递归收齐 Label 文本；同 tests/test_render_smoke.py，替身和真 Tk 都要能用。"""
-    out = []
-    for child in widget.winfo_children():
-        opts = getattr(child, "_opts", None)
-        text = opts.get("text") if isinstance(opts, dict) else None
-        if not isinstance(text, str):
-            try:
-                text = child.cget("text")
-            except Exception:
-                text = None
-        if isinstance(text, str):
-            out.append(text)
-        out.extend(_texts(child))
-    return out
 
 
 class TagWeightRenderTest(unittest.TestCase):

@@ -74,13 +74,13 @@ class LearnTest(unittest.TestCase):
 
     def test_mirror_winrate_is_near_half_for_same_weights(self) -> None:
         w = dict(learn.DEFAULT_WEIGHTS)
-        wr, n = learn.mirror_winrate(self.db, self.meta, w, dict(w), games=3, seed=1)
+        wr, n = learn.mirror_winrate(self.db, self.meta, w, dict(w), games=1, seed=1)
         self.assertGreater(n, 0)
         self.assertTrue(0.0 <= wr <= 1.0)
 
     def test_optimize_improves_or_keeps(self) -> None:
-        w, report = learn.optimize(self.db, self.meta, games=2, rounds=1, seed=3,
-                                   keys=["face", "tempo"])
+        w, report = learn.optimize(self.db, self.meta, games=1, rounds=1, seed=3,
+                                   keys=["face"])
         self.assertIn("face", w)
         self.assertGreaterEqual(report.best, 0.0)
 

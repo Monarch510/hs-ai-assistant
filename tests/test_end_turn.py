@@ -18,6 +18,7 @@ from unittest import mock
 from hsai import cards, powerlog as pl, state
 
 from tests._ui_support import prepare
+from tests._ui_support import widget_texts as _texts
 
 prepare()                       # 没有 tkinter 就装替身，别整组跳过
 
@@ -46,23 +47,6 @@ def _playing(turn: int = 5) -> state.GameState:
     st.phase = "playing"
     st.turn = turn
     return st
-
-
-def _texts(widget) -> list[str]:
-    """递归收齐控件树里的文本；替身和真 tkinter 都要能用。"""
-    out: list[str] = []
-    for c in widget.winfo_children():
-        opts = getattr(c, "_opts", None)
-        t = opts.get("text") if isinstance(opts, dict) else None
-        if not isinstance(t, str):
-            try:
-                t = c.cget("text")
-            except Exception:
-                t = None
-        if isinstance(t, str):
-            out.append(t)
-        out.extend(_texts(c))
-    return out
 
 
 class EndTurnStateTest(unittest.TestCase):

@@ -32,8 +32,9 @@ class AiWorkers:
             return True
         if any(m.get("can_attack") for m in (our.get("board") or [])):
             return True
-        hp = our.get("hero_power") or {}
-        if not our.get("hero_power_used") and (hp.get("cost") or 0) <= mana:
+        hp = our.get("hero_power")
+        # 没读到技能就当没有，别把空快照误判成「有 0 费技能可用」
+        if hp and not our.get("hero_power_used") and (hp.get("cost") or 0) <= mana:
             return True
         return False
 

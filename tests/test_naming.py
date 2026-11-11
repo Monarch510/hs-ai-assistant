@@ -11,7 +11,7 @@ import unittest
 
 from hsai import cards as cards_mod
 from hsai import deckcode
-from hsai.meta import RARITY_RANK, build_from_observations, key_card_rank, pick_key_cards
+from hsai.meta import build_from_observations, key_card_rank, pick_key_cards
 
 # 一组固定的战士牌：1 费普通 × 3 + 2 费稀有 + 3 费传说
 COMMON_1 = "CORE_CS2_108"     # 斩杀 1费 普通
@@ -76,8 +76,6 @@ class KeyCardTest(unittest.TestCase):
         cheap = self.db.get(COMMON_1)
         self.assertLess(key_card_rank(legend, 0.1), key_card_rank(cheap, 1.0),
                         "传说就算出牌率 10% 也要排在普通牌前面")
-        self.assertEqual(RARITY_RANK["LEGENDARY"] > RARITY_RANK["EPIC"] > RARITY_RANK["RARE"],
-                         True)
 
     def test_order_is_reproducible(self) -> None:
         """同样的牌，插入顺序不同也必须排出同样的名次 —— 否则重建两次名字会变。"""

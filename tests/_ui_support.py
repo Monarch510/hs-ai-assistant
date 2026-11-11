@@ -300,3 +300,25 @@ def prepare() -> bool:
     ui.ADVICE_FEEDBACK_JSONL = _tmp_dir() / "advice_feedback.jsonl"
     logwatch.INSTALL_CACHE = _tmp_dir() / "install_dir.txt"
     return stub
+
+
+def widget_texts(widget) -> list[str]:
+    """递归收齐控件树里的 Label 文本，替身和真 tkinter 都要能用。
+
+    没装 tkinter 时 install() 换上的替身把文本记在 `_opts` 里；真 tkinter 的控件
+    没有 `_opts`，只能用 `cget("text")`。只认一种，同一个用例会在 CI 和开发机上
+    跑出不同结果 —— 这条兜底顺序别省。
+    """
+    out: list[str] = []
+    for child in widget.winfo_children():
+        opts = getattr(child, "_opts", None)
+        text = opts.get("text") if isinstance(opts, dict) else None
+        if not isinstance(text, str):
+            try:
+                text = child.cget("text")
+            except Exception:
+                text = None
+        if isinstance(text, str):
+            out.append(text)
+        out.extend(widget_texts(child))
+    return out

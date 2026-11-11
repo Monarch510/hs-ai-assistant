@@ -18,13 +18,20 @@ def _reply(rows: dict) -> str:
     return json.dumps({"rows": rows}, ensure_ascii=False)
 
 
-class PendingLoadTest(unittest.TestCase):
+class _TmpCase(unittest.TestCase):
+    """三个离线用例都要一个临时目录，收在这里免得各写一份 mkdtemp/rmtree。"""
+
     def setUp(self) -> None:
         self.dir = Path(tempfile.mkdtemp())
-        self.pending = self.dir / "card_tags_pending.jsonl"
 
     def tearDown(self) -> None:
         shutil.rmtree(self.dir, ignore_errors=True)
+
+
+class PendingLoadTest(_TmpCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.pending = self.dir / "card_tags_pending.jsonl"
 
     def _write(self, lines: list[str]) -> None:
         self.pending.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -114,15 +121,12 @@ class ParseReplyTest(unittest.TestCase):
         self.assertEqual(len(rows["A"]["note"]), 60)
 
 
-class RunTest(unittest.TestCase):
+class RunTest(_TmpCase):
     def setUp(self) -> None:
-        self.dir = Path(tempfile.mkdtemp())
+        super().setUp()
         self.pending = self.dir / "card_tags_pending.jsonl"
         self.out = self.dir / "card_tags_ai.json"
         self.cfg = {"enabled": True, "api_key": "test-key", "base_url": "", "model": "fake"}
-
-    def tearDown(self) -> None:
-        shutil.rmtree(self.dir, ignore_errors=True)
 
     def _pending(self, count: int) -> None:
         lines = [
@@ -242,13 +246,10 @@ class RunTest(unittest.TestCase):
         self.assertIn("不写文件", out.getvalue())
 
 
-class ValidateFileTest(unittest.TestCase):
+class ValidateFileTest(_TmpCase):
     def setUp(self) -> None:
-        self.dir = Path(tempfile.mkdtemp())
+        super().setUp()
         self.path = self.dir / "card_tags_manual.json"
-
-    def tearDown(self) -> None:
-        shutil.rmtree(self.dir, ignore_errors=True)
 
     def _write(self, payload: dict) -> None:
         self.path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")

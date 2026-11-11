@@ -22,6 +22,13 @@ from hsai.infer import Prediction, RetroTruth
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_game.log"
 
+def _write_jsonl(path: Path, rows: list[dict]) -> Path:
+    path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+                    encoding="utf-8")
+    return path
+
+
+
 
 class RetrospectTest(unittest.TestCase):
     """局末回顾：用全部已见牌判「它到底是什么」。"""
@@ -105,12 +112,7 @@ class CalibratePriorTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def _write(self, rows: list[dict]) -> Path:
-        path = self.tmp / "obs.jsonl"
-        path.write_text(
-            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
-            encoding="utf-8",
-        )
-        return path
+        return _write_jsonl(self.tmp / "obs.jsonl", rows)
 
     def test_revealed_wins_over_stale_stored_truth(self) -> None:
         """存下来的 truth 指向一个已经不存在的 id，但 revealed 明显是甲。
@@ -206,8 +208,7 @@ class BackfillTruthTest(unittest.TestCase):
         rows = [{"ts": "2026-01-01T00:00:00", "opp_class": "WARRIOR",
                  "opp_archetype": "b", "result": "win", "revealed": self.a_ids}
                 for _ in range(n)]
-        self.path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
-                             encoding="utf-8")
+        _write_jsonl(self.path, rows)
 
     def test_fills_missing_truth(self) -> None:
         self._old_rows()
@@ -337,12 +338,7 @@ class RebuildTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def _obs(self, rows: list[dict]) -> Path:
-        path = self.tmp / "obs.jsonl"
-        path.write_text(
-            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
-            encoding="utf-8",
-        )
-        return path
+        return _write_jsonl(self.tmp / "obs.jsonl", rows)
 
     def test_drops_only_learned_archetypes(self) -> None:
         """导入的卡组是外部输入，重建不该碰；老文件里遗留的 seed 也不该碰。"""

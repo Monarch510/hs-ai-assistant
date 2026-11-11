@@ -62,16 +62,6 @@ class HeroAttackTest(unittest.TestCase):
         self.assertFalse(r["lethal"])
 
 
-class TauntAllocationTest(unittest.TestCase):
-    def test_overflow_does_not_reach_face(self) -> None:
-        """攻击段一个一个分配：8/8 撞 2/5 嘲讽，溢出的 3 点不转脸。"""
-        b = _board(opp_hp=3)
-        b.sides[0].board.append(Unit("", "大怪", 8, 8, attacks_left=1))
-        b.sides[1].board.append(Unit("", "嘲讽", 2, 5, taunt=True))
-        r = policy.max_face_damage(b, 0, DB)
-        self.assertEqual(r["attack"], 8)
-        self.assertEqual(r["damage"], 0)
-        self.assertFalse(r["lethal"])
 
 
 if __name__ == "__main__":

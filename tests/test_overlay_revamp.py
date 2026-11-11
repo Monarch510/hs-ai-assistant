@@ -19,6 +19,7 @@ from unittest import mock
 from hsai import cards, state
 
 from tests._ui_support import prepare
+from tests._ui_support import widget_texts as _texts
 
 prepare()                       # 没有 tkinter 就装替身
 
@@ -27,23 +28,6 @@ from hsai.ui import Overlay     # noqa: E402
 from hsai.ui_theme import ADVICE_VISIBLE_ROWS, DEFAULT_COLLAPSED, DECK_VISIBLE_ROWS
 
 FIXTURES = Path(__file__).parent / "fixtures"
-
-
-def _texts(widget):
-    """递归收齐控件树里的 Label 文本，真 tkinter 和替身都能用。"""
-    out = []
-    for c in widget.winfo_children():
-        opts = getattr(c, "_opts", None)
-        t = opts.get("text") if isinstance(opts, dict) else None
-        if not isinstance(t, str):
-            try:
-                t = c.cget("text")
-            except Exception:
-                t = None
-        if isinstance(t, str):
-            out.append(t)
-        out.extend(_texts(c))
-    return out
 
 
 def _bound(widget, seq="<MouseWheel>") -> bool:

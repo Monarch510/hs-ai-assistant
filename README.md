@@ -252,7 +252,7 @@ Power.log ──► logwatch ──► powerlog ──► state ──┐
 
 `python -m unittest discover -s tests` 跑全部。`fixtures/` 里三份日志：`sample_game.log`（构造的示例局）、`real_client_excerpt.log`（真实客户端片段，用来锁解析行为）、`secret_zone_excerpt.log`（奥秘区片段）。
 
-`test_sim` 一个文件就占约 50 秒（自对弈真在打），只想跑快的：
+自对弈用例（`test_sim`）比其它用例慢，只想跑快的：
 
 ```powershell
 python -m unittest discover tests -p "test_[!s]*.py"
@@ -266,7 +266,7 @@ python -m unittest discover tests -p "test_[!s]*.py"
 | `test_refs.py` | 实体引用四种形态的解析 |
 | `test_cards.py` / `test_deckcode.py` | 卡牌库加载、卡组代码往返编解码 |
 | `test_sim.py` | 自对弈引擎跑通与结果稳定 |
-| `test_ai_layer.py` / `test_effects_ai.py` | AI 层降级行为、三道闸门、JSON 容错（**不联网**） |
+| `test_ai_layer.py` | AI 层降级行为、JSON 容错（**不联网**） |
 | `test_learn.py` | 学习只吃真值（27 条）：局末回顾不跟先验走、可信判据、先验校准按当前原型库重算（存下来的旧 id 不算数）、历史回填、观察行预测/真值分离、衍生物不进 `revealed`、内容哈希 id 可复现、重建只动 `learned` |
 | `test_meta_store.py` | 原型库存储（9 条）：一个原型一个文件、`cards` 带名称/费用/张数且按费用升序、老格式兼容、单文件自动迁移、手改坏的文件不被静默删掉、内置种子确实已删 |
 | `test_naming.py` | 卡组命名（14 条）：稀有度是硬优先级（传说压过 100% 出牌率的普通牌、便宜传说压过昂贵史诗）、同档才比出牌率、单张传说不被扣分、撞名往后挪而不拼接、插入顺序不影响名次、重建名字稳定、卡组代码的自动名与给定名 |

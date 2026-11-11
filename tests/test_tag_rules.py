@@ -77,6 +77,23 @@ REGRESSION = {
     "奥金尼灵魂祭司": ("站场",),
 }
 
+# 已落规则族的回归：这些牌曾留在待定清单，规则认下后必须退出待定。
+# 只收「纯同构」的族；带命中面计数 / 精确文案 / 同族反例的族单独留方法，
+# 别塞进表里，否则失败时看不出是哪条判据松了。
+RESOLVED_FAMILIES = (
+    ("光环·拥有", ('AV_661', 'WW_341'), ('增益',)),
+    ("后续伤害增量", ('BAR_546', 'KARA_00_06', 'TOY_801b'), ('增益',)),
+    ("牌库摧毁", ('BAR_913', 'TRL_246'), ('减益',)),
+    ("解锁目标", ('BCON_001', 'SW_322'), ('增益',)),
+    ("技能改写", ('BT_429', 'CORE_EX1_625', 'TLC_632'), ('单解', '斩杀')),
+    ("英雄免伤", ('BT_752', 'TRL_302'), ('保护',)),
+    ("削对方法力", ('BT_753', 'PROLOGUE_MANABURN'), ('减益',)),
+    ("法术重复", ('CORE_DMF_058', 'DMF_058', 'TIME_211B'), ('增益',)),
+    ("移交友方随从", ('CORE_ICC_206', 'ICC_206'), ('减益',)),
+    ("投掷武器", ('CORE_ICC_233', 'ICC_233'), ('单解',)),
+)
+
+
 # 二轮审计 S1-S4：装备武器=站场 / 护甲变体 / 分配伤害 / 单卡边界
 AUDIT_S1_S4 = {
     "BT_011": ("站场", "减益"),                    # S1 正义圣契：装备一把武器
@@ -460,76 +477,32 @@ class TagRulesCase(unittest.TestCase):
                 self.assertTrue(callable(rule))
 
     def test_required_examples(self) -> None:
-        for name, expected in REQUIRED.items():
-            with self.subTest(name=name):
-                self.assertEqual(_tags(self.card(name)), expected)
+        for table_name, table in (
+            ("REQUIRED", REQUIRED), ("REGRESSION", REGRESSION),
+            ("AUDIT_S1_S4", AUDIT_S1_S4), ("AUDIT_PENDING", AUDIT_PENDING),
+        ):
+            for name, expected in table.items():
+                with self.subTest(table=table_name, name=name):
+                    self.assertEqual(_tags(self.card(name)), expected)
 
     def test_negative_examples(self) -> None:
         for name, tag in NEGATIVE:
             with self.subTest(name=name, tag=tag):
                 self.assertNotIn(tag, _tags(self.card(name)))
 
-    def test_audit_regressions(self) -> None:
-        for name, expected in REGRESSION.items():
-            with self.subTest(name=name):
-                self.assertEqual(_tags(self.card(name)), expected)
 
-    def test_audit_s1_s4(self) -> None:
-        for key, expected in AUDIT_S1_S4.items():
-            with self.subTest(key=key):
-                self.assertEqual(_tags(self.card(key)), expected)
-
-    def test_audit_pending(self) -> None:
-        for name, expected in AUDIT_PENDING.items():
-            with self.subTest(name=name):
-                self.assertEqual(_tags(self.card(name)), expected)
+    def test_resolved_families_leave_pending(self) -> None:
+        for family, cids, expected in RESOLVED_FAMILIES:
+            for cid in cids:
+                with self.subTest(family=family, cid=cid):
+                    self.assertEqual(_tags(self.card(cid)), expected)
+                    self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
 
     def test_unknown_ref_leaves_pending(self) -> None:
-        # 引用句被第 11 类认下后，就不该再留在待定清单里
-        for cid in ("AV_258", "AV_283"):
+        # 引用句被第 11 类认下后，就不该再留在待定清单里；
+        # 有确定标签的牌（REQUIRED）同理，不该被拖进待定
+        for cid in ("AV_258", "AV_283", *REQUIRED):
             with self.subTest(cid=cid):
-                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
-
-    def test_owns_plus_leaves_pending(self) -> None:
-        # 光环被增益规则认下后，就不该再留在待定清单里
-        for cid in ("AV_661", "WW_341"):
-            with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("增益",))
-                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
-
-    def test_damage_bonus_leaves_pending(self) -> None:
-        # 后续伤害增量被认下后，就不该再留在待定清单里
-        for cid in ("BAR_546", "KARA_00_06", "TOY_801b"):
-            with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("增益",))
-                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
-
-    def test_deck_destroy_leaves_pending(self) -> None:
-        # 牌库摧毁被减益认下后，就不该再留在待定清单里
-        for cid in ("BAR_913", "TRL_246"):
-            with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("减益",))
-                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
-
-    def test_unlock_target_leaves_pending(self) -> None:
-        # 解锁目标被增益认下后，就不该再留在待定清单里（含任务线牌的「奖励：」句）
-        for cid in ("BCON_001", "SW_322"):
-            with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("增益",))
-                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
-
-    def test_hp_replacement_leaves_pending(self) -> None:
-        # 技能改写被单解+斩杀认下后，就不该再留在待定清单里
-        for cid in ("BT_429", "CORE_EX1_625", "TLC_632"):
-            with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("单解", "斩杀"))
-                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
-
-    def test_hero_immune_leaves_pending(self) -> None:
-        # #10 己方英雄免伤：#21 起打「保护」而非「增益」，不该再留在待定清单里
-        for cid in ("BT_752", "TRL_302"):
-            with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("保护",))
                 self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
 
     def test_protect_damage_limit_leaves_pending(self) -> None:
@@ -548,13 +521,6 @@ class TagRulesCase(unittest.TestCase):
             with self.subTest(cid=cid):
                 self.assertIn("保护", _tags(self.card(cid)))
                 self.assertNotIn("增益", _tags(self.card(cid)))
-
-    def test_mana_drain_leaves_pending(self) -> None:
-        # 削对方法力水晶被减益认下后，就不该再留在待定清单里
-        for cid in ("BT_753", "PROLOGUE_MANABURN"):
-            with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("减益",))
-                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
 
     def test_hero_owns_keyword_leaves_pending(self) -> None:
         # 英雄关键词光环被增益认下后，就不该再留在待定清单里
@@ -576,27 +542,6 @@ class TagRulesCase(unittest.TestCase):
         for cid, want in expected.items():
             with self.subTest(cid=cid):
                 self.assertEqual(_tags(self.card(cid)), want)
-                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
-
-    def test_spell_repeat_leaves_pending(self) -> None:
-        # 法术重复施放被增益认下后，就不该再留在待定清单里
-        for cid in ("CORE_DMF_058", "DMF_058", "TIME_211B"):
-            with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("增益",))
-                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
-
-    def test_handover_leaves_pending(self) -> None:
-        # 移交友方随从被减益认下后，两张变节就不该再留在待定清单里
-        for cid in ("CORE_ICC_206", "ICC_206"):
-            with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("减益",))
-                self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
-
-    def test_throw_weapon_leaves_pending(self) -> None:
-        # 投掷武器被单解认下后，两张末日回旋镖就不该再留在待定清单里
-        for cid in ("CORE_ICC_233", "ICC_233"):
-            with self.subTest(cid=cid):
-                self.assertEqual(_tags(self.card(cid)), ("单解",))
                 self.assertIsNone(tag_rules.pending_reason(self.card(cid)))
 
     def test_return_to_battlefield_leaves_pending(self) -> None:
@@ -817,10 +762,6 @@ class TagRulesCase(unittest.TestCase):
                 self.assertIsNotNone(_tags(card), f"{name} 应有确定标签")
                 self.assertIsNone(tag_rules.pending_reason(card))
 
-    def test_confident_cards_not_pending(self) -> None:
-        for name in REQUIRED:
-            with self.subTest(name=name):
-                self.assertIsNone(tag_rules.pending_reason(self.card(name)))
 
     def test_pending_empty_text_is_none(self) -> None:
         self.assertIsNone(tag_rules.pending_reason(Card(id="T_EMPTY", name="空", type="SPELL", text="")))

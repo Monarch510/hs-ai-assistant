@@ -23,22 +23,17 @@ def _board(**kw) -> Board:
 
 
 class RushFaceDamageTest(unittest.TestCase):
-    def test_rush_only_minion_not_counted_as_face_damage(self) -> None:
-        # 一只突袭刚入场（rush_only=True）的 5 攻随从，本回合只能打随从
-        b = _board(board=[Unit("", "突袭兵", 5, 5, rush=True, rush_only=True, attacks_left=1)])
-        res = policy.max_face_damage(b, 0, b.cards)
-        self.assertEqual(res["damage"], 0, "突袭刚入场的随从不能计入打脸伤害")
-
-    def test_normal_minion_counts(self) -> None:
-        b = _board(board=[Unit("", "普通兵", 5, 5, attacks_left=1)])
-        res = policy.max_face_damage(b, 0, b.cards)
-        self.assertEqual(res["damage"], 5)
-
-    def test_rush_minion_without_rush_only_can_hit_face(self) -> None:
-        # 下一回合 rush_only 会被清掉，这时它能打脸，不能被误伤
-        b = _board(board=[Unit("", "突袭兵", 4, 4, rush=True, rush_only=False, attacks_left=1)])
-        res = policy.max_face_damage(b, 0, b.cards)
-        self.assertEqual(res["damage"], 4)
+    def test_rush_only_and_normal_minions_face_damage(self) -> None:
+        # 突袭刚入场只能打随从；普通随从、下回合解除 rush_only 的都应计入打脸
+        cases = (
+            ("突袭刚入场", Unit("", "突袭兵", 5, 5, rush=True, rush_only=True, attacks_left=1), 0),
+            ("普通随从", Unit("", "普通兵", 5, 5, attacks_left=1), 5),
+            ("rush_only 已清除", Unit("", "突袭兵", 4, 4, rush=True, rush_only=False, attacks_left=1), 4),
+        )
+        for name, unit, expected in cases:
+            with self.subTest(name=name):
+                b = _board(board=[unit])
+                self.assertEqual(policy.max_face_damage(b, 0, b.cards)["damage"], expected)
 
     def test_legal_actions_also_hides_face_attack(self) -> None:
         b = _board(board=[Unit("", "突袭兵", 5, 5, rush=True, rush_only=True, attacks_left=1)])

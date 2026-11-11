@@ -8,7 +8,7 @@ from __future__ import annotations
 import unittest
 
 from hsai import cards, policy
-from hsai.model import Board, SideState, Unit
+from hsai.model import Board, Effect, SideState, Unit, parse_effect
 
 
 def _board(our_hp: int = 30, opp_hp: int = 30, mana: int = 10) -> Board:
@@ -78,6 +78,68 @@ class LegalActionRulesTest(unittest.TestCase):
         self.assertNotIn("全走脸，凑齐斩杀", titles)
         self.assertFalse(res["lethal"]["lethal"])
 
+
+# 并入自 tests/test_race.py：抢血 / 解场判定
+class RacePlanTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.db = cards.load()
+
+    def board(self, my_hp, foe_hp, my_board, foe_board, hand=()):
+        b = Board([SideState(hero_hp=my_hp, mana=5, max_mana=5),
+                   SideState(hero_hp=foe_hp)], 8, 0, cards=self.db)
+        b.sides[0].board = [Unit("", f"我{i}", a, h, attacks_left=1)
+                            for i, (a, h) in enumerate(my_board)]
+        b.sides[1].board = [Unit("", f"他{i}", a, h)
+                            for i, (a, h) in enumerate(foe_board)]
+        b.sides[0].hand = list(hand)
+        return b
+
+    def test_fast_kill_means_race(self) -> None:
+        b = self.board(25, 20, [(5, 5)], [(3, 3)])
+        plan = policy.race_plan(b, 0, self.db, 3.0)
+        self.assertEqual(plan["mode"], "race")
+        self.assertLess(plan["my_turns"], plan["his_turns"])
+
+    def test_about_to_die_means_trade(self) -> None:
+        b = self.board(8, 20, [(2, 2)], [(8, 8)])
+        plan = policy.race_plan(b, 0, self.db, 3.0)
+        self.assertEqual(plan["mode"], "trade")
+
+    def test_no_damage_falls_back_to_trade(self) -> None:
+        b = self.board(30, 30, [], [(1, 1)])
+        plan = policy.race_plan(b, 0, self.db, 1.5)
+        self.assertEqual(plan["mode"], "trade")
+
+# 并入自 tests/test_choice_score.py：发现/抉择：对手形态影响分数
+DB = cards.load()
+
+
+def _score(name: str, *, opp_fast: bool, effect: Effect | None = None) -> float:
+    card = DB.by_name_or_id(name)
+    b = Board([SideState(hero_hp=30, mana=10, max_mana=10), SideState(hero_hp=30)],
+              5, 0, cards=DB)
+    return policy.score_choice(card, effect or parse_effect(card), b, 0, 10,
+                               opp_fast=opp_fast)[0]
+
+
+class OpponentShapeTest(unittest.TestCase):
+    def test_removal_scores_higher_against_aggro(self) -> None:
+        fast = _score("火球术", opp_fast=True)
+        slow = _score("火球术", opp_fast=False)
+        self.assertAlmostEqual(fast - slow, 0.8)
+
+    def test_heal_scores_higher_against_aggro(self) -> None:
+        """回血/加甲这一行本来是对的，加用例防回归。"""
+        fast = _score("治疗之触", opp_fast=True)
+        slow = _score("治疗之触", opp_fast=False)
+        self.assertAlmostEqual(fast - slow, 0.8)
+
+    def test_unknown_card_is_not_rewarded(self) -> None:
+        unknown = Effect(known=False, damage=6, scope="target")
+        fast = _score("火球术", opp_fast=True, effect=unknown)
+        slow = _score("火球术", opp_fast=False, effect=unknown)
+        self.assertAlmostEqual(fast, slow)
 
 if __name__ == "__main__":
     unittest.main()
