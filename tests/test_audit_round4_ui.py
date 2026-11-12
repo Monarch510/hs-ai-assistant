@@ -426,13 +426,13 @@ class WindowRangeTest(unittest.TestCase):
     def test_font_and_width_clamped(self) -> None:
         ov = self._overlay(json.dumps({"layout": LAYOUT_VERSION,
                                        "font_size": -50, "w": -100}))
-        self.assertEqual(ov.font_size, 8)
+        self.assertEqual(ov.font_size, 9)   # 新下限 FONT_MIN
         self.assertGreaterEqual(ov.width, 120)
 
     def test_empty_state_uses_defaults(self) -> None:
         ov = self._overlay("{}")
         self.assertEqual(ov.alpha, 0.90)
-        self.assertEqual(ov.font_size, 10)
+        self.assertEqual(ov.font_size, 12)  # 新默认 DEFAULT_FONT_SIZE
         self.assertEqual(ov.width, DEFAULT_WIDTH)
 
     def test_helpers_are_backward_compatible(self) -> None:

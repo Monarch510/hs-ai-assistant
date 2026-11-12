@@ -4,10 +4,20 @@
 在 ui.py 门面上必须仍能在模块级访问（测试和主题都要用）。
 """
 
+from __future__ import annotations
+
+import math
+
 # 窗口默认宽度（窄一点，贴边时不挡牌桌）
 DEFAULT_WIDTH = 260
-# 改了布局参数就 +1：老配置文件里的宽度会被忽略，位置照旧保留
-LAYOUT_VERSION = 7
+# 改了布局参数就 +1：老配置文件里的宽度/字号会被忽略，位置照旧保留
+LAYOUT_VERSION = 8
+
+# 字号一起放大：默认 12，右键菜单可调 9–16。老 window.json 的 10 会在
+# 布局版本升级时让位给新默认，否则「调大默认字号」对老用户根本不生效。
+DEFAULT_FONT_SIZE = 12
+FONT_MIN = 9
+FONT_MAX = 16
 
 # BG 同时是「透明键」：窗口上凡是这个颜色的像素都会被抠掉，露出下面的游戏。
 # 所以它只能用在「缝隙」上（root / container / body），卡片必须用 PANEL。
@@ -22,6 +32,10 @@ GREEN = "#3fb950"
 RED = "#f85149"
 YELLOW = "#d29922"
 BLUE = "#58a6ff"
+
+# 动效的两档高亮色：底色必须留在 PANEL 系上，别把透明键 BG 铺到卡片里
+GOLD_HI = "#ffe6a0"
+RED_HI = "#ff8a82"
 
 FONT = "Microsoft YaHei UI"
 COLLAPSED_H = 28
@@ -41,3 +55,28 @@ DEFAULT_COLLAPSED = frozenset({
 DECK_VISIBLE_ROWS = 6
 # 建议卡同理：一次只画几行，一串建议不会把窗口越撑越高
 ADVICE_VISIBLE_ROWS = 6
+
+
+def _rgb(value: str) -> tuple[int, int, int]:
+    s = value.lstrip("#")
+    return int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
+
+
+def mix_color(a: str, b: str, t: float) -> str:
+    """两个 #rrggbb 之间线性插值；只改颜色不改布局，动效循环靠它算中间色。"""
+    try:
+        ca, cb = _rgb(a), _rgb(b)
+        f = max(0.0, min(1.0, float(t)))
+    except (ValueError, TypeError, IndexError):
+        return a
+    return "#%02x%02x%02x" % tuple(round(x + (y - x) * f) for x, y in zip(ca, cb))
+
+
+def pulse(elapsed: float, period: float = 2.4, *, wave: str = "sine") -> float:
+    """0..1 的相位值：sine 是呼吸，blink 是硬闪；period 非法就停在 0。"""
+    if period <= 0:
+        return 0.0
+    phase = (float(elapsed) % period) / period
+    if wave == "blink":
+        return 1.0 if phase < 0.5 else 0.0
+    return (1.0 - math.cos(2.0 * math.pi * phase)) / 2.0

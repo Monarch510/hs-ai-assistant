@@ -171,6 +171,20 @@ class DeckContextTest(_Case):
         self.assertIn("key_cards", d, "老字段不能丢")
         self.assertIn("source", d)
 
+    def test_deck_context_labels_card_type(self) -> None:
+        from hsai.advisor import Advisor
+
+        ids = [c.id for c in list(self.db.by_id.values())[:3]]
+        adv = Advisor(self.db)
+        adv.our_deck = ids
+        adv._deck_manual = True
+        st = types.SimpleNamespace(our_hand_ids=[], our_played=[])
+        d = adv._deck_context(st)
+        for c in d["cards"]:
+            self.assertIn("type_cn", c, "每行都要带所属类型，窗口才显示得出来")
+            self.assertTrue(c["type_cn"], "类型不能是空串：读不到也要有兜底")
+            self.assertEqual(c["type_cn"], adv.cards.get(c["id"]).type_cn)
+
     def test_deck_left_matches_battle_info(self) -> None:
         # 牌库剩余标题张数要服从「对战信息」的真实读数，别两套算法各说各话
         adv = self.ov.advisor
@@ -298,6 +312,25 @@ class DeckScrollTest(_Case):
             text = _label_text(w).strip()
             self.assertRegex(text, r"^\d+%$", "只展示百分比，别带「抽」字或别的说明")
             self.assertEqual(_pack_side(w), "right", "百分比要放到行末尾")
+
+    def test_deck_row_shows_type_when_present(self) -> None:
+        snap = self._deck_snap(12)
+        snap["deck"]["cards"][0]["type_cn"] = "随从"
+        self.ov._collapsed.discard("牌库剩余")
+        self.ov._render(snap)
+        names = [t for t in _texts(self.ov.root) if "第1张牌" in t]
+        self.assertTrue(names, "明细要写名字、数量")
+        self.assertIn("[随从]", names[0], "所属类型要跟在牌名后面")
+        self.assertIn("×1", names[0], "类型不能挤掉数量")
+
+    def test_deck_row_without_type_stays_clean(self) -> None:
+        # 老快照没 type_cn：不能冒出「未知」「[]」这类噪声
+        snap = self._deck_snap(12)
+        self.ov._collapsed.discard("牌库剩余")
+        self.ov._render(snap)
+        names = [t for t in _texts(self.ov.root) if "第1张牌" in t]
+        self.assertIn("×1", names[0])
+        self.assertNotIn("[", names[0], "没读到类型就整段留空")
 
     def test_draw_rate_is_zero_when_deck_count_unknown(self) -> None:
         snap = self._deck_snap(6)

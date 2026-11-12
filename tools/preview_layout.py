@@ -15,7 +15,8 @@ if str(ROOT) not in sys.path:  # 直接 python tools/preview_layout.py 时 sys.p
 
 # 预览图必须和真实悬浮窗同色，别在这里另存一份配色
 from hsai.ui_theme import (BG, PANEL, TEXT, GOLD, FONT, MUTED,
-                           DEFAULT_WIDTH as WIDTH)  # noqa: E402
+                           DEFAULT_WIDTH as WIDTH,
+                           DEFAULT_FONT_SIZE as FS)  # noqa: E402
 
 
 def section(parent, title, kicker):
@@ -24,15 +25,15 @@ def section(parent, title, kicker):
     head = tk.Frame(box, bg=PANEL)
     head.pack(fill="x", padx=6, pady=(5, 2))
     tk.Label(head, text=title, bg=PANEL, fg=GOLD,
-             font=(FONT, 9, "bold"), anchor="w").pack(side="left")
+             font=(FONT, FS - 1, "bold"), anchor="w").pack(side="left")
     tk.Label(head, text=kicker, bg=PANEL, fg=MUTED,
-             font=(FONT, 7), anchor="e").pack(side="right")
+             font=(FONT, FS - 3), anchor="e").pack(side="right")
     body = tk.Frame(box, bg=PANEL)
     body.pack(fill="x", padx=6, pady=(0, 6))
     return body
 
 
-def line(parent, text, fg=TEXT, size=9, wrap=True):
+def line(parent, text, fg=TEXT, size=FS - 1, wrap=True):
     tk.Label(parent, text=text, bg=PANEL, fg=fg, font=(FONT, size),
              anchor="w", justify="left",
              wraplength=WIDTH - 40 if wrap else 0).pack(fill="x", pady=1)
@@ -48,7 +49,7 @@ def main() -> None:
     bar = tk.Frame(root, bg=PANEL, height=30)
     bar.pack(fill="x")
     tk.Label(bar, text="T7 · 我方 · 手牌 6:4    对局中", bg=PANEL, fg=TEXT,
-             font=(FONT, 9, "bold"), anchor="w", padx=8).pack(fill="x", pady=5)
+             font=(FONT, FS - 1, "bold"), anchor="w", padx=8).pack(fill="x", pady=5)
 
     body = tk.Frame(root, bg=BG)
     body.pack(fill="both", expand=True, pady=(6, 0))

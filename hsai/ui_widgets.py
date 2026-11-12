@@ -51,6 +51,8 @@ class Widgets:
                        cursor="hand2", font=(FONT, size, "bold"), anchor="w")
         lbl.pack(side="left")
         lbl.bind("<Button-1>", lambda _e, t=title: self._toggle_section(t))
+        if hasattr(self, "_fx_targets"):
+            self._fx_targets.append((lbl, "glow"))
         if kicker and kicker not in ("核心", "决策"):
             # 「核心」「决策」这类后缀没信息量，不显示
             tk.Label(head, text=kicker, bg=PANEL, fg="#5b636e",

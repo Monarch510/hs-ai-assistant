@@ -11,8 +11,8 @@ from typing import Any
 
 from .ui_text import _weight_summary, hud_row
 from .ui_theme import (
-    ADVICE_VISIBLE_ROWS, BLUE, DECK_VISIBLE_ROWS, FONT, GOLD, GREEN, MUTED,
-    PANEL, RED, TEXT, TEXT_SOFT, YELLOW,
+    ADVICE_VISIBLE_ROWS, BLUE, DECK_VISIBLE_ROWS, FONT, GOLD, GOLD_HI,
+    GREEN, MUTED, PANEL, RED, RED_HI, TEXT, TEXT_SOFT, YELLOW, mix_color,
 )
 
 
@@ -64,6 +64,9 @@ class Renderer:
         self._maybe_ai(snap, getattr(self, "_last_state", None))
         for child in self.body.winfo_children():
             child.destroy()
+        # 控件全换了：旧动效目标已失效，等各分区重建时重新登记
+        if hasattr(self, "_fx_targets"):
+            self._fx_targets = []
 
         phase = snap.get("phase")
         turn = snap.get("turn") or 0
@@ -272,8 +275,11 @@ class Renderer:
         """红条和斩杀步骤原来散在两处，合成一张「能斩」卡。"""
         dmg = advice.get("lethal_damage", 0)
         inner = self._section("能斩", display_title=f"能斩 · {dmg} 点", accent=True)
-        tk.Label(inner, text=f"可直接斩杀（{dmg} 点伤害）", bg=PANEL, fg="#ffb3ad",
-                 font=(FONT, self.font_size - 1, "bold"), anchor="w").pack(fill="x")
+        banner = tk.Label(inner, text=f"可直接斩杀（{dmg} 点伤害）", bg=PANEL, fg=RED_HI,
+                          font=(FONT, self.font_size - 1, "bold"), anchor="w")
+        banner.pack(fill="x")
+        if hasattr(self, "_fx_targets"):
+            self._fx_targets.append((banner, "lethal"))
         lines = advice.get("lines") or []
         steps = (lines[0].get("actions") if lines else None) or []
         for i, step in enumerate(steps[:8], 1):
@@ -337,7 +343,10 @@ class Renderer:
             # 百分比单独贴行末、只留数值；先打包它才不会被长牌名挤出可视区
             tk.Label(line, text=rate, bg=PANEL, fg=MUTED,
                      font=(FONT, self.font_size - 2)).pack(side="right", padx=(0, 2))
-            tk.Label(line, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{count}",
+            # 老快照没有 type_cn：没读到就留空，别把「未知」硬塞进每行
+            type_cn = c.get("type_cn") or ""
+            type_tag = f"  [{type_cn}]" if type_cn else ""
+            tk.Label(line, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{count}{type_tag}",
                      bg=PANEL, fg=TEXT_SOFT, font=(FONT, self.font_size - 2),
                      anchor="w").pack(side="left", fill="x", expand=True)
         for c in list(bar.winfo_children()):
@@ -425,8 +434,17 @@ class Renderer:
             bar = tk.Canvas(inner, height=4, bg="#21262d", highlightthickness=0, bd=0)
             bar.pack(fill="x", pady=(5, 0))
             width = self.width - 40
-            bar.create_rectangle(0, 0, int(width * max(0.0, min(1.0, conf))), 4,
-                                 fill=GOLD if conf >= 0.6 else BLUE, width=0)
+            filled = int(width * max(0.0, min(1.0, conf)))
+            # 分段渐变：不用 itemconfig/coords（测试替身没有），静态多段拼接即可
+            base = GOLD if conf >= 0.6 else BLUE
+            segments = max(1, filled // 6)
+            for i in range(segments):
+                x0 = int(filled * i / segments)
+                x1 = int(filled * (i + 1) / segments)
+                if x1 <= x0:
+                    continue
+                color = mix_color(base, GOLD_HI, i / max(1, segments - 1))
+                bar.create_rectangle(x0, 0, x1, 4, fill=color, width=0)
 
         cands = pred.get("candidates") or []
         # 置信度低才展开候选：看得清的时候别占地方

@@ -39,8 +39,9 @@ from .ui_widgets import Widgets
 from .ui_text import _fmt_weight, _weight_summary, hud_row  # noqa: F401
 from .ui_theme import (  # noqa: F401
     ADVICE_VISIBLE_ROWS, BG, BLUE, BORDER, COLLAPSED_H, DEFAULT_COLLAPSED,
-    DEFAULT_WIDTH, DECK_VISIBLE_ROWS, FONT, GOLD, GREEN, LAYOUT_VERSION, MUTED,
-    PANEL, RED, TEXT, TEXT_SOFT, WEIGHT_REASON_WORDS, WEIGHT_TOP_N, YELLOW,
+    DEFAULT_FONT_SIZE, DEFAULT_WIDTH, DECK_VISIBLE_ROWS, FONT, FONT_MAX, FONT_MIN,
+    GOLD, GOLD_HI, GREEN, LAYOUT_VERSION, MUTED, PANEL, RED, RED_HI, TEXT,
+    TEXT_SOFT, WEIGHT_REASON_WORDS, WEIGHT_TOP_N, YELLOW, mix_color, pulse,
 )
 from .ui_state import _as_float, _as_int, _as_set, _load_state, _save_state  # noqa: F401
 
@@ -61,7 +62,10 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self.alpha = _as_float(saved.get("alpha", 0.90), 0.90, 0.35, 1.0) if same_layout else 0.90
         # 背景模式：solid（整窗半透明，看得清） / key（把底色抠成真透明，缝隙能看见游戏）
         self.bg_mode = saved.get("bg_mode", "solid") if same_layout else "solid"
-        self.font_size = _as_int(saved.get("font_size", 10), 10, 8, 14)
+        # 布局版本变了就别认旧字号：老 window.json 里的 10 不该盖住新的默认 12
+        self.font_size = (_as_int(saved.get("font_size", DEFAULT_FONT_SIZE),
+                                  DEFAULT_FONT_SIZE, FONT_MIN, FONT_MAX)
+                          if same_layout else DEFAULT_FONT_SIZE)
         self.pos = (_as_int(saved.get("x", 40), 40), _as_int(saved.get("y", 60), 60))
         self.width = _as_int(saved.get("w", DEFAULT_WIDTH), DEFAULT_WIDTH, 120) if same_layout else DEFAULT_WIDTH
         self._last_sig: tuple | None = None
@@ -132,6 +136,10 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self._apply_geometry()
         self.root.deiconify()
         self.root.after(50, self._tick)
+        # 每帧重画都会重建控件，动效目标只登记「这一帧」的控件，重画时清空
+        self._fx_targets: list[tuple[Any, str]] = []
+        self._pulse_start = time.monotonic()
+        self._start_fx()
 
     def _build_shell(self) -> None:
         self.container = tk.Frame(self.root, bg=BG)
@@ -275,7 +283,7 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self._persist()
 
     def _bump_font(self, delta: int) -> None:
-        self.font_size = max(8, min(14, self.font_size + delta))
+        self.font_size = max(FONT_MIN, min(FONT_MAX, self.font_size + delta))
         self._last_sig = None
         self._persist()
 
@@ -358,6 +366,26 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             self._log("连续渲染失败，已切到错误提示")
         except Exception as exc:
             self._log(f"render error fallback failed: {exc}")
+
+    def _start_fx(self) -> None:
+        try:
+            self.root.after(80, self._fx_tick)
+        except Exception:
+            pass
+
+    def _fx_tick(self) -> None:
+        if getattr(self, "_quitting", False):
+            return
+        p = pulse(time.monotonic() - self._pulse_start)
+        # 每帧重画会销毁旧控件：列表随时可能被清空，先拷一份再改色
+        for widget, kind in list(getattr(self, "_fx_targets", [])):
+            try:
+                color = (mix_color(RED, RED_HI, p) if kind == "lethal"
+                         else mix_color(GOLD, GOLD_HI, p))
+                widget.configure(fg=color)
+            except (tk.TclError, AttributeError):
+                pass            # 控件已被这一帧重画销毁，下一帧会重新登记
+        self._start_fx()
 
     def _check_hotkey(self) -> None:
         try:

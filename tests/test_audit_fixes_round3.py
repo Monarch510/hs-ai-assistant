@@ -201,7 +201,7 @@ class WindowStateGuardTest(unittest.TestCase):
         self.addCleanup(lambda: ov.quit())
 
         self.assertEqual(ov.alpha, 0.90, "layout 坏 → 不认旧布局，alpha 用默认")
-        self.assertEqual(ov.font_size, 10, "{} 降级成默认字号")
+        self.assertEqual(ov.font_size, 12, "{} 降级成默认字号")
         self.assertEqual(ov._collapsed, set(), "collapsed_sections 是字符串时降级成空集合")
 
 

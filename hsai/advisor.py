@@ -555,7 +555,8 @@ class Advisor:
             c = self.cards.get(cid)
             if c is None:
                 continue
-            cards.append({"id": cid, "name": c.name, "cost": c.cost, "count": n})
+            cards.append({"id": cid, "name": c.name, "cost": c.cost,
+                          "count": n, "type_cn": c.type_cn})
         # 关键牌 = 剩下的高费牌（通常是赢点）
         cards.sort(key=lambda x: (-x["cost"], x["name"]))
         key = [c for c in cards if c["cost"] >= 5][:3] or cards[:2]
