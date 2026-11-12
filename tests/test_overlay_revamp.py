@@ -185,6 +185,24 @@ class DeckContextTest(_Case):
             self.assertTrue(c["type_cn"], "类型不能是空串：读不到也要有兜底")
             self.assertEqual(c["type_cn"], adv.cards.get(c["id"]).type_cn)
 
+    def test_deck_context_labels_functional_tags(self) -> None:
+        from hsai import tag_rules
+        from hsai.advisor import Advisor
+
+        ids = [c.id for c in list(self.db.by_id.values())[:3]]
+        adv = Advisor(self.db)
+        adv.our_deck = ids
+        adv._deck_manual = True
+        st = types.SimpleNamespace(our_hand_ids=[], our_played=[])
+        d = adv._deck_context(st)
+        for c in d["cards"]:
+            self.assertIn("func_tags", c, "每行都要带功能标签，窗口才显示得出来")
+            card = adv.cards.get(c["id"])
+            expected = [t for t in tag_rules.TAG_ORDER
+                        if t != "未知" and tag_rules.RULES[t](card)]
+            self.assertEqual(c["func_tags"], expected, "按卡面现算、按 TAG_ORDER 排")
+            self.assertNotIn("未知", c["func_tags"], "规则拿不准的内部标记不摆给玩家看")
+
     def test_deck_left_matches_battle_info(self) -> None:
         # 牌库剩余标题张数要服从「对战信息」的真实读数，别两套算法各说各话
         adv = self.ov.advisor
@@ -322,6 +340,26 @@ class DeckScrollTest(_Case):
         self.assertTrue(names, "明细要写名字、数量")
         self.assertIn("[随从]", names[0], "所属类型要跟在牌名后面")
         self.assertIn("×1", names[0], "类型不能挤掉数量")
+
+    def test_deck_row_shows_functional_tags(self) -> None:
+        snap = self._deck_snap(12)
+        snap["deck"]["cards"][0]["func_tags"] = ["治疗", "站场"]
+        self.ov._collapsed.discard("牌库剩余")
+        self.ov._render(snap)
+        names = [t for t in _texts(self.ov.root) if "第1张牌" in t]
+        self.assertTrue(names)
+        self.assertIn("[治疗·站场]", names[0], "功能标签要跟在牌名后面、顺序不靠哈希")
+        self.assertIn("×1", names[0], "功能标签不能挤掉数量")
+
+    def test_deck_row_without_functional_tags_stays_clean(self) -> None:
+        # 老快照没 func_tags：不能冒出空方括号或「未知」噪声
+        snap = self._deck_snap(12)
+        self.ov._collapsed.discard("牌库剩余")
+        self.ov._render(snap)
+        names = [t for t in _texts(self.ov.root) if "第1张牌" in t]
+        self.assertIn("×1", names[0])
+        self.assertNotIn("未知", names[0])
+        self.assertNotIn("[]", names[0])
 
     def test_deck_row_without_type_stays_clean(self) -> None:
         # 老快照没 type_cn：不能冒出「未知」「[]」这类噪声

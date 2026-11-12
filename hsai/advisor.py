@@ -20,7 +20,7 @@ from typing import Any
 from . import cards as cards_mod
 from . import decks as decks_mod
 from . import model as model_mod
-from . import mulligan, policy
+from . import mulligan, policy, tag_rules
 from . import review as review_mod
 from .cards import DATA_DIR, CardDB
 from .infer import DeckPredictor, Prediction, RetroTruth
@@ -555,8 +555,12 @@ class Advisor:
             c = self.cards.get(cid)
             if c is None:
                 continue
+            # 功能标签按卡面现算：读缓存可能还没 build 过会静默变空；
+            # 「未知」是规则拿不准的内部标记，不摆给玩家看
+            func_tags = [t for t in tag_rules.TAG_ORDER
+                         if t != "未知" and tag_rules.RULES[t](c)]
             cards.append({"id": cid, "name": c.name, "cost": c.cost,
-                          "count": n, "type_cn": c.type_cn})
+                          "count": n, "type_cn": c.type_cn, "func_tags": func_tags})
         # 关键牌 = 剩下的高费牌（通常是赢点）
         cards.sort(key=lambda x: (-x["cost"], x["name"]))
         key = [c for c in cards if c["cost"] >= 5][:3] or cards[:2]

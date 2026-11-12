@@ -346,7 +346,10 @@ class Renderer:
             # 老快照没有 type_cn：没读到就留空，别把「未知」硬塞进每行
             type_cn = c.get("type_cn") or ""
             type_tag = f"  [{type_cn}]" if type_cn else ""
-            tk.Label(line, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{count}{type_tag}",
+            # 功能标签与类型同款方括号、紧凑拼接，不新增行高
+            func_tags = c.get("func_tags") or ()
+            func_tag = f"  [{'·'.join(func_tags)}]" if func_tags else ""
+            tk.Label(line, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{count}{type_tag}{func_tag}",
                      bg=PANEL, fg=TEXT_SOFT, font=(FONT, self.font_size - 2),
                      anchor="w").pack(side="left", fill="x", expand=True)
         for c in list(bar.winfo_children()):
