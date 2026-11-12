@@ -9,6 +9,8 @@
 from __future__ import annotations
 
 import json
+import math
+import os
 from typing import Any
 
 
@@ -21,19 +23,31 @@ def _load_state() -> dict[str, Any]:
         return {}
 
 
-def _as_int(value: Any, default: int) -> int:
+def _as_int(value: Any, default: int, lo: int | None = None, hi: int | None = None) -> int:
     # window.json 是用户可改的文件，坏值降级成默认，别让整窗起不来
     try:
-        return int(value)
-    except (TypeError, ValueError):
+        v = int(value)
+    except (TypeError, ValueError, OverflowError):
         return default
+    if lo is not None and v < lo:
+        v = lo
+    if hi is not None and v > hi:
+        v = hi
+    return v
 
 
-def _as_float(value: Any, default: float) -> float:
+def _as_float(value: Any, default: float, lo: float | None = None, hi: float | None = None) -> float:
     try:
-        return float(value)
-    except (TypeError, ValueError):
+        v = float(value)
+    except (TypeError, ValueError, OverflowError):
         return default
+    if not math.isfinite(v):
+        return default
+    if lo is not None and v < lo:
+        v = lo
+    if hi is not None and v > hi:
+        v = hi
+    return v
 
 
 def _as_set(value: Any) -> set[str]:
@@ -45,6 +59,9 @@ def _save_state(data: dict[str, Any]) -> None:
     from . import ui
     try:
         ui.DATA_DIR.mkdir(parents=True, exist_ok=True)
-        ui.STATE_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
-    except OSError:
-        pass
+        tmp = ui.STATE_PATH.with_suffix(ui.STATE_PATH.suffix + ".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+        os.replace(tmp, ui.STATE_PATH)
+    except OSError as exc:
+        from . import logutil
+        logutil.log(f"window.json 写入失败：{exc}")

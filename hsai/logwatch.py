@@ -184,7 +184,7 @@ def setup_log_config(extra_roots: Iterable[Path] = (), *, dry_run: bool = False,
         try:
             if target.exists():
                 existing = target.read_text(encoding="utf-8", errors="replace")
-                if "[Power]" in existing and "LogLevel=1" in existing:
+                if existing == LOG_CONFIG_BODY:
                     results.append((target, "已开启，未改动"))
                     continue
                 if not dry_run:
@@ -298,10 +298,11 @@ class PowerLogWatcher:
             if ev is None:
                 continue
             if ev.kind == "create_game":
-                self.reset()
+                self._pending = None
             elif ev.kind in powerlog.CONTEXT_KINDS:
                 if ev.data.get("entity"):
                     self._pending = ev.data["entity"]
+            # 同局 CREATE_GAME 由 apply() 按时间戳去重，别在这里换掉 state
             self.state.apply(ev)
             changed = True
         if first and self.state.game_over:

@@ -4,26 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from .model import Board, hero_power_effect, is_passive_hero_power, parse_effect
+from .model import Board, hero_power_effect, is_passive_hero_power
 from .policy_actions import Action, apply_action
+from .policy_lethal import max_face_damage
 from .policy_threat import board_threat, unit_threat
 
 def _hand_burst(board: Board, side: int, cards) -> float:
-    """手里能直接打脸的伤害（斩杀时能一次性砸出去的量）。"""
-    me = board.sides[side]
-    total = 0.0
-    for card in me.hand:
-        if card is None or getattr(card, "type", "") != "SPELL":
-            continue
-        try:
-            eff = parse_effect(card)
-        except Exception:
-            continue
-        if not eff.known or not eff.damage:
-            continue
-        if eff.scope in ("target", "any", "enemy_hero", "enemy") and not eff.aoe:
-            total += eff.damage
-    return total
+    """手里这回合能打脸的法术伤害 —— 与斩杀估算同一口径。"""
+    return float(max_face_damage(board, side, cards)["spell"])
 
 def race_plan(board: Board, side: int, cards, opp_coeff: float = 1.5) -> dict[str, Any]:
     """判断这回合该抢血还是解场。
@@ -38,7 +26,7 @@ def race_plan(board: Board, side: int, cards, opp_coeff: float = 1.5) -> dict[st
         my_damage += me.weapon.atk
     if me.hero_power is not None and not is_passive_hero_power(me.hero_power):
         _, _, eff = hero_power_effect(me.hero_class, me.hero_power)
-        if eff.damage and eff.scope in ("enemy_hero", "any"):
+        if eff.damage and eff.scope in ("enemy_hero", "enemy"):
             my_damage += eff.damage
 
     burst = _hand_burst(board, side, cards)

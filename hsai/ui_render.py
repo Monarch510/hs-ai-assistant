@@ -438,7 +438,7 @@ class Renderer:
                 row = tk.Frame(inner, bg=PANEL)
                 row.pack(fill="x", pady=1)
                 top1 = i == 0
-                nm = str(c.get("name") or "?")
+                nm = str(c.get("name") or "未知")
                 if len(nm) > 10:
                     nm = nm[:9] + "…"
                 tk.Label(row, text=nm, bg=PANEL,
@@ -472,7 +472,7 @@ class Renderer:
             cost_txt = f"（{cost} 费）" if cost is not None else ""
             imp = float(c.get("impact") or 1.0)
             tag = " ·清场" if imp >= 1.6 else (" ·单解" if imp >= 1.3 else "")
-            tk.Label(inner, text=f"{label}：{c.get('name')}{cost_txt}{tag}",
+            tk.Label(inner, text=f"{label}：{c.get('name') or '未知'}{cost_txt}{tag}",
                      bg=PANEL, fg=MUTED, font=(FONT, self.font_size - 2),
                      anchor="w", justify="left", wraplength=self.width - 46).pack(fill="x", pady=(3 if i == 0 else 1, 0))
 

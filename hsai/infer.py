@@ -148,7 +148,7 @@ class DeckPredictor:
     ) -> Prediction:
         obs: list[tuple[str, int | None]] = []
         for item in observed:
-            if isinstance(item, tuple):
+            if isinstance(item, (list, tuple)):
                 obs.append((item[0], item[1]))
             else:
                 obs.append((item, turn))
@@ -243,6 +243,9 @@ class DeckPredictor:
             # 只判 tuple 的话，list 会被当成 card_id 塞进 Counter，直接抛
             # TypeError: unhashable type: 'list'。回填历史数据时会撞上。
             cid = item[0] if isinstance(item, (list, tuple)) else item
+            # 衍生物认成模板牌会抬高 coverage，真值两侧口径要一致
+            if cid and self.cards.is_token(cid):
+                continue
             if cid:
                 seen[cid] += 1
         pool = self.meta.for_class(opp_class) if seen else []

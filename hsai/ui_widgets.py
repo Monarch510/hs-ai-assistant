@@ -22,8 +22,8 @@ class Widgets:
         data["collapsed_sections"] = sorted(self._collapsed)
         _save_state(data)
         self._last_sig = None      # 强制重画
-        if getattr(self, "_last_state", None) is not None:
-            self._render(self._last_state)
+        if getattr(self, "_last_snap", None) is not None:
+            self._render(self._last_snap)
 
     def _section(self, title: str, kicker: str = "", *, accent: bool = False,
                  display_title: str = "") -> tk.Frame:

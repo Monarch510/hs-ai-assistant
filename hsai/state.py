@@ -99,10 +99,6 @@ class GameState:
         # 初始牌库实体集合：CREATE_GAME 时「凭空出现在 DECK」的那批牌。
         # 牌库数 = 集合里 zone 还是 DECK 的实体数，不再用「30 − 抽牌数」去估。
         self._deck_ids: dict[int, set[int]] = {}
-        # SHOW_ENTITY 块的裸 tag 行没有自己的实体引用，解析层会把它们挂在
-        # 最近一个带 id 的实体上（实测经常是 GameEntity）。记下最后一次
-        # SHOW_ENTITY 的目标，zone 挂到 GameEntity 头上时归还给真身。
-        self._show_pending: int | None = None
         # 实体 -> (死亡回合, 死亡顺序)；顺序按发生先后递增
         self.attacked_this_turn: set[int] = set()
         # 每只克苏恩各自用过哪些技能（key = 触发源实体 id）
@@ -248,8 +244,6 @@ class GameState:
             e.zone = _int(ref["zone"])
         if ref.get("controller") is not None:
             e.controller = _int(ref["controller"])
-        # 后面跟的裸 tag 行描述的就是这个实体，zone 挂错了归属时靠它归还
-        self._show_pending = eid
         self._track_visibility(e)
 
     def _on_tag_change(self, ev: pl.Event) -> None:
@@ -261,11 +255,6 @@ class GameState:
         ref = d.get("ref") or {}
         name = ref.get("name")
         eid = d.get("entity")
-
-        # SHOW_ENTITY 块的裸 tag 行被解析层挂到了 GameEntity 上（它自己没有
-        # zone 的概念），块里的 zone 写的是真身的新位置：归还给真身。
-        if tag == T_ZONE and eid == 1 and self._show_pending is not None:
-            eid = self._show_pending
 
         # CURRENT_PLAYER=1 表示「现在轮到这个人」：上一条没绑上的名字只属于
         # 上一回合，必须作废。不清的话，对手上一回合没出牌时，这个名字会被
@@ -962,16 +951,16 @@ class GameState:
         if h is not None:
             self._hero_stats(s, h)
         pe = self.player_entity(pid)
-        if pe is not None:
-            res = _int(pe.tags.get(T_RESOURCES))
-            used = _int(pe.tags.get(T_RESOURCES_USED)) or 0
-            if res is not None:
-                # 幸运币这类会给「临时法力」，不算进上限但可用来出牌
-                temp = _int(pe.tags.get(T_TEMP_RESOURCES)) or 0
-                s.mana, s.max_mana = max(0, res - used + temp), res
-                s.fatigue = _int(pe.tags.get("FATIGUE")) or 0
-        if s.max_mana == 0:
+        res = _int(pe.tags.get(T_RESOURCES)) if pe is not None else None
+        if res is None:
+            # 没读到 RESOURCES 标签才按回合推算；读到 0 是合法读数，不能覆盖
             s.max_mana, s.mana = self._mana_from_turn(pid)
+        else:
+            used = _int(pe.tags.get(T_RESOURCES_USED)) or 0
+            # 幸运币这类会给「临时法力」，不算进上限但可用来出牌
+            temp = _int(pe.tags.get(T_TEMP_RESOURCES)) or 0
+            s.mana, s.max_mana = max(0, res - used + temp), res
+            s.fatigue = _int(pe.tags.get("FATIGUE")) or 0
 
         hand, deck, board, secrets, grave, weapon, hp = [], [], [], [], [], None, None
         quests, ongoing = [], []
@@ -1077,7 +1066,7 @@ class GameState:
     def _mana_from_turn(self, pid: int) -> tuple[int, int]:
         """日志里没给法力水晶标签时的回退：TURN 是半回合计数，第 1/3/5… 回合属于先手方。"""
         t = max(1, self.turn or 1)
-        mx = (t + 1) // 2 if pid == 1 else t // 2
+        mx = (t + 1) // 2 if pid == (self.first_player or 1) else t // 2
         mx = max(0, min(10, mx))
         return mx, mx
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +40,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
                 continue
             if isinstance(row, dict):
                 rows.append(row)
-    except OSError:
+    except (OSError, UnicodeError):
         return []
     return rows
 
@@ -51,17 +52,15 @@ def _append_jsonl(path: Path, rows: list[dict[str, Any]], cap: int) -> None:
         with path.open("a", encoding="utf-8") as fh:
             for row in rows:
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-        all_rows = _read_jsonl(path)
-        if len(all_rows) > cap:
-            kept = all_rows[-cap:]
+        lines = path.read_text(encoding="utf-8").splitlines()
+        if len(lines) > cap:
+            # 按原始行切尾，坏行原样留着，不替用户丢数据
+            kept = lines[-cap:]
             # 先写临时文件再替换，截断中途崩了也不会留下半截 jsonl
             tmp = path.with_suffix(path.suffix + ".tmp")
-            tmp.write_text(
-                "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in kept),
-                encoding="utf-8",
-            )
+            tmp.write_text("\n".join(kept) + "\n", encoding="utf-8")
             os.replace(tmp, path)
-    except OSError:
+    except (OSError, UnicodeError):
         pass
 
 def record_opponent(opp_class: str, archetype: str) -> None:
@@ -176,10 +175,13 @@ ADVICE_TUNING_PATH = ADVICE_TUNING_JSONL
 
 def add_tunings(tunings: list[dict[str, Any]], meta: dict[str, Any]) -> int:
     """把一局的调整建议连对局标签一起记下来，返回实际写入条数。"""
+    # 一次调用就是一局：同批多行只能算一局，别让单局噪声凑够 min_count
+    game_id = uuid.uuid4().hex[:12]
     rows = []
     for t in tunings:
         row = dict(t)
         row.update({
+            "game_id": game_id,
             "our_class": meta.get("our_class") or "",
             "opp_class": meta.get("opp_class") or "",
             "archetype": meta.get("archetype") or "",
@@ -197,14 +199,22 @@ def summarize_tunings(*, min_count: int = 3) -> dict[str, dict[str, Any]]:
     """
     rows = _read_jsonl(ADVICE_TUNING_PATH)
     grouped: dict[str, list[float]] = {}
-    for row in rows:
+    seen: dict[str, set[str]] = {}
+    for i, row in enumerate(rows):
         param = str(row.get("param") or "")
         try:
             delta = float(row.get("delta"))
         except (TypeError, ValueError):
             continue
-        if param:
-            grouped.setdefault(param, []).append(delta)
+        if not param:
+            continue
+        # 老行没有 game_id：每行给一个互不相同的合成 id，别让老数据凭空凑够局数
+        gid = str(row.get("game_id") or "legacy_%d" % i)
+        ids = seen.setdefault(param, set())
+        if gid in ids:
+            continue
+        ids.add(gid)
+        grouped.setdefault(param, []).append(delta)
     out: dict[str, dict[str, Any]] = {}
     for param, deltas in grouped.items():
         if len(deltas) < min_count:

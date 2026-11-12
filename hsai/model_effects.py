@@ -62,6 +62,24 @@ _HEAL_RE = re.compile(r"恢复(\d+)点生命值")
 _BUFF_RE = re.compile(r"获得\+(\d+)/\+(\d+)")
 _SUMMON_RE = re.compile(r"召唤(?:一个)?(\d+)/(\d+)")
 _DRAW_RE = re.compile(r"抽(一张|两张|三张|四张|\d+张)牌")
+_SPELL_DAMAGE_RE = re.compile(r"法术伤害\+(\d)")
+
+
+def spell_damage_from_card(card) -> int:
+    """卡面「法术伤害+N」的加成；只写了字样没写数字按 1 算。"""
+    text = (card.text or "") if card is not None else ""
+    if "法术伤害" not in text:
+        return 0
+    m = _SPELL_DAMAGE_RE.search(text)
+    return int(m.group(1)) if m else 1
+
+
+def unit_spell_damage(unit, cards) -> int:
+    """场上法伤：字段优先，日志视图里只有 card_id 时回查卡面文本。"""
+    if unit.spell_damage:
+        return unit.spell_damage
+    card = cards.get(unit.card_id) if (cards and unit.card_id) else None
+    return spell_damage_from_card(card)
 
 
 def _num(token: str) -> int:
@@ -355,7 +373,7 @@ def hero_power_effect(card_class: str, card: "Card | None" = None) -> tuple[str,
     """
     if card is not None and (card.text or ""):
         eff = parse_effect(card)
-        return card.name, card.cost or 2, eff
+        return card.name, (card.cost if card.cost is not None else 2), eff
     table = {
         "MAGE": ("火焰冲击", 2, Effect(damage=1, scope="target")),
         "HUNTER": ("稳固射击", 2, Effect(damage=2, scope="enemy_hero")),

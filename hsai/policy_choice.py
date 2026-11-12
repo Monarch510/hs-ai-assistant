@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import re
-
 from .cards import CardDB
 from .model import Board, Effect, parse_effect
+from .model_effects import unit_spell_damage
 from .policy_consts import CTHUN_MULTIPLIER, CTHUN_SKILL_NAMES
 from .policy_race import race_plan
 
@@ -28,16 +27,7 @@ def _deck_theme(deck_cards, cards) -> str:
 
 def _spell_damage_on_board(board: Board, side: int, cards) -> int:
     """场上「法术伤害 +N」的总量。"""
-    total = 0
-    for u in board.sides[side].board:
-        if not u.alive or cards is None:
-            continue
-        card = cards.get(u.card_id)
-        text = (card.text or "") if card is not None else ""
-        if "法术伤害" in text:
-            m = re.search(r"法术伤害\+(\d)", text)
-            total += int(m.group(1)) if m else 1
-    return total
+    return sum(unit_spell_damage(u, cards) for u in board.sides[side].board if u.alive)
 
 def score_choice(card, effect, board: Board, side: int, mana: int,
                  *, deck_theme: str = "", spell_damage: int = 0,
@@ -63,7 +53,7 @@ def score_choice(card, effect, board: Board, side: int, mana: int,
 
     mult = CTHUN_MULTIPLIER if tripled else 1
     if effect.known:
-        if effect.damage and effect.scope in ("any", "enemy", "target", "enemy_minions"):
+        if effect.damage and effect.scope in ("enemy", "target", "enemy_minions"):
             killable = [u for u in foe.board
                         if u.alive and u.hp <= effect.damage * mult + spell_damage]
             if killable:

@@ -33,7 +33,7 @@ hsai/policy.py     动作枚举、评分、斩杀检测、抢血-解场判断、
 hsai/advisor.py    组装快照（窗口唯一数据源）
 hsai/ui.py         悬浮窗（tkinter）
 hsai/ai.py         AI 客户端（局末复盘 / 参数建议）
-hsai/effects_ai.py AI 规则的验证器（三道闸门）
+hsai/effects_ai.py AI 规则的验证器（五道闸门：目标命中；已有结果不许变（防误伤）；命中/新覆盖设上限（防正则太宽）；费用不写 mana（防白送法力）；字段须是 Effect 真有的（防静默挂上没人结算的字段））
 
 # 上面 7 个原文件现在是「门面」：函数按职责拆进同名前缀的子模块，
 # 门面把符号原样 re-export，所以 import 面不变、测试不改。
@@ -116,7 +116,7 @@ tunings 的 `param` 只能是 `ai._TUNABLE`（= `DEFAULT_WEIGHTS` 的键 + `TAG_
 
 1. **只用标准库**。不引入第三方依赖，`urllib` 就是 HTTP 客户端。
 2. **只读日志，不注入输入**。不改客户端、不发按键、不读内存。
-3. **API Key 只在环境变量 `HSAI_API_KEY`**，绝不写进文件或提交。
+3. **API Key 优先从环境变量 `HSAI_API_KEY` 读；也接受 `data/ai.json` 里的 `api_key`**（该文件整目录被 `.gitignore` 忽略，绝不入库）。程序不会把 key 写进文件。
 4. **`data/` 整目录忽略，只放行 `effects.json`**（`.gitignore` 里 `data/*` + `!data/effects.json`）。
    其余全是运行产物（卡牌缓存、对局记录、教训、权重、建议日志、可能含密钥的 `ai.json`），
    新增文件不用改 `.gitignore` 就自动不入库；提交前看 `git status` 里没有 `data/` 下的产物。

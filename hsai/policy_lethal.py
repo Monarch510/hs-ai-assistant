@@ -6,6 +6,7 @@ from typing import Any
 
 from .cards import CardDB
 from .model import Board, hero_power_effect, is_passive_hero_power, parse_effect
+from .model_effects import unit_spell_damage
 from .policy_actions import Action, apply_action, legal_actions
 
 
@@ -32,37 +33,61 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
     hero_atk = max(me.hero_atk, weapon_atk)
     if hero_atk > 0:
         # 0 次表示本回合已经打过，不能当成「未知按 1 次算」
-        swings.extend([hero_atk] * min(2, max(0, me.hero_attacks_left)))
+        n_swings = min(2, max(0, me.hero_attacks_left))
+        if weapon_atk > me.hero_atk:
+            # 攻击力全靠这把武器：碎了就打不出第二下这个攻击力
+            n_swings = min(n_swings, max(0, me.weapon.hp))
+        swings.extend([hero_atk] * n_swings)
 
     attack = sum(swings)
     taunt_hp = sum((3 if u.divine else u.hp) for u in taunts)
+    # 拆墙和实战同一套结算：逐段把最小的攻击喂给嘲讽，圣盾自然只吃一次破盾段，
+    # 亡语新召唤的嘲讽在下一轮重取时进墙。剩下没用掉的攻击段才打脸。
+    db = cards if cards is not None else board.cards
+    work = board.clone()
+    work.cards = db
+    foe_board = work.sides[1 - side]
     left = sorted(swings)
-    for t in sorted(taunts, key=lambda u: 3 if u.divine else u.hp):
-        need = 3 if t.divine else t.hp
-        idx = next((i for i, sw in enumerate(left) if sw >= need), None)
-        if idx is None:
-            left = []          # 过不去墙：剩下的攻击全被嘲讽吃掉
+    used = 0
+    while used < len(left):
+        walls = [u for u in foe_board.board if u.alive and u.taunt]
+        if not walls:
             break
-        left.pop(idx)          # 这一次攻击被嘲讽消耗掉，溢出伤害不转脸
-    usable = sum(left)
+        wall = min(walls, key=lambda u: 3 if u.divine else u.hp)
+        work.damage_unit(foe_board, wall, left[used])
+        used += 1
+    usable = sum(left[used:])
 
     spell_dmg = 0
     mana = me.mana
-    face_spells = []
+    face_spells: list[str] = []
     # 场上法伤对每张直伤法术都加成，和 apply_action / model.apply_effect 同口径
-    bonus = sum(u.spell_damage for u in me.board if u.alive)
-    for card in sorted(me.hand, key=lambda c: c.cost):
-        if not card.is_spell or card.cost > mana:
+    bonus = sum(unit_spell_damage(u, db) for u in me.board if u.alive)
+    # 手牌少，穷举子集挑「这回合买得起、伤害最大」的一组，别按费用升序贪心
+    pool: list[tuple[int, int, str]] = []
+    for card in me.hand:
+        if card is None or not card.is_spell:
             continue
         eff = parse_effect(card)
-        # random_enemy 有存活随从时打随从，只有空场才打脸，和 apply_effect 同口径
-        if eff.damage and (eff.scope in ("target", "enemy_hero")
-                           or (eff.scope == "random_enemy" and not any(u.alive for u in foe.board))):
-            face_spells.append((card.cost, eff.damage, card.name))
-    for cost, dmg, name in face_spells:
-        if cost <= mana:
-            mana -= cost
-            spell_dmg += dmg + bonus
+        is_face = bool(eff.damage and (eff.scope in ("target", "enemy_hero")
+                       or (eff.scope == "random_enemy" and not any(u.alive for u in foe.board))))
+        net = card.cost - (eff.mana or 0)
+        if is_face:
+            pool.append((net, eff.damage + bonus, card.name))
+            face_spells.append(card.name)
+        elif eff.mana:
+            pool.append((net, 0, card.name))
+    best_dmg, best_cost = 0, 0
+    for mask in range(1 << len(pool)):
+        cost_sum = dmg_sum = 0
+        for i, (net, dmg, _name) in enumerate(pool):
+            if mask & (1 << i):
+                cost_sum += net
+                dmg_sum += dmg
+        if cost_sum <= mana and dmg_sum > best_dmg:
+            best_dmg, best_cost = dmg_sum, cost_sum
+    spell_dmg = best_dmg
+    mana -= best_cost
 
     hp_name, hp_cost, hp_eff = hero_power_effect(me.hero_class, me.hero_power)
     hero_power = 0
@@ -81,7 +106,7 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
         "need": need,
         "lethal": total >= need and need > 0,
         "has_taunt": bool(taunts),
-        "face_spells": [n for _, _, n in face_spells],
+        "face_spells": face_spells,
     }
 
 def _lethal_sequence(board: Board, side: int, cards: CardDB) -> list[Action] | None:
@@ -91,10 +116,6 @@ def _lethal_sequence(board: Board, side: int, cards: CardDB) -> list[Action] | N
     每打一下「还能不能斩杀」都会翻一次，导致它打一下就停（这正是之前的 bug）。
     斩杀是确定性问题，直接用伤害当目标函数更可靠。
     """
-    need_check = max_face_damage(board, side, cards)
-    if not need_check["lethal"]:
-        return None
-
     work = board.clone()
     work.active = side
     seq: list[Action] = []

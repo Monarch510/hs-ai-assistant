@@ -11,6 +11,7 @@ from .model import (
     Board, Effect, Unit, evaluate, hero_power_effect, is_passive_hero_power,
     parse_effect, warden_buff,
 )
+from .model_effects import spell_damage_from_card, unit_spell_damage
 from .policy_consts import (
     CHOOSE_ONE_RE, CTHUN_MULTIPLIER, CTHUN_SKILL_NAMES, _GIGANTIC_CACHE,
 )
@@ -282,18 +283,18 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         name, cost, eff = hero_power_effect(me.hero_class, me.hero_power)
         me.mana -= cost
         me.hero_power_used = True
+        u = _find_unit(nb, side, action.target)
         if eff.damage:
             # 按动作目标分流：打脸别落到随从身上，目标找不到也别把伤害丢了
-            u = (_find_unit(nb, side, action.target)
-                 if (action.target or "").startswith("enemy:") else None)
-            if u is not None:
+            if u is not None and (action.target or "").startswith("enemy:"):
                 nb.damage_unit(foe, u, eff.damage)
             else:
                 nb.damage_hero(foe, eff.damage)
-        elif eff.heal:
-            me.hero_hp = min(30, me.hero_hp + eff.heal)
-        elif eff.summon_atk or eff.summon_hp:
-            me.board.append(Unit(card_id="", name=name, atk=eff.summon_atk, hp=max(1, eff.summon_hp)))
+            # 英雄技能不吃场上法伤，damage 已单独结算，其余字段交给 apply_effect
+            eff = dataclasses.replace(eff, damage=0)
+        nb.apply_effect(eff, me, u)
+        if eff.mana:
+            me.mana += eff.mana
         nb.note(f"英雄技能：{name}")
         return nb
 
@@ -372,7 +373,7 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         used_here = per_unit.setdefault(key, set())
         if skill in used_here:
             return nb
-        tripled = len(me.cthun_used) >= 4   # 口径：任何来源用过的技能都计入
+        tripled = len(used_here | {skill}) >= 4   # 口径：同一只克苏恩把四个技能各用一次才强化
         nb.note(apply_cthun_skill(nb, side, skill, tripled=tripled))
         used_here.add(skill)
         me.cthun_used.add(skill)
@@ -419,7 +420,7 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
             windfury=card.has("WINDFURY"),
             lifesteal=card.has("LIFESTEAL"),
             poisonous=card.has("POISONOUS"),
-            spell_damage=_spell_damage(card),
+            spell_damage=spell_damage_from_card(card),
             attacks_left=2 if card.has("WINDFURY") else 1,
             frozen=card.has("FREEZE"),
         )
@@ -478,13 +479,13 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         tgt = _find_unit(nb, side, action.target)
         if eff.damage and eff.scope == "target" and tgt is None:
             # 没有目标：直伤打脸
-            nb.damage_hero(foe, eff.damage + sum(u.spell_damage for u in me.board if u.alive))
+            nb.damage_hero(foe, eff.damage + sum(unit_spell_damage(u, cards) for u in me.board if u.alive))
         else:
             nb.apply_effect(eff, me, tgt)
         nb.note(f"施放 {card.name}")
     elif card.is_weapon:
         me.weapon = Unit(card_id=card.id, name=card.name, atk=card.atk, hp=max(1, card.durability),
-                         max_hp=max(1, card.durability))
+                         max_hp=max(1, card.durability), windfury=card.has("WINDFURY"))
         nb.note(f"装备 {card.name}")
     else:
         eff = parse_effect(card)
@@ -492,12 +493,7 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
     return nb
 
 def _spell_damage(card: Card) -> int:
-    if card.has("SPELL_DAMAGE") and card.text:
-
-        m = re.search(r"法术伤害\+(\d+)", card.text)
-        if m:
-            return int(m.group(1))
-    return 0
+    return spell_damage_from_card(card)
 
 def best_action(
     board: Board,
@@ -549,10 +545,11 @@ def apply_cthun_skill(board: Board, side: int, name: str, tripled: bool = False)
         target = max([u for u in foe.board if u.alive], key=lambda u: u.atk, default=None)
         if target is None:
             board.damage_hero(foe, total)
-            me.hero_hp += total
+            me.hero_hp = min(30, me.hero_hp + total)
             return f"凝视：{total} 点打脸并回血"
-        dealt = board.damage_unit(foe, target, total)
-        me.hero_hp += dealt
+        dealt = min(total, target.hp)
+        board.damage_unit(foe, target, total)
+        me.hero_hp = min(30, me.hero_hp + dealt)
         return f"凝视：{total} 点打 {target.name} 并回血"
 
     if name == "克苏恩的领域":

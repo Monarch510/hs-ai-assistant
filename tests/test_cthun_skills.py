@@ -41,7 +41,7 @@ class CthunSkillValuesTest(unittest.TestCase):
                 foe.board.append(target)
                 why = policy.apply_cthun_skill(b, 0, "克苏恩的凝视", tripled=boosted)
                 self.assertEqual(target.hp, 30 - dmg)
-                self.assertEqual(me.hero_hp, 20 + dmg)
+                self.assertEqual(me.hero_hp, min(30, 20 + dmg), "回血封顶 30")
                 self.assertIn(f"{dmg} 点", why)
 
     def test_domain_two_two_or_eight_eight(self) -> None:

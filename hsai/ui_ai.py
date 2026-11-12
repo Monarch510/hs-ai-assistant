@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import threading
 from datetime import datetime
@@ -194,11 +195,14 @@ class AiWorkers:
             self._effect_done.add(name)
             self._log(f"未建模的牌：{name}")
 
-    def _feedback_worker(self) -> None:
-        """对被标「不赞同」的回合做一次复盘，写进 advice_feedback.jsonl。"""
+    def _feedback_worker(self, turns, advice) -> None:
+        """对被标「不赞同」的回合做一次复盘，写进 advice_feedback.jsonl。
+
+        回合集合与建议表在起线程时快照传进来：跨局清零后仍用本局的数据。
+        """
         cases = []
-        for turn in sorted(self._disagree_turns):
-            rec = self._advice_by_turn.get(turn) or {}
+        for turn in sorted(turns):
+            rec = advice.get(turn) or {}
             if not rec:
                 continue
             cases.append({
@@ -231,40 +235,60 @@ class AiWorkers:
 
         参数建议只落盘、不自动改权重，攒够局数后由人看过汇总再决定。
         """
+        our = (snap.get("our") or {}).get("class_cn") or "?"
+        opp = (snap.get("opp") or {}).get("class_cn") or "?"
+        deck = (snap.get("deck") or {}).get("name") or "未知"
+        arch = (snap.get("prediction") or {}).get("name") or "未知"
+        findings = "；".join(snap.get("review") or []) or "无机器检测到的失误"
+        issues = "；".join(snap.get("issues") or []) or "无"
+        turns = len(getattr(self.advisor, "_game_turns", []) or [])
+        summary = (
+            f"对局：我方 {our}（卡组 {deck}）vs 对手 {opp}（预判 {arch}），"
+            f"共 {snap.get('turn')} 回合，记录了 {turns} 个我方回合。"
+            f"机器复盘：{findings}。"
+            f"引擎自身问题：{issues}。"
+            "引擎这局按「抢血/解场」两种模式决策：能更快打死对方就打脸，"
+            "否则只做不亏的交换。请只针对「打法选择」给建议，不要编造伤害数字。"
+        )
+        missed = any("有斩杀没斩" in str(x) for x in (snap.get("review") or []))
         try:
-            our = (snap.get("our") or {}).get("class_cn") or "?"
-            opp = (snap.get("opp") or {}).get("class_cn") or "?"
-            deck = (snap.get("deck") or {}).get("name") or "未知"
-            arch = (snap.get("prediction") or {}).get("name") or "未知"
-            findings = "；".join(snap.get("review") or []) or "无机器检测到的失误"
-            issues = "；".join(snap.get("issues") or []) or "无"
-            turns = len(getattr(self.advisor, "_game_turns", []) or [])
-            summary = (
-                f"对局：我方 {our}（卡组 {deck}）vs 对手 {opp}（预判 {arch}），"
-                f"共 {snap.get('turn')} 回合，记录了 {turns} 个我方回合。"
-                f"机器复盘：{findings}。"
-                f"引擎自身问题：{issues}。"
-                "引擎这局按「抢血/解场」两种模式决策：能更快打死对方就打脸，"
-                "否则只做不亏的交换。请只针对「打法选择」给建议，不要编造伤害数字。"
-            )
-            missed = any("有斩杀没斩" in str(x) for x in (snap.get("review") or []))
             lessons, tunings = ai_mod.review(snap, summary, missed_lethal=missed)
-            self._ai_lessons = list(lessons or [])
-            meta = {
-                "our_class": str((snap.get("our") or {}).get("class_en") or ""),
-                "opp_class": str((snap.get("opp") or {}).get("class_en") or ""),
-                "archetype": str((snap.get("prediction") or {}).get("name") or ""),
-                "result": str(snap.get("result") or ""),
-            }
-            if tunings:
-                # 只落盘，不自动改权重：单局样本撑不起全局调整
-                memory.add_tunings(tunings, meta)
-            if self._disagree_turns:
-                threading.Thread(target=self._feedback_worker, daemon=True).start()
-            if lessons:
-                memory.add_lessons(lessons, meta)
         except Exception as exc:
+            # 只有 AI 没答上来才允许本局重试；落盘失败不该再刷一次 token
+            self._ai_reviewed = False
             self._note_soft_failure("review", exc)
+            return
+        self._ai_reviewed = True
+        self._ai_lessons = list(lessons or [])
+        if self._ai_lessons:
+            # 异步教训到了，等待界面重画一次才能看见（只画一次的标志在这里放开）
+            self._last_review_shown = False
+        meta = {
+            "our_class": str((snap.get("our") or {}).get("class_en") or ""),
+            "opp_class": str((snap.get("opp") or {}).get("class_en") or ""),
+            "archetype": str((snap.get("prediction") or {}).get("name") or ""),
+            "result": str(snap.get("result") or ""),
+        }
+        # 各步独立：某一步写盘失败不连累其它步，也不重跑整个 worker
+        if tunings:
+            # 只落盘，不自动改权重；一次调用算一局，别放进循环
+            try:
+                memory.add_tunings(tunings, meta)
+            except Exception as exc:
+                self._log(f"add_tunings failed: {exc}")
+        if self._disagree_turns:
+            # 回合集合与建议在起线程时快照，跨局清零后仍用本局数据
+            turns_snap, advice_snap = list(self._disagree_turns), dict(self._advice_by_turn)
+            try:
+                threading.Thread(target=self._feedback_worker,
+                                 args=(turns_snap, advice_snap), daemon=True).start()
+            except Exception as exc:
+                self._log(f"feedback thread failed: {exc}")
+        if lessons:
+            try:
+                memory.add_lessons(lessons, meta)
+            except Exception as exc:
+                self._log(f"add_lessons failed: {exc}")
 
     def _ai_done(self, text: str, pick: tuple[str, str] | None = None,
                  steps: list[dict] | None = None) -> None:
@@ -338,7 +362,10 @@ class AiWorkers:
                     fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 rows = path.read_text(encoding="utf-8").splitlines()
                 if len(rows) > 400:
-                    path.write_text("\n".join(rows[-400:]) + "\n", encoding="utf-8")
+                    # 截断也是覆盖写：先写临时文件再替换，中途崩了不留半截 jsonl
+                    tmp = path.with_suffix(path.suffix + ".tmp")
+                    tmp.write_text("\n".join(rows[-400:]) + "\n", encoding="utf-8")
+                    os.replace(tmp, path)
             except Exception as exc:
                 self._log(f"advice log failed: {exc}")
 

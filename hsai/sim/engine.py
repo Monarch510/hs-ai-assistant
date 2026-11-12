@@ -111,6 +111,8 @@ def run_game(
     weights_a: dict[str, float] | None = None,
     weights_b: dict[str, float] | None = None,
     mulligan_weights: dict[str, float] | None = None,
+    mulligan_weights_a: dict[str, float] | None = None,
+    mulligan_weights_b: dict[str, float] | None = None,
     do_mulligan: bool = True,
     aoe_risk_a: float = 0.0,
     aoe_risk_b: float = 0.0,
@@ -131,11 +133,13 @@ def run_game(
 
     for idx in (0, 1):
         _draw(sides[idx], board, 3 if idx == first else 4)
+    mw_a = mulligan_weights_a if mulligan_weights_a is not None else mulligan_weights
+    mw_b = mulligan_weights_b if mulligan_weights_b is not None else mulligan_weights
     for idx in (0, 1):
         if idx == 0:
-            _mulligan_phase(board, 0, cards, opp_tags=(), weights=mulligan_weights, do_mulligan=do_mulligan)
+            _mulligan_phase(board, 0, cards, opp_tags=(), weights=mw_a, do_mulligan=do_mulligan)
         else:
-            _mulligan_phase(board, 1, cards, opp_tags=(), weights=mulligan_weights, do_mulligan=do_mulligan)
+            _mulligan_phase(board, 1, cards, opp_tags=(), weights=mw_b, do_mulligan=do_mulligan)
 
     agents = [
         greedy_agent(weights_a, aoe_risk_a),

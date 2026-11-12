@@ -25,13 +25,18 @@ def _ensure_console() -> None:
     try:
         enc = (sys.stdout.encoding or "").lower()
         "中文".encode(enc or "utf-8")
-        return
     except (LookupError, UnicodeEncodeError):
-        pass
+        try:
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+        return
+    # 能编码中文不代表能编码所有符号（如 ⚠），放宽错误策略即可，别动编码
     try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+        sys.stdout.reconfigure(errors="replace")
+        sys.stderr.reconfigure(errors="replace")
+    except (AttributeError, OSError):
         pass
 
 

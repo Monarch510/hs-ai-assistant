@@ -57,15 +57,13 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self.manager = SourceManager(cards, demo=demo, log_path=log_path)
 
         saved = _load_state()
-        same_layout0 = _as_int(saved.get("layout", 0), 0) == LAYOUT_VERSION
-        self.alpha = _as_float(saved.get("alpha", 0.90), 0.90) if same_layout0 else 0.90
-        # 背景模式：solid（整窗半透明，看得清） / key（把底色抠成真透明，缝隙能看见游戏）
-        self.bg_mode = saved.get("bg_mode", "solid") if same_layout0 else "solid"
-        self.font_size = _as_int(saved.get("font_size", 10), 10)
-        self.pos = (_as_int(saved.get("x", 40), 40), _as_int(saved.get("y", 60), 60))
-        self.collapsed = bool(saved.get("collapsed", False))
         same_layout = _as_int(saved.get("layout", 0), 0) == LAYOUT_VERSION
-        self.width = _as_int(saved.get("w", DEFAULT_WIDTH), DEFAULT_WIDTH) if same_layout else DEFAULT_WIDTH
+        self.alpha = _as_float(saved.get("alpha", 0.90), 0.90, 0.35, 1.0) if same_layout else 0.90
+        # 背景模式：solid（整窗半透明，看得清） / key（把底色抠成真透明，缝隙能看见游戏）
+        self.bg_mode = saved.get("bg_mode", "solid") if same_layout else "solid"
+        self.font_size = _as_int(saved.get("font_size", 10), 10, 8, 14)
+        self.pos = (_as_int(saved.get("x", 40), 40), _as_int(saved.get("y", 60), 60))
+        self.width = _as_int(saved.get("w", DEFAULT_WIDTH), DEFAULT_WIDTH, 120) if same_layout else DEFAULT_WIDTH
         self._last_sig: tuple | None = None
         self._game_over_since: float | None = None
         self._f8_down = False
@@ -306,6 +304,8 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         if self._in_fit:            # 正在量尺寸，这一拍跳过，避免递归
             self.root.after(320, self._tick)
             return
+        # 读日志/热键属于数据层：客户端重写日志时读失败是暂时的，
+        # 只记一行，别把窗口判成「渲染坏了」（连切三帧才切红条）。
         try:
             self._check_hotkey()
             # 游戏有时会把自己顶到最前，定期重申一次置顶（很便宜）
@@ -316,6 +316,11 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
                 except tk.TclError:
                     pass
             state, switched = self.manager.poll()
+        except Exception as exc:
+            self._log(f"data error: {exc}")
+            self.root.after(320, self._tick)
+            return
+        try:
             if state is not None or switched:
                 self._update(state or GameState(self.cards))
             elif getattr(self, "_last_state", None) is not None and (
@@ -351,8 +356,8 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
                 self._render_collapsed()
             self.bar_label.config(text="渲染出错，按 F8 重载", fg=RED)
             self._log("连续渲染失败，已切到错误提示")
-        except Exception:
-            pass
+        except Exception as exc:
+            self._log(f"render error fallback failed: {exc}")
 
     def _check_hotkey(self) -> None:
         try:

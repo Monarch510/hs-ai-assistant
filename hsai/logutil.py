@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 
 from .paths import LOG_FILE
@@ -28,7 +29,9 @@ def _rotate_if_needed() -> None:
         if LOG_FILE.stat().st_size <= MAX_BYTES:
             return
         rows = LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
-        LOG_FILE.write_text("\n".join(rows[-KEEP_LINES:]) + "\n", encoding="utf-8")
+        tmp = LOG_FILE.with_suffix(LOG_FILE.suffix + ".tmp")
+        tmp.write_text("\n".join(rows[-KEEP_LINES:]) + "\n", encoding="utf-8")
+        os.replace(tmp, LOG_FILE)
     except OSError:
         pass
 

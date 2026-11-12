@@ -12,7 +12,7 @@ import itertools
 from dataclasses import dataclass, field
 
 from .cards import Card
-from .model_effects import Effect, parse_effect
+from .model_effects import Effect, parse_effect, unit_spell_damage
 
 _UID = itertools.count(1)
 
@@ -285,7 +285,7 @@ class Board:
 
         if eff.damage:
             dmg = eff.damage
-            bonus = sum(u.spell_damage for u in caster.board if u.alive)
+            bonus = sum(unit_spell_damage(u, self.cards) for u in caster.board if u.alive)
             if eff.scope in ("target",) and target is not None:
                 owner = foe_side if target in foe_side.board else my_side
                 if target.card_id == "HERO":

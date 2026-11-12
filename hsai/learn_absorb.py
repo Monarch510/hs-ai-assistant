@@ -32,7 +32,8 @@ def absorb_observations(cards: CardDB, meta: MetaDB, *, min_games: int = 2,
     下一局遇到同样的牌就能认出来。和已有的（导入的）原型重合度高就跳过，
     免得同一套牌被反复加进去。
     """
-    obs = load_observations(observations_path)
+    # 全量重聚类复杂度随历史平方增长，只取最近一批
+    obs = load_observations(observations_path)[-500:]
     if stats_out is not None:
         stats_out["observations"] = len(obs)
     if len(obs) < min_games:

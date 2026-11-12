@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import os
 import re
 import uuid
 from collections import Counter
@@ -43,6 +44,7 @@ OBSERVATIONS_PATH = OBSERVATIONS_JSONL
 WEIGHTS_PATH = POLICY_WEIGHTS_JSON
 MULLIGAN_WEIGHTS_PATH = MULLIGAN_WEIGHTS_JSON
 OUR_DECK_PATH = OUR_DECK_JSON
+MAX_OBSERVATIONS = 5000
 
 from .advisor_board_helpers import (  # noqa: E402
     UNKNOWN,
@@ -221,9 +223,12 @@ class Advisor:
         game_ts = str(getattr(st, "_create_ts", "") or "")
         if self._deck_state is None:
             # 首帧只认基线：__init__ 已经读过，别覆盖调用方刚设的卡组字段。
+            # 清空要在 board_from_state 之前，否则上一局的英雄技能规则会串到新局
+            _PASSIVE_RULE.clear()
             self._deck_state = st
             self._deck_game_ts = game_ts
         elif self._deck_state is not st or game_ts != self._deck_game_ts:
+            _PASSIVE_RULE.clear()
             self._reload_deck()
             self._deck_state = st
             self._deck_game_ts = game_ts
@@ -381,7 +386,6 @@ class Advisor:
             self.last_findings = []
             self._issues = []
             self._unknown_turn_seen = set()
-            _PASSIVE_RULE.clear()
         self._collect_issues(st, snap)
         if st.game_over:
             # 每一帧都给，别只在第一次 game_over 时给（否则窗口二次渲染就丢了）
@@ -681,7 +685,8 @@ class Advisor:
             import json as _json
 
             path = LAST_REVIEW_JSON
-            path.write_text(
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            tmp.write_text(
                 _json.dumps(
                     {
                         "ts": rec.ts,
@@ -697,6 +702,7 @@ class Advisor:
                 ),
                 encoding="utf-8",
             )
+            os.replace(tmp, path)
         except OSError:
             pass
         self._game_turns = []
@@ -707,13 +713,21 @@ class Advisor:
         # 这份才是能拿来学习的标签，pred 只是当时的猜测。
         truth = self.predictor.retrospect(opp.class_en or "", st.revealed_opp_order)
         row = observation_row(st, pred, truth, self._trace)
+        self._trace = []
         try:
             DATA_DIR.mkdir(parents=True, exist_ok=True)
             with OBSERVATIONS_PATH.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-        except OSError:
+            # 裸追加无上限会把历史越堆越大，重聚类是按行数平方涨的
+            if OBSERVATIONS_PATH.exists():
+                lines = OBSERVATIONS_PATH.read_text(encoding="utf-8", errors="replace").splitlines()
+                if len(lines) > MAX_OBSERVATIONS:
+                    tmp = OBSERVATIONS_PATH.with_suffix(OBSERVATIONS_PATH.suffix + ".tmp")
+                    tmp.write_text("\n".join(lines[-MAX_OBSERVATIONS:]) + "\n", encoding="utf-8")
+                    os.replace(tmp, OBSERVATIONS_PATH)
+        except OSError as exc:
+            _log_err(f"record_result 写盘失败：{type(exc).__name__}: {exc}")
             return
-        self._trace = []
         # 记对手形态也要用真值：拿预测值记，等于把偏差固化成先验。
         # 这里存显示名 —— posteriors() 是按名字（含「职业·形态」的短名）匹配的。
         if truth.trusted:
@@ -782,12 +796,14 @@ def load_observations(path: Path = OBSERVATIONS_PATH) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     if not path.exists():
         return rows
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if not line:
             continue
         try:
-            rows.append(json.loads(line))
+            row = json.loads(line)
         except ValueError:
             continue
+        if isinstance(row, dict):
+            rows.append(row)
     return rows

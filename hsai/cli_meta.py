@@ -82,7 +82,14 @@ def cmd_meta(args: argparse.Namespace) -> int:
         print(f"共 {len(meta)} 个原型（{META_DIR}）")
         return 0
     if args.action == "import":
-        payload = json.loads(Path(args.file).read_text(encoding="utf-8"))
+        if not args.file or not Path(args.file).is_file():
+            print("用法：python -m hsai meta import --file <卡组表.json>")
+            return 2
+        try:
+            payload = json.loads(Path(args.file).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"读取卡组表失败：{exc}")
+            return 2
         meta = MetaDB.load(db)
         meta = import_archetypes(payload, db, meta)
         meta.save()

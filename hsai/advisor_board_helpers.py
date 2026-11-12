@@ -13,6 +13,7 @@ from typing import Any
 from . import logutil
 from .cards import Card, CardDB
 from .model import Unit
+from .model_effects import spell_damage_from_card
 
 
 # UNKNOWN 是「未知牌」占位，_unknown_cards 用它填手牌
@@ -79,7 +80,7 @@ def _unit_from_view(view: dict[str, Any], cards: CardDB) -> Unit:
         windfury=bool(card and card.has("WINDFURY")),
         lifesteal=bool(card and card.has("LIFESTEAL")),
         poisonous=bool(card and card.has("POISONOUS")),
-        spell_damage=0,
+        spell_damage=spell_damage_from_card(card),
         attacks_left=_attacks_left(card, view),
     )
 

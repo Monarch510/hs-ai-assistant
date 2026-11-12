@@ -78,6 +78,7 @@ def parse_text(text: str, cards: CardDB) -> list[SavedDeck]:
         m = _NAME_RE.match(line)
         if m:
             name = m.group("name")
+            deck_id = ""
             continue
         m = _ID_RE.match(line)
         if m:
@@ -89,9 +90,11 @@ def parse_text(text: str, cards: CardDB) -> list[SavedDeck]:
             try:
                 parsed = deckcode.decode(code)
             except deckcode.DeckCodeError:
+                name = deck_id = ""
                 continue
             resolved = deckcode.resolve(parsed, cards, name=name or deck_id)
             if resolved.size < 20:      # 太短的（威兹班之类）不要
+                name = deck_id = ""
                 continue
             out[deck_id] = SavedDeck(
                 deck_id=deck_id,
@@ -100,7 +103,7 @@ def parse_text(text: str, cards: CardDB) -> list[SavedDeck]:
                 class_en=resolved.card_class,
                 cards=dict(resolved.counts),
             )
-            deck_id = ""
+            name = deck_id = ""
     return list(out.values())
 
 

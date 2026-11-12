@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,16 @@ def load_mulligan_weights(path: Path = MULLIGAN_WEIGHTS_PATH) -> dict[str, float
 
 
 def save_mulligan_weights(weights: dict[str, float], path: Path = MULLIGAN_WEIGHTS_PATH) -> None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    # 只换权重，别把用户手写的 note 或其它键冲掉
+    payload["weights"] = weights
+    payload.setdefault("note", "由 hsai learn 自对弈生成")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"weights": weights, "note": "由 hsai learn 自对弈生成"}, ensure_ascii=False, indent=1),
-                    encoding="utf-8")
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, path)

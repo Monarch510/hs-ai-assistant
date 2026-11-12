@@ -53,10 +53,10 @@ def main(argv: list[str] | None = None) -> int:
     m.set_defaults(func=cmd_meta)
 
     d = sub.add_parser("deck", help="卡组：导入对手卡组库 / 设置自己的卡组")
-    d.add_argument("action", choices=["set", "show", "add", "import", "mine", "list"])
+    d.add_argument("action", choices=["show", "add", "import", "mine", "list"])
     d.add_argument("code", nargs="?", default="", help="客户端「复制卡组」得到的那串（AAEC...）")
     d.add_argument("--name", default="", help="给这套牌起个名字")
-    d.add_argument("--file", default="", dest="file", help="旧用法：从 json 文件导入")
+    d.add_argument("--file", default="", dest="file", help="配合 mine：从 json 文件设置我方卡组")
     d.set_defaults(func=cmd_deck)
 
     r = sub.add_parser("replay", help="离线解析一段日志并输出快照")

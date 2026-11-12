@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from .advisor import OUR_DECK_PATH
@@ -27,6 +28,12 @@ def _deck_from_code(db: CardDB, code: str, name: str = ""):
         print(f"有 {len(resolved.unknown)} 张牌在卡牌库里查不到（dbfId: {resolved.unknown[:6]}）")
         print("通常是版本太新，先跑一次 python -m hsai cards --update")
     return resolved
+
+def _write_deck(out: dict) -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    tmp = OUR_DECK_PATH.with_suffix(OUR_DECK_PATH.suffix + ".tmp")
+    tmp.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, OUR_DECK_PATH)
 
 def cmd_deck(args: argparse.Namespace) -> int:
     db = _db()
@@ -93,6 +100,35 @@ def cmd_deck(args: argparse.Namespace) -> int:
         return 0
 
     if action == "mine":
+        if args.file:
+            try:
+                payload = json.loads(Path(args.file).read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                print(f"读卡组文件失败：{exc}")
+                return 2
+            if not isinstance(payload, dict) or not isinstance(payload.get("cards"), list):
+                print("卡组文件格式不对：需要含 cards 列表的 JSON 对象")
+                return 2
+            resolved, missing = [], []
+            for key in payload["cards"]:
+                c = db.by_name_or_id(key)
+                if c is None:
+                    missing.append(str(key))
+                else:
+                    resolved.append(c.id)
+            if not resolved:
+                print("没解析出任何牌，未改动卡组")
+                return 2
+            _write_deck({
+                "name": payload.get("name") or "我的卡组",
+                "class": (payload.get("class") or "").upper(),
+                "tags": payload.get("tags") or [],
+                "cards": resolved,
+            })
+            print(f"已保存 {len(resolved)} 张牌 -> {OUR_DECK_PATH}")
+            if missing:
+                print("以下名字没在卡牌库里找到：" + "、".join(missing))
+            return 0
         if not args.code:
             print("用法：python -m hsai deck mine <卡组代码>")
             return 2
@@ -105,32 +141,8 @@ def cmd_deck(args: argparse.Namespace) -> int:
             "tags": [],
             "cards": [c.id for c in resolved.cards for _ in range(resolved.counts[c.id])],
         }
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
-        OUR_DECK_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+        _write_deck(out)
         print(f"已保存我方卡组：{out['name']}（{len(out['cards'])} 张）")
         return 0
 
-    # 兼容老用法：deck set --file my_deck.json
-    if not args.file:
-        print("用法：python -m hsai deck mine <卡组代码>  /  python -m hsai deck add <卡组代码>")
-        return 2
-    payload = json.loads(Path(args.file).read_text(encoding="utf-8"))
-    resolved, missing = [], []
-    for key in payload.get("cards", []):
-        c = db.by_name_or_id(key)
-        if c is None:
-            missing.append(key)
-        else:
-            resolved.append(c.id)
-    out = {
-        "name": payload.get("name") or "我的卡组",
-        "class": (payload.get("class") or "").upper(),
-        "tags": payload.get("tags") or [],
-        "cards": resolved,
-    }
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    OUR_DECK_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"已保存 {len(resolved)} 张牌 -> {OUR_DECK_PATH}")
-    if missing:
-        print("以下名字没在卡牌库里找到：" + "、".join(missing))
-    return 0
+    return 1

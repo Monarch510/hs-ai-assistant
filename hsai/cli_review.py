@@ -8,6 +8,9 @@ import argparse
 def cmd_review(args: argparse.Namespace) -> int:
     from . import review
 
+    if args.n <= 0:
+        print("局数必须是正整数")
+        return 2
     games = review.load_games()
     if not games:
         print("还没有对局记录。打完一局（并且胜负已判定）再来看。")

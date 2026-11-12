@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .logutil import log
 from .paths import GAMES_JSONL
 
 GAMES_PATH = GAMES_JSONL
@@ -73,20 +74,22 @@ def append_game(record: GameRecord, path: Path = GAMES_PATH) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(record.as_dict(), ensure_ascii=False) + "\n")
-    except OSError:
-        pass
+    except OSError as exc:
+        log(f"append_game 写盘失败：{type(exc).__name__}: {exc}")
 
 
 def load_games(path: Path = GAMES_PATH) -> list[dict[str, Any]]:
     if not path.exists():
         return []
     rows = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if not line:
             continue
         try:
-            rows.append(json.loads(line))
+            row = json.loads(line)
         except ValueError:
             continue
+        if isinstance(row, dict):
+            rows.append(row)
     return rows

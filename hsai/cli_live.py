@@ -13,8 +13,11 @@ from .state import replay_log_text
 
 
 def cmd_replay(args: argparse.Namespace) -> int:
-    db = _db()
     path = Path(args.file)
+    if not path.is_file():
+        print(f"日志文件不存在：{path}")
+        return 2
+    db = _db()
     st = replay_log_text(path.read_text(encoding="utf-8", errors="replace"), db)
     advisor = Advisor(db)
     snap = advisor.snapshot(st)

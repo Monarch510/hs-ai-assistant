@@ -34,8 +34,24 @@ def cmd_learn(args: argparse.Namespace) -> int:
     if args.mulligan:
         w, report = learn.optimize_mulligan(db, meta, games=args.games, rounds=args.rounds, seed=args.seed,
                                             progress=print)
-        learn.save_mulligan_weights(w)
         print(json.dumps(report.as_dict(), ensure_ascii=False, indent=1))
+        # 换一组种子再测一次：留牌权重只作用候选方，验证也用同一口径
+        hold_wr, hold_n = learn.mirror_winrate(
+            db, meta, learn.load_weights(), dict(learn.DEFAULT_WEIGHTS), games=args.games,
+            candidate_mulligan=w, seed=args.seed + 977,
+        )
+        if hold_wr >= 0.52:
+            verdict = "站得住，写入权重"
+        elif hold_wr >= 0.48:
+            verdict = "基本持平（没有可确认的提升）"
+        else:
+            verdict = "没站住，大概率是过拟合"
+        print(f"换种子验证（{hold_n} 局）：{hold_wr:.1%} vs 基准 50% —— {verdict}")
+        if (report.accepts or args.force) and (hold_wr >= 0.52 or args.force):
+            learn.save_mulligan_weights(w)
+            print("已写入留牌权重")
+        else:
+            print("未写入：没有可确认的改进就不改你的权重（确实想写就加 --force）")
         return 0
     w, report = learn.optimize(db, meta, games=args.games, rounds=args.rounds, seed=args.seed,
                                mulligan_weights=learn.load_mulligan_weights(), progress=print)

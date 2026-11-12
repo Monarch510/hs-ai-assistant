@@ -19,7 +19,8 @@ class ReviewPanel:
             # 所以必须运行时回查 ui.LAST_REVIEW_JSON，不能拿 import 时的副本
             from . import ui
             path = ui.LAST_REVIEW_JSON
-            return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+            data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+            return data if isinstance(data, dict) else None
         except (OSError, ValueError):
             return None
 

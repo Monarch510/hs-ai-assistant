@@ -5,15 +5,17 @@
 
 from __future__ import annotations
 
+import sys
 import tkinter as tk
+from pathlib import Path
 
-FONT = "Microsoft YaHei UI"
-BG = "#14171c"
-PANEL = "#1c2128"
-TEXT = "#e6e6e6"
-MUTED = "#8b949e"
-GOLD = "#d4a24a"
-WIDTH = 260
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:  # 直接 python tools/preview_layout.py 时 sys.path[0] 是 tools/
+    sys.path.insert(0, str(ROOT))
+
+# 预览图必须和真实悬浮窗同色，别在这里另存一份配色
+from hsai.ui_theme import (BG, PANEL, TEXT, GOLD, FONT, MUTED,
+                           DEFAULT_WIDTH as WIDTH)  # noqa: E402
 
 
 def section(parent, title, kicker):

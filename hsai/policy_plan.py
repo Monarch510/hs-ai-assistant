@@ -199,9 +199,8 @@ def plan_turn(
             working = nb
 
     lethal = max_face_damage(board, side, cards)
-    if lethal["lethal"] and not plan:
-        # 理论伤害够、但枚举出的动作里没有能兑现的线路（例如只有法术却算错口径）。
-        # 这时宁可说「不算斩杀」，也不要塞一条点不出来的假动作。
+    if lethal["lethal"] and lethal_seq is None:
+        # 枚举器用 apply_action 实打验过才算斩杀，估算再够也别透到 UI
         lethal = dict(lethal, lethal=False, note="理论伤害够，但没有能兑现的出牌线路")
 
     # 备选路线：不同起手的 Top 动作（让用户有得选）

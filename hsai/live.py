@@ -59,7 +59,7 @@ class ReplaySource:
             if ev is None:
                 continue
             if ev.kind == "create_game":
-                self.state.reset()
+                self.pending = None
             elif ev.kind in powerlog.CONTEXT_KINDS and ev.data.get("entity"):
                 self.pending = ev.data["entity"]
             self.state.apply(ev)
@@ -96,7 +96,7 @@ class SourceManager:
         return getattr(self.source, "name", "")
 
     def _maybe_switch(self) -> bool:
-        if self.forced_demo:
+        if self.forced_demo or self.log_path:
             return False
         now = time.time()
         if now - self._last_check < self.CHECK_INTERVAL:

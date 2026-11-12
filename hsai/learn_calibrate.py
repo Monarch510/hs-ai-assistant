@@ -58,7 +58,7 @@ def calibrate_priors(meta: MetaDB, cards: CardDB,
     if path.exists():
         # load_observations 会静默丢掉坏行；总行数得单独数，才知道剔了多少
         report["total_rows"] = sum(
-            1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+            1 for line in path.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip())
     if not obs:
         return report
     report["rows"] = len(obs)
@@ -144,8 +144,10 @@ def backfill_truth(cards: CardDB, meta: MetaDB, *,
         had = bool(row.get("truth"))
         t = predictor.retrospect((row.get("opp_class") or "").upper(),
                                  row.get("revealed") or [])
-        row["truth"] = t.as_dict() if t.archetype_id else None
-        row["unexpected_cards"] = list(t.unexplained)
+        # 算不出归属时保留原 truth，别把人工/老 schema 的真值抹成 None
+        if t.archetype_id:
+            row["truth"] = t.as_dict()
+            row["unexpected_cards"] = list(t.unexplained)
         if t.trusted:
             trusted += 1
         if not had and t.archetype_id:

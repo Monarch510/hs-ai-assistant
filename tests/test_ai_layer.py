@@ -152,11 +152,11 @@ class TuningsTest(unittest.TestCase):
     def test_consistent_direction_is_summarized(self) -> None:
         from hsai import memory
 
-        memory.add_tunings(
-            [{"kind": "param", "param": "tempo", "delta": d, "why": "a"}
-             for d in (0.1, 0.2, 0.15)],
-            {"opp_class": "MAGE"},
-        )
+        for d in (0.1, 0.2, 0.15):
+            memory.add_tunings(
+                [{"kind": "param", "param": "tempo", "delta": d, "why": "a"}],
+                {"opp_class": "MAGE"},
+            )
         row = memory.summarize_tunings()["tempo"]
         self.assertEqual(row["count"], 3)
         self.assertEqual(row["direction"], "up")
@@ -165,21 +165,23 @@ class TuningsTest(unittest.TestCase):
     def test_mixed_direction_is_flagged(self) -> None:
         from hsai import memory
 
-        memory.add_tunings(
-            [{"kind": "param", "param": "face", "delta": d, "why": "a"}
-             for d in (0.2, -0.2, 0.1, -0.1)],
-            {},
-        )
+        for d in (0.2, -0.2, 0.1, -0.1):
+            memory.add_tunings(
+                [{"kind": "param", "param": "face", "delta": d, "why": "a"}],
+                {},
+            )
         row = memory.summarize_tunings()["face"]
         self.assertEqual(row["direction"], "mixed")
 
     def _seed(self, *rows: tuple[str, float]) -> None:
         from hsai import memory
 
-        memory.add_tunings(
-            [{"kind": "param", "param": p, "delta": d, "why": "a"} for p, d in rows],
-            {},
-        )
+        # 一次 add_tunings 就是一局；每行单独调用，才能算成 3 局独立提出
+        for p, d in rows:
+            memory.add_tunings(
+                [{"kind": "param", "param": p, "delta": d, "why": "a"}],
+                {},
+            )
 
     def test_read_only_does_not_write_weights(self) -> None:
         """不带 --apply 时，哪怕建议全达标也一个文件都不能碰。"""

@@ -70,10 +70,14 @@ class RetrospectTest(unittest.TestCase):
         self.assertFalse(t.trusted, "两套牌各占一半，标签本身就是猜的")
 
     def test_unrecognised_cards_are_reported_not_penalised(self) -> None:
-        """谁都不认识的牌（幸运币、偷来的牌）不该拉低所有原型的覆盖率。"""
-        t = self.p.retrospect("MAGE", self.a_ids + ["GAME_005"])
+        """谁都不认识的牌（偷来的牌）不该拉低所有原型的覆盖率。
+
+        幸运币/衍生物在 retrospect 里已按 is_token 滤掉，不再进 seen；
+        这里用一个真正陌生的牌验证「不认识也不罚」。
+        """
+        t = self.p.retrospect("MAGE", self.a_ids + ["STEAL_001"])
         self.assertAlmostEqual(t.coverage, 1.0)
-        self.assertIn("GAME_005", t.unexplained)
+        self.assertIn("STEAL_001", t.unexplained)
 
     def test_copies_are_capped_by_template(self) -> None:
         """模板里只有 2 张，见到 3 张时第 3 张不能算「已解释」。"""

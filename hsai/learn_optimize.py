@@ -26,6 +26,7 @@ def mirror_winrate(
     archetype_ids: Iterable[str] | None = None,
     games: int = 4,
     mulligan_weights: dict[str, float] | None = None,
+    candidate_mulligan: dict[str, float] | None = None,
     seed: int = 0,
 ) -> tuple[float, int]:
     """同一套牌，候选权重 vs 基准权重。返回 (候选胜率, 局数)。
@@ -47,10 +48,17 @@ def mirror_winrate(
             base_seed = seed + i * 131 + g * 7
             for swap in (False, True):
                 wa, wb = (baseline, candidate) if swap else (candidate, baseline)
+                mw_a, mw_b = mulligan_weights, mulligan_weights
+                if candidate_mulligan is not None:
+                    # 让留牌权重只作用候选方：对称施加时双方同增益，胜率与 mw 无关
+                    if swap:
+                        mw_b = candidate_mulligan
+                    else:
+                        mw_a = candidate_mulligan
                 out = sim.run_game(
                     deck, deck, cards,
                     weights_a=wa, weights_b=wb,
-                    mulligan_weights=mulligan_weights,
+                    mulligan_weights_a=mw_a, mulligan_weights_b=mw_b,
                     seed=base_seed + (1 if swap else 0),
                     class_a=arch.card_class, class_b=arch.card_class,
                 )
@@ -138,8 +146,9 @@ def optimize_mulligan(
     pw = policy_weights or load_weights()
 
     def measure(mw: dict[str, float]) -> tuple[float, int]:
+        # 基准方用固定参考，mw 只作用候选方：对称施加时胜率与 mw 无关，爬山会空转
         return mirror_winrate(cards, meta, pw, dict(DEFAULT_WEIGHTS), games=games,
-                              mulligan_weights=mw, seed=seed)
+                              mulligan_weights=base, candidate_mulligan=mw, seed=seed)
 
     best_wr, n = measure(best)
     report = Report(games=n, best=best_wr)

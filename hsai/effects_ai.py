@@ -4,10 +4,12 @@
 现在只留验证逻辑，供测试与人工核对规则用 —— 运行时不调、也不写盘。
 未建模的牌只记日志，要补规则由人看过复盘后手动加。
 
-三道闸门：
-    ① 目标牌必须从「未建模」变成「能解析」
-    ② 全库里已经能解析的牌，结果一个都不能变
-    ③ 一条规则最多新覆盖 3 张牌（再多说明规则写得太宽）
+五道闸门：
+    ① 目标牌必须被规则命中，否则补了也没用
+    ② 已能解析的牌结果一个都不能变，防规则悄悄改掉别的牌
+    ③ 命中数与新覆盖数设上限，防一条正则把全库都改了
+    ④ 费用变化不许写 mana，防被引擎当成白送法力
+    ⑤ 字段必须是 Effect 真有的，防 setattr 静默挂上没人结算的字段
 
 为什么这么严：一条宽泛的正则（比如「造成X点伤害」）可能同时改掉几十张牌的
 解析结果，而你看不出来 —— 直到某个斩杀算错。
@@ -35,9 +37,9 @@ NUMERIC_FIELDS = {
 }              # 一条规则最多能命中几张牌（防「造成X点伤害」这种万能规则）
 
 
-FIELDS = ("damage", "scope", "draw", "heal", "buff_atk", "buff_hp",
-          "destroy", "freeze", "summon_atk", "summon_hp", "mana", "armor",
-          "discover", "known")
+# 签名必须覆盖 Effect 全字段：漏一个，改了那个字段的规则就能绕过闸门②
+FIELDS = tuple(f.name for f in dataclass_fields(Effect))
+KNOWN_IDX = FIELDS.index("known")   # 闸门③ 读的是 known，不能靠 [-1]
 
 
 def _sig_diff(before: tuple, after: tuple) -> str:
@@ -52,9 +54,7 @@ def _sig_diff(before: tuple, after: tuple) -> str:
 def _effect_signature(card) -> tuple:
     """把解析结果压成可比较的元组。"""
     e = parse_effect(card)
-    return (e.damage, e.scope, e.draw, e.heal, e.buff_atk, e.buff_hp,
-            e.destroy, e.freeze, e.summon_atk, e.summon_hp, e.mana, e.armor,
-            e.discover, e.known)
+    return tuple(getattr(e, name) for name in FIELDS)
 
 
 def _load_rules(path: Path) -> dict[str, Any]:
@@ -144,7 +144,7 @@ def validate_rule(cards, rule: dict[str, Any], target_ids: list[str]) -> tuple[b
     # 但它说明规则写得没有针对性，拒绝掉更安全
     if len(hits) > MAX_HITS:
         return False, f"规则太宽泛：命中了 {len(hits)} 张牌（上限 {MAX_HITS}）"
-    newly = [cid for cid in hits if not before[cid][-1]]      # 原本未建模、现在能解析
+    newly = [cid for cid in hits if not before[cid][KNOWN_IDX]]      # 原本未建模、现在能解析
     if len(newly) > MAX_NEW_COVER:
         # 命中的牌如果和目标是同一段文本（同一张牌的多个版本），不算宽泛
         target_texts = {(cards.get(t).text or "") for t in target_ids if cards.get(t)}

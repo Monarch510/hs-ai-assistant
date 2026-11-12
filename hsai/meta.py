@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -93,10 +94,12 @@ class MetaDB:
         for a in self.archetypes:
             f = path / f"{_file_stem(a.id)}.json"
             keep.add(f.name)
-            f.write_text(
+            tmp = f.with_suffix(f.suffix + ".tmp")
+            tmp.write_text(
                 json.dumps(a.as_dict(self.cards), ensure_ascii=False, indent=1) + "\n",
                 encoding="utf-8",
             )
+            os.replace(tmp, f)
         for f in path.glob("*.json"):
             if f.name in keep:
                 continue
