@@ -58,7 +58,7 @@ def calibrate_priors(meta: MetaDB, cards: CardDB,
     if path.exists():
         # load_observations 会静默丢掉坏行；总行数得单独数，才知道剔了多少
         report["total_rows"] = sum(
-            1 for line in path.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip())
+            1 for line in path.read_text(encoding="utf-8", errors="replace").split("\n") if line.strip())
     if not obs:
         return report
     report["rows"] = len(obs)
@@ -129,7 +129,7 @@ def backfill_truth(cards: CardDB, meta: MetaDB, *,
         return {"total": 0, "filled": 0, "trusted": 0, "written": False}
     predictor = DeckPredictor(meta, cards)
 
-    lines = path.read_text(encoding="utf-8").splitlines()
+    lines = path.read_text(encoding="utf-8", errors="replace").split("\n")
     out: list[str] = []
     total = filled = trusted = 0
     for line in lines:
@@ -138,6 +138,9 @@ def backfill_truth(cards: CardDB, meta: MetaDB, *,
         try:
             row = json.loads(line)
         except ValueError:
+            out.append(line)      # 坏行原样留着，不替用户丢数据
+            continue
+        if not isinstance(row, dict):
             out.append(line)      # 坏行原样留着，不替用户丢数据
             continue
         total += 1

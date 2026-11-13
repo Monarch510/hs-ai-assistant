@@ -121,21 +121,29 @@ def import_archetypes(payload: dict[str, Any], cards: CardDB, db: "MetaDB | None
     # 同上：延迟回查门面上的 MetaDB，避免子模块顶层 import 门面成环。
     from . import meta as _meta
 
+    def _share(a: dict) -> float:
+        try:
+            return float(a.get("share", 1.0))
+        except (TypeError, ValueError):
+            return 1.0
+
     db = db or _meta.MetaDB([], cards)
-    incoming = payload.get("archetypes") or []
-    total_share = sum(float(a.get("share", 1.0)) for a in incoming) or 1.0
+    incoming = [a for a in (payload.get("archetypes") or []) if isinstance(a, dict)]
+    total_share = sum(_share(a) for a in incoming) or 1.0
     for i, a in enumerate(incoming):
-        resolved = _resolve_cards(a.get("cards") or {}, cards)
+        raw_cards = a.get("cards") or {}
+        resolved = _resolve_cards(raw_cards if isinstance(raw_cards, dict) else {}, cards)
         if not resolved:
             continue
         cls = (a.get("class") or "NEUTRAL").upper()
+        prior = _share(a) / total_share
         db.upsert(
             Archetype(
                 id=a.get("id") or f"import_{i}",
                 name=a.get("name") or f"导入卡组 {i}",
                 card_class=cls,
-                prior=float(a.get("share", 1.0)) / total_share,
-                prior_base=float(a.get("share", 1.0)) / total_share,
+                prior=prior,
+                prior_base=prior,
                 cards=resolved,
                 tags=list(a.get("tags") or []),
                 source="import",

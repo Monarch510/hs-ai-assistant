@@ -102,7 +102,15 @@ def board_from_state(st: GameState) -> Board:
     # 帝国之眼在场：每回合 2 次技能，已用过的不能重复（进度来自日志）
     if any("帝国之眼" in (u.name or "") for u in me.board):
         me.cthun_uses_left = 2
-        me.cthun_used = set(getattr(st, "cthun_used", set()) or set())
+        used = set(getattr(st, "cthun_used", set()) or set())
+        me.cthun_used = used
+        # 把全局进度也挂到当前这只克苏恩名下，legal_actions 才认「同一只不重复选」
+        key = "default"
+        for idx, u in enumerate(me.board):
+            if u.name and u.name.startswith("克苏恩"):
+                key = f"{u.card_id}#{idx}"
+                break
+        me._cthun_by_unit = {key: set(used)}
 
     # 被动英雄技能：记录计数器进度（例如「每使用五张随从牌」）
     hp_card = st.cards.get((ours.hero_power or {}).get("id") or "") if ours.hero_power else None
@@ -163,8 +171,9 @@ def board_from_state(st: GameState) -> Board:
 
     if hp_view.get("id") and st.cards:
         me.hero_power = st.cards.get(hp_view["id"])
-        # shortcut: 日志里没有可靠的「英雄技能已用」标记，这里恒 False，等拿到日志样本再接（见 00-现状 §3.5）
-        me.hero_power_used = bool(hp_view.get("used"))
+        # 技能用过日志会给技能实体打 EXHAUSTED=1；拿不到就当没用（诚实降级：
+        # legal_actions 仍生成技能动作，lethal_seq is None 的降级还能挡住虚报斩杀）
+        me.hero_power_used = bool(hp_view.get("exhausted"))
     if opp.weapon:
         them.weapon = Unit(card_id=opp.weapon.get("id", ""), name=opp.weapon.get("name", "武器"),
                            atk=max(0, opp.weapon.get("atk") or 0), hp=1, max_hp=1)
@@ -725,7 +734,11 @@ class Advisor:
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")
             # 裸追加无上限会把历史越堆越大，重聚类是按行数平方涨的
             if OBSERVATIONS_PATH.exists():
-                lines = OBSERVATIONS_PATH.read_text(encoding="utf-8", errors="replace").splitlines()
+                # splitlines 会按 U+2028 等 Unicode 边界切断含牌名的整行；
+                # 只按 \n 切，并去掉末尾空串，免得它占掉一行的份额
+                lines = OBSERVATIONS_PATH.read_text(encoding="utf-8", errors="replace").split("\n")
+                if lines and not lines[-1]:
+                    lines.pop()
                 if len(lines) > MAX_OBSERVATIONS:
                     tmp = OBSERVATIONS_PATH.with_suffix(OBSERVATIONS_PATH.suffix + ".tmp")
                     tmp.write_text("\n".join(lines[-MAX_OBSERVATIONS:]) + "\n", encoding="utf-8")
@@ -750,11 +763,12 @@ class Advisor:
             if added:
                 self.predictor = DeckPredictor(self.meta, self.cards)
                 self.learned_count += added
+                # 只有真长出新原型才落盘：每局无条件 save 会白写一遍、还可能覆盖手改
+                try:
+                    self.meta.save()
+                except OSError:
+                    pass
         except Exception:
-            pass
-        try:
-            self.meta.save()
-        except OSError:
             pass
 
 def observation_row(
@@ -801,7 +815,7 @@ def load_observations(path: Path = OBSERVATIONS_PATH) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     if not path.exists():
         return rows
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in path.read_text(encoding="utf-8", errors="replace").split("\n"):
         line = line.strip()
         if not line:
             continue

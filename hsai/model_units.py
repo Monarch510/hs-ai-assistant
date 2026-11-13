@@ -173,7 +173,7 @@ class Board:
             return
         eff = parse_effect(card)
         if eff.heal:
-            side.hero_hp += eff.heal
+            side.hero_hp = min(30, side.hero_hp + eff.heal)
             self.note(f"{unit.name} 的亡语回复 {eff.heal} 点")
         if eff.armor:
             side.armor += eff.armor

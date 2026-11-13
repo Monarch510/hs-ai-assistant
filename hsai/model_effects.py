@@ -62,7 +62,7 @@ _HEAL_RE = re.compile(r"恢复(\d+)点生命值")
 _BUFF_RE = re.compile(r"获得\+(\d+)/\+(\d+)")
 _SUMMON_RE = re.compile(r"召唤(?:一个)?(\d+)/(\d+)")
 _DRAW_RE = re.compile(r"抽(一张|两张|三张|四张|\d+张)牌")
-_SPELL_DAMAGE_RE = re.compile(r"法术伤害\+(\d)")
+_SPELL_DAMAGE_RE = re.compile(r"法术伤害\+(\d+)")
 
 
 def spell_damage_from_card(card) -> int:

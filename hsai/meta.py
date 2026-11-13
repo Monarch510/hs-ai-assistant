@@ -77,12 +77,6 @@ class MetaDB:
             self.archetypes.append(arch)
         self.normalize_priors()
 
-    def to_json(self) -> dict[str, Any]:
-        return {
-            "version": 2,
-            "archetypes": [a.as_dict(self.cards) for a in self.archetypes],
-        }
-
     def save(self, path: Path = META_DIR) -> None:
         """一个原型一个文件：`<path>/<id>.json`。
 

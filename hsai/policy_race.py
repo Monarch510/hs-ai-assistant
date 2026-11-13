@@ -26,7 +26,7 @@ def race_plan(board: Board, side: int, cards, opp_coeff: float = 1.5) -> dict[st
         my_damage += me.weapon.atk
     if me.hero_power is not None and not is_passive_hero_power(me.hero_power):
         _, _, eff = hero_power_effect(me.hero_class, me.hero_power)
-        if eff.damage and eff.scope in ("enemy_hero", "enemy"):
+        if eff.damage:
             my_damage += eff.damage
 
     burst = _hand_burst(board, side, cards)

@@ -162,7 +162,7 @@ class AbsorbRecentWindowTest(unittest.TestCase):
         self.assertEqual(stats_out["observations"], 500)
 
 
-# D6：坏行 isinstance 守卫 + 三个 JSONL 读取方捕 UnicodeDecodeError
+# D6：坏行 isinstance 守卫 + JSONL 坏字节行只让那一行坏掉
 class JsonlReadGuardTest(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
@@ -172,7 +172,8 @@ class JsonlReadGuardTest(unittest.TestCase):
             ensure_ascii=False,
         )
         raw = (b"null\n[]\n" + b'"a stray string"\n' + b"{not json}\n"
-               + good.encode("utf-8") + b"\n" + b"\xff\xfe bad utf8\n")
+               + good.encode("utf-8") + b"\n" + b"\xff\xfe bad utf8\n"
+               + good.encode("utf-8") + b"\n")
         self.path.write_bytes(raw)
 
     def tearDown(self) -> None:
@@ -180,17 +181,17 @@ class JsonlReadGuardTest(unittest.TestCase):
 
     def test_loaders_return_only_dict_rows(self) -> None:
         obs = advisor.load_observations(self.path)
-        self.assertEqual(len(obs), 1)
+        self.assertEqual(len(obs), 2)
         self.assertIsInstance(obs[0], dict)
         games = review.load_games(self.path)
-        self.assertEqual(len(games), 1)
+        self.assertEqual(len(games), 2)
         self.assertIsInstance(games[0], dict)
-        # 严格解码 + UnicodeError 兜底：整份坏字节文件干净地返回空，不崩
-        self.assertEqual(memory._read_jsonl(self.path), [])
+        # 坏字节行只让那一行坏掉，两条好行都还在
+        self.assertEqual(len(memory._read_jsonl(self.path)), 2)
 
     def test_calibrate_priors_does_not_crash_on_bad_bytes(self) -> None:
         rep = learn_calibrate.calibrate_priors(MetaDB([]), CardDB([]), self.path)
-        self.assertEqual(rep["rows"], 1)
+        self.assertEqual(rep["rows"], 2)
         self.assertGreaterEqual(rep["total_rows"], 1)
 
 

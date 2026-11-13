@@ -10,6 +10,9 @@ from .meta import MetaDB
 
 
 def cmd_sim(args: argparse.Namespace) -> int:
+    if args.games < 1:
+        print("局数必须是正整数")
+        return 2
     db = _db()
     meta = MetaDB.load(db)
     a = meta.get(args.a) or next((x for x in meta if x.name == args.a), None)

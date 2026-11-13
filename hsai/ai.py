@@ -62,13 +62,15 @@ def json_array(text: str) -> list[Any]:
     到最后一个 `]` 截取，而不是指望整段就是合法 JSON。
     """
     body = (text or "").strip().strip("`")
-    start, end = body.find("["), body.rfind("]")
-    if start < 0 or end <= start:
-        return []
-    try:
-        return json.loads(body[start:end + 1])
-    except ValueError:
-        return []
+    end = body.rfind("]")
+    start = body.find("[")
+    while 0 <= start < end:
+        try:
+            return json.loads(body[start:end + 1])
+        except ValueError:
+            # 前言里的 [说明] 会让首个 [ 截出半截，递进到下一个 [ 再试
+            start = body.find("[", start + 1)
+    return []
 
 
 def build_prompt(snap: dict[str, Any]) -> str:
@@ -219,7 +221,7 @@ def parse_decision(text: str, count: int) -> dict[str, Any] | None:
     except ValueError:
         return None
     pick = data.get("pick")
-    if not isinstance(pick, int) or not (0 <= pick < count):
+    if not isinstance(pick, int) or isinstance(pick, bool) or not (0 <= pick < count):
         return None
     return {"pick": pick, "reason": str(data.get("reason") or "")[:80]}
 
@@ -321,7 +323,7 @@ def parse_review(text: str, *, missed_lethal: bool = False) -> tuple[list[str], 
             item = _tuning_row(row.get("param"), row.get("delta"), row.get("why"))
             if item is not None:
                 tunings.append(item)
-            continue
+                continue
         text_ = str(row.get("lesson") or "")
         if _lesson_is_sound(text_, missed_lethal):
             lessons.append(text_[:60])

@@ -102,7 +102,7 @@ def cmd_deck(args: argparse.Namespace) -> int:
     if action == "mine":
         if args.file:
             try:
-                payload = json.loads(Path(args.file).read_text(encoding="utf-8"))
+                payload = json.loads(Path(args.file).read_text(encoding="utf-8-sig"))
             except (OSError, ValueError) as exc:
                 print(f"读卡组文件失败：{exc}")
                 return 2
@@ -111,6 +111,8 @@ def cmd_deck(args: argparse.Namespace) -> int:
                 return 2
             resolved, missing = [], []
             for key in payload["cards"]:
+                if not isinstance(key, str):
+                    continue
                 c = db.by_name_or_id(key)
                 if c is None:
                     missing.append(str(key))
@@ -144,5 +146,3 @@ def cmd_deck(args: argparse.Namespace) -> int:
         _write_deck(out)
         print(f"已保存我方卡组：{out['name']}（{len(out['cards'])} 张）")
         return 0
-
-    return 1

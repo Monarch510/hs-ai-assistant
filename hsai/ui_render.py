@@ -349,9 +349,10 @@ class Renderer:
             # 功能标签与类型同款方括号、紧凑拼接，不新增行高
             func_tags = c.get("func_tags") or ()
             func_tag = f"  [{'·'.join(func_tags)}]" if func_tags else ""
+            # 加了类型和功能标签后，长牌名要换行而不是被右侧百分比挤成裁字
             tk.Label(line, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{count}{type_tag}{func_tag}",
                      bg=PANEL, fg=TEXT_SOFT, font=(FONT, self.font_size - 2),
-                     anchor="w").pack(side="left", fill="x", expand=True)
+                     anchor="w", justify="left", wraplength=self.width - 70).pack(side="left", fill="x", expand=True)
         for c in list(bar.winfo_children()):
             c.destroy()
         track_h = DECK_VISIBLE_ROWS * 18

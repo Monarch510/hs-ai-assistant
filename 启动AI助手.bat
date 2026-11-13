@@ -34,7 +34,7 @@ if not defined PY (
     exit /b 1
 )
 set "PYW=pythonw"
-if /i not "%PY%"=="python" set "PYW=py -3w"
+if /i not "%PY%"=="python" set "PYW=pyw -3"
 
 rem ---------- 首次运行：准备卡牌库 ----------
 if not exist "data\cards_zhCN.json" (

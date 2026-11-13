@@ -28,13 +28,12 @@ from .paths import EFFECTS_JSON
 
 EFFECTS_PATH = EFFECTS_JSON
 MAX_NEW_COVER = 3          # 一条规则最多新覆盖几张牌
-MAX_HITS = 12
+MAX_HITS = 12              # 一条规则最多能命中几张牌（防「造成X点伤害」这种万能规则）
 # 这些字段必须是整数（或 "" 这种分组引用），否则会让解析结果变成字符串
+# 从 Effect 反射，新增 int 字段不会漏掉闸门④ 的校验
 NUMERIC_FIELDS = {
-    "damage", "draw", "heal", "armor", "buff_atk", "buff_hp",
-    "summon_atk", "summon_hp", "summon_count", "mana", "min_atk",
-    "cost_delta_self", "cost_delta_opp",
-}              # 一条规则最多能命中几张牌（防「造成X点伤害」这种万能规则）
+    f.name for f in dataclass_fields(Effect) if f.type in (int, "int")
+}
 
 
 # 签名必须覆盖 Effect 全字段：漏一个，改了那个字段的规则就能绕过闸门②

@@ -55,12 +55,13 @@ def _apply_one(path: Path, updates: dict[str, float], label: str) -> None:
 
 def cmd_tunings(args: argparse.Namespace) -> int:
     """把 AI 多局复盘攒下来的参数建议按参数汇总；--apply 才写权重。"""
-    rows = memory.summarize_tunings(min_count=args.min_count)
+    min_count = max(3, args.min_count)      # summarize_tunings 默认要 3 局，别让单局噪声过关
+    rows = memory.summarize_tunings(min_count=min_count)
     if not rows:
-        print(f"还没有任何参数被至少 {args.min_count} 局反复提到（或还没有复盘记录）。")
+        print(f"还没有任何参数被至少 {min_count} 局反复提到（或还没有复盘记录）。")
         return 0
 
-    print(f"AI 复盘的参数建议（只出现 ≥{args.min_count} 局的参数）：")
+    print(f"AI 复盘的参数建议（只出现 ≥{min_count} 局的参数）：")
     policy_updates: dict[str, float] = {}
     tag_updates: dict[str, float] = {}
     for param in sorted(rows):

@@ -242,7 +242,13 @@ class DeckPredictor:
             # schema 2 存的是 [[card_id, 回合], ...]，从 json 读出来是 list 不是 tuple ——
             # 只判 tuple 的话，list 会被当成 card_id 塞进 Counter，直接抛
             # TypeError: unhashable type: 'list'。回填历史数据时会撞上。
-            cid = item[0] if isinstance(item, (list, tuple)) else item
+            if isinstance(item, (list, tuple)):
+                cid = item[0] if item else None
+            else:
+                cid = item
+            if not isinstance(cid, str):
+                # 脏历史回填会塞进非字符串 id，is_token 里的 .upper() 会抛异常
+                continue
             # 衍生物认成模板牌会抬高 coverage，真值两侧口径要一致
             if cid and self.cards.is_token(cid):
                 continue

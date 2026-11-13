@@ -15,20 +15,11 @@ from .paths import META_BACKUP_DIR, META_DIR
 def _backup_meta() -> Path:
     """把 data/meta/ 整份复制到 data/meta_backup/。
 
-    逐文件复制 + 清掉备份里多余的文件，不用 rmtree —— 备份目录是用户数据，
-    重建命令不该有「先删干净再写」这种动作。
+    只复制不裁剪：备份是兜底副本，不能跟着内存里的原型一起删。
     """
     META_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-    keep: set[str] = set()
     for f in META_DIR.glob("*.json"):
         (META_BACKUP_DIR / f.name).write_bytes(f.read_bytes())
-        keep.add(f.name)
-    for f in META_BACKUP_DIR.glob("*.json"):
-        if f.name not in keep:
-            try:
-                f.unlink()
-            except OSError:
-                pass
     return META_BACKUP_DIR
 
 def _print_calibrate_report(report: dict, meta_dir=None) -> None:
@@ -90,22 +81,40 @@ def cmd_meta(args: argparse.Namespace) -> int:
         except (OSError, ValueError) as exc:
             print(f"读取卡组表失败：{exc}")
             return 2
+        if not isinstance(payload, dict) or not isinstance(payload.get("archetypes"), list):
+            print("卡组表格式不对：需要含 archetypes 列表的 JSON 对象")
+            return 2
+        for a in payload["archetypes"]:
+            if not isinstance(a, dict):
+                print("卡组表格式不对：每个原型要是 JSON 对象")
+                return 2
+            cards = a.get("cards")
+            if cards is not None and not isinstance(cards, dict):
+                print("卡组表格式不对：cards 要是 JSON 对象")
+                return 2
+            try:
+                float(a.get("share", 1.0))
+            except (TypeError, ValueError):
+                print("卡组表格式不对：share 要是数字")
+                return 2
         meta = MetaDB.load(db)
         meta = import_archetypes(payload, db, meta)
-        meta.save()
+        if not getattr(args, "dry_run", False):
+            meta.save()
         print(f"已导入，共 {len(meta)} 个原型 -> {META_DIR}")
         return 0
     if args.action == "calibrate":
         meta = MetaDB.load(db)
         report = learn.calibrate_priors(meta, db)
-        meta.save()
+        if not getattr(args, "dry_run", False):
+            meta.save()
         _print_calibrate_report(report, META_DIR)
         return 0
     if args.action in ("rebuild", "build"):
         # build 就是 rebuild 的旧名字：以前它整份覆盖 meta.json，会把导入的
         # 卡组一起冲掉。现在两者都只重建学出来的原型。
         return _rebuild(db, args)
-    return 1
+
 
 def _rebuild(db, args) -> int:
     meta = MetaDB.load(db)

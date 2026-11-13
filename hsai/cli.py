@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 
 from .cli_boot import _ensure_console, _fix_streams
-from .cli_boot import _db as _db  # noqa: F401  兼容旧的 cli._db 引用
 
 from .cli_cards import cmd_cards  # noqa: E402
 from .cli_deck import cmd_deck  # noqa: E402
@@ -49,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--file", default="")
     m.add_argument("--min-games", type=int, default=3)
     m.add_argument("--dry-run", action="store_true", dest="dry_run",
-                   help="rebuild 时只演练，不写盘")
+                   help="import / rebuild / calibrate 时只演练，不写盘")
     m.set_defaults(func=cmd_meta)
 
     d = sub.add_parser("deck", help="卡组：导入对手卡组库 / 设置自己的卡组")
@@ -133,6 +132,3 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
     return int(args.func(args) or 0)
-
-if __name__ == "__main__":
-    raise SystemExit(main())

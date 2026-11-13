@@ -83,6 +83,14 @@ def choose_one_branches(card, cards=None) -> list[tuple[str, "Effect"]]:
         out.append((label, eff))
     return out
 
+def _cthun_key(me) -> str:
+    """同一只克苏恩用实例标识；场上没找到就叫 default，和 legal_actions 同口径。"""
+    for idx, u in enumerate(me.board):
+        if u.name and u.name.startswith("克苏恩"):
+            return f"{u.card_id}#{idx}"
+    return "default"
+
+
 def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
     me, foe = board.sides[side], board.sides[1 - side]
     acts: list[Action] = []
@@ -126,11 +134,7 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
     # 帝国之眼在场：每回合可用两次技能，已用过的不能重复
     if me.cthun_uses_left > 0:
         # 找到场上那只克苏恩，用它当实例标识（同一只内技能不能重复）
-        key = "default"
-        for idx, u in enumerate(me.board):
-            if u.name and u.name.startswith("克苏恩"):
-                key = f"{u.card_id}#{idx}"
-                break
+        key = _cthun_key(me)
         used_here = (getattr(me, "_cthun_by_unit", {}) or {}).get(key, set())
         for skill in CTHUN_SKILL_NAMES:
             if skill in used_here:
@@ -403,7 +407,11 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
             pass
     if (action.target or "").startswith("cthun:"):
         skill = action.target.split(":", 1)[1]
-        tripled = len(getattr(me, "cthun_used", set()) or []) >= 4
+        # 和 cthun_skill 分支同口径：有「同一只」的计数就用它，
+        # 没建过（老测试/纯模拟）才退回全局进度。
+        per_unit = (getattr(me, "_cthun_by_unit", {}) or {}).get(_cthun_key(me))
+        used = per_unit if per_unit is not None else (getattr(me, "cthun_used", set()) or set())
+        tripled = len(used | {skill}) >= 4
         nb.note(apply_cthun_skill(nb, side, skill, tripled=tripled))
     me.mana -= card.cost
     if card.is_minion:
@@ -547,7 +555,8 @@ def apply_cthun_skill(board: Board, side: int, name: str, tripled: bool = False)
             board.damage_hero(foe, total)
             me.hero_hp = min(30, me.hero_hp + total)
             return f"凝视：{total} 点打脸并回血"
-        dealt = min(total, target.hp)
+        # 圣盾会吃掉整段伤害，回血必须按实际打掉的血算，不能按 total 猜
+        dealt = 0 if target.divine else min(total, target.hp)
         board.damage_unit(foe, target, total)
         me.hero_hp = min(30, me.hero_hp + dealt)
         return f"凝视：{total} 点打 {target.name} 并回血"

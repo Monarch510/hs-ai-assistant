@@ -31,6 +31,9 @@ def cmd_log(args: argparse.Namespace) -> int:
     if path is None:
         print("没找到 Power.log。请确认游戏装过并至少启动过一次，或手动指定 --log。")
         return 2
+    if not path.is_file():
+        print(f"日志文件不存在：{path}")
+        return 2
     print(f"跟随日志：{path}")
     advisor = Advisor(db)
     watcher = PowerLogWatcher(path, db)

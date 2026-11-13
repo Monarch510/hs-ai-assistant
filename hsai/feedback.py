@@ -53,8 +53,8 @@ def load_recent(limit: int = 3, path: Path | None = None) -> list[dict[str, str]
     一局一条记录，只看最后一条：更早的复盘已经被这次覆盖，混着显示会误导。
     """
     try:
-        rows = (path or ADVICE_FEEDBACK_JSONL).read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeError):
+        rows = (path or ADVICE_FEEDBACK_JSONL).read_text(encoding="utf-8", errors="replace").split("\n")
+    except OSError:
         return []
     for row in reversed(rows):
         try:

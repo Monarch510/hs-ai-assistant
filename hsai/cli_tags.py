@@ -35,4 +35,3 @@ def cmd_tags(args: argparse.Namespace) -> int:
         path = tags.save_pending(payload)
         print(f"待定 {len(payload.get('pending') or [])} 张 -> {path}")
         return 0
-    return 1

@@ -47,16 +47,20 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
     work = board.clone()
     work.cards = db
     foe_board = work.sides[1 - side]
-    left = sorted(swings)
-    used = 0
-    while used < len(left):
+    remaining = sorted(swings)
+    while remaining:
         walls = [u for u in foe_board.board if u.alive and u.taunt]
         if not walls:
             break
         wall = min(walls, key=lambda u: 3 if u.divine else u.hp)
-        work.damage_unit(foe_board, wall, left[used])
-        used += 1
-    usable = sum(left[used:])
+        # 圣盾吃任意一段就能破，用最小的；否则挑刚好够破墙的最小段，大段留给脸
+        if wall.divine:
+            idx = 0
+        else:
+            killers = [i for i, seg in enumerate(remaining) if seg >= wall.hp]
+            idx = killers[0] if killers else 0
+        work.damage_unit(foe_board, wall, remaining.pop(idx))
+    usable = sum(remaining)
 
     spell_dmg = 0
     mana = me.mana
@@ -77,17 +81,27 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
             face_spells.append(card.name)
         elif eff.mana:
             pool.append((net, 0, card.name))
-    best_dmg, best_cost = 0, 0
-    for mask in range(1 << len(pool)):
-        cost_sum = dmg_sum = 0
-        for i, (net, dmg, _name) in enumerate(pool):
-            if mask & (1 << i):
-                cost_sum += net
-                dmg_sum += dmg
-        if cost_sum <= mana and dmg_sum > best_dmg:
-            best_dmg, best_cost = dmg_sum, cost_sum
-    spell_dmg = best_dmg
-    mana -= best_cost
+    # 手牌可能被日志短暂喂成十好几张，子集穷举会指数爆炸；按法力做 0/1 背包。
+    # net<=0 的牌（加费牌、免费直伤）只回费/增伤，没有不选的理由，先全纳入。
+    forced_net = forced_dmg = 0
+    items: list[tuple[int, int]] = []
+    for net, dmg, _name in pool:
+        if net <= 0:
+            forced_net += net
+            forced_dmg += dmg
+        else:
+            items.append((net, dmg))
+    budget = max(0, mana - forced_net)
+    dp = [0] * (budget + 1)
+    spent = [0] * (budget + 1)
+    for net, dmg in items:
+        for c in range(budget, net - 1, -1):
+            cand = dp[c - net] + dmg
+            if cand > dp[c]:
+                dp[c] = cand
+                spent[c] = spent[c - net] + net
+    spell_dmg = forced_dmg + dp[budget]
+    mana -= forced_net + spent[budget]
 
     hp_name, hp_cost, hp_eff = hero_power_effect(me.hero_class, me.hero_power)
     hero_power = 0
@@ -119,6 +133,21 @@ def _lethal_sequence(board: Board, side: int, cards: CardDB) -> list[Action] | N
     work = board.clone()
     work.active = side
     seq: list[Action] = []
+    # 加费牌（幸运币）打出即回费、没有别的代价，先全打掉当铺垫；
+    # 否则贪心会先选「当步有伤害」的英雄技能，把后面买得起的斩杀法术挤掉。
+    for _ in range(len(work.sides[side].hand)):
+        hand = work.sides[side].hand
+        mana_idx = next(
+            (i for i, card in enumerate(hand)
+             if card is not None and card.is_spell and card.cost <= work.sides[side].mana
+             and (parse_effect(card).mana or 0) > 0),
+            None,
+        )
+        if mana_idx is None:
+            break
+        act = Action("play", card_idx=mana_idx, cost=hand[mana_idx].cost)
+        seq.append(act)
+        work = apply_action(work, side, act, cards)
     for _ in range(12):
         foe = work.sides[1 - side]
         if foe.hero_hp <= 0:

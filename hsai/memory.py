@@ -30,7 +30,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
         return []
     rows: list[dict[str, Any]] = []
     try:
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line in path.read_text(encoding="utf-8", errors="replace").split("\n"):
             line = line.strip()
             if not line:
                 continue
@@ -40,7 +40,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
                 continue
             if isinstance(row, dict):
                 rows.append(row)
-    except (OSError, UnicodeError):
+    except OSError:
         return []
     return rows
 
@@ -52,7 +52,9 @@ def _append_jsonl(path: Path, rows: list[dict[str, Any]], cap: int) -> None:
         with path.open("a", encoding="utf-8") as fh:
             for row in rows:
                 fh.write(json.dumps(row, ensure_ascii=False) + "\n")
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = path.read_text(encoding="utf-8", errors="replace").split("\n")
+        if lines and not lines[-1]:
+            lines.pop()          # 末尾换行不该占掉一个 cap 名额
         if len(lines) > cap:
             # 按原始行切尾，坏行原样留着，不替用户丢数据
             kept = lines[-cap:]
@@ -60,7 +62,7 @@ def _append_jsonl(path: Path, rows: list[dict[str, Any]], cap: int) -> None:
             tmp = path.with_suffix(path.suffix + ".tmp")
             tmp.write_text("\n".join(kept) + "\n", encoding="utf-8")
             os.replace(tmp, path)
-    except (OSError, UnicodeError):
+    except OSError:
         pass
 
 def record_opponent(opp_class: str, archetype: str) -> None:
