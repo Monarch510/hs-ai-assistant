@@ -16,7 +16,8 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from .paths import ADVICE_TUNING_JSONL, CASES_JSONL, LESSONS_JSONL, OPP_HISTORY_JSONL
+from .paths import (ADVICE_TUNING_APPLIED_JSON, ADVICE_TUNING_JSONL, CASES_JSONL,
+                     LESSONS_JSONL, OPP_HISTORY_JSONL)
 
 LESSONS_PATH = LESSONS_JSONL
 CASES_PATH = CASES_JSONL
@@ -193,12 +194,53 @@ def add_tunings(tunings: list[dict[str, Any]], meta: dict[str, Any]) -> int:
     _append_jsonl(ADVICE_TUNING_PATH, rows, MAX_TUNINGS)
     return len(rows)
 
-def summarize_tunings(*, min_count: int = 3) -> dict[str, dict[str, Any]]:
+def _tuning_gid(row: dict[str, Any], i: int) -> str:
+    return str(row.get("game_id") or "legacy_%d" % i)
+
+
+def _applied_path() -> Path:
+    # 水位跟着建议文件走：测试把 ADVICE_TUNING_PATH 改道到临时目录时，水位也自动隔离
+    return ADVICE_TUNING_PATH.with_name(ADVICE_TUNING_APPLIED_JSON.name)
+
+
+def load_applied_games(path: Path | None = None) -> set[str]:
+    """已经兑成权重的局；缺文件、坏文件都当成从没应用过。"""
+    try:
+        payload = json.loads((path or _applied_path()).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    if not isinstance(payload, list):
+        return set()
+    return {g for g in payload if isinstance(g, str)}
+
+
+def save_applied_games(games: set[str], path: Path | None = None) -> None:
+    """整份覆盖：只记当前日志里还在的局，跟着 500 行上限一起收敛。"""
+    target = path or _applied_path()
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_text(json.dumps(sorted(games), ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, target)
+    except OSError:
+        pass
+
+
+def all_tuning_game_ids() -> set[str]:
+    """当前日志里所有局的 id，口径与 summarize_tunings 完全一致。"""
+    return {_tuning_gid(row, i) for i, row in enumerate(_read_jsonl(ADVICE_TUNING_PATH))}
+
+
+def summarize_tunings(*, min_count: int = 3,
+                      consumed: set[str] | None = None) -> dict[str, dict[str, Any]]:
     """按参数汇总：出现几次、平均增量、方向是否一致。
 
     只有同一参数累积到 min_count 局才返回 —— 低于这个数就是单局噪声。
     「方向是否一致」看正负号是否一边倒，来回摇摆说明 AI 自己也没想清楚。
+    consumed 里的局是已经 --apply 兑成权重的，不再重复计数：要再挪一步，
+    得等攒够 min_count 局新复盘，而不是把同一批证据反复叠加。
     """
+    consumed = consumed or set()
     rows = _read_jsonl(ADVICE_TUNING_PATH)
     grouped: dict[str, list[float]] = {}
     seen: dict[str, set[str]] = {}
@@ -211,7 +253,9 @@ def summarize_tunings(*, min_count: int = 3) -> dict[str, dict[str, Any]]:
         if not param:
             continue
         # 老行没有 game_id：每行给一个互不相同的合成 id，别让老数据凭空凑够局数
-        gid = str(row.get("game_id") or "legacy_%d" % i)
+        gid = _tuning_gid(row, i)
+        if gid in consumed:
+            continue
         ids = seen.setdefault(param, set())
         if gid in ids:
             continue

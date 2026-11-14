@@ -193,6 +193,7 @@ class TuningMinCountTest(unittest.TestCase):
     def test_min_count_clamped_to_three(self) -> None:
         args = argparse.Namespace(min_count=1, apply=False)
         with mock.patch.object(memory, "summarize_tunings", return_value={}) as m, \
+             mock.patch.object(memory, "load_applied_games", return_value=set()), \
              mock.patch("builtins.print"):
             cli_stats.cmd_tunings(args)
         self.assertEqual(m.call_args.kwargs["min_count"], 3)
@@ -202,6 +203,7 @@ class TuningMinCountTest(unittest.TestCase):
         with mock.patch.object(cli_stats.memory, "summarize_tunings",
                                return_value={"tempo": {"count": 3, "mean": 0.1,
                                                        "direction": "up", "agree": 1.0}}), \
+             mock.patch.object(cli_stats.memory, "load_applied_games", return_value=set()), \
              mock.patch.object(cli_stats, "_apply_one") as apply_one, \
              mock.patch("builtins.print"):
             cli_stats.cmd_tunings(args)

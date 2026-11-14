@@ -54,14 +54,18 @@ def _apply_one(path: Path, updates: dict[str, float], label: str) -> None:
 
 
 def cmd_tunings(args: argparse.Namespace) -> int:
-    """把 AI 多局复盘攒下来的参数建议按参数汇总；--apply 才写权重。"""
+    """把上次 --apply 之后攒下的新复盘按参数汇总；--apply 才写权重。"""
     min_count = max(3, args.min_count)      # summarize_tunings 默认要 3 局，别让单局噪声过关
-    rows = memory.summarize_tunings(min_count=min_count)
+    consumed = memory.load_applied_games()
+    rows = memory.summarize_tunings(min_count=min_count, consumed=consumed)
     if not rows:
-        print(f"还没有任何参数被至少 {min_count} 局反复提到（或还没有复盘记录）。")
+        if consumed:
+            print(f"自上次 --apply 以来，还没有参数被至少 {min_count} 局新复盘提到。")
+        else:
+            print(f"还没有任何参数被至少 {min_count} 局反复提到（或还没有复盘记录）。")
         return 0
 
-    print(f"AI 复盘的参数建议（只出现 ≥{min_count} 局的参数）：")
+    print(f"AI 复盘的参数建议（自上次 --apply 以来、只出现 ≥{min_count} 局的参数）：")
     policy_updates: dict[str, float] = {}
     tag_updates: dict[str, float] = {}
     for param in sorted(rows):
@@ -97,6 +101,9 @@ def cmd_tunings(args: argparse.Namespace) -> int:
         _apply_one(POLICY_WEIGHTS_JSON, final_policy, "policy_weights")
     if final_tag:
         _apply_one(TAG_WEIGHTS_JSON, final_tag, "tag_weights")
+    # 把「此刻日志里的全部局」记成已兑现：方向摇摆的旧证据也一并封存，
+    # 免得反复和新证据搅在一起；水位整份覆盖，跟着 500 行上限一起收敛。
+    memory.save_applied_games(memory.all_tuning_game_ids())
     print("重启悬浮窗后生效。")
     return 0
 

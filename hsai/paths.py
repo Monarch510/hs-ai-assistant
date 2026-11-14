@@ -59,6 +59,8 @@ OPP_HISTORY_JSONL = DATA_DIR / "opp_history.jsonl"  # 对手形态历史
 # AI 局末复盘给出的「可执行调整建议」，一条一行。只是建议，不自动生效：
 # 同一参数要积累够次数才值得谈，避免拿单局噪声去改全局权重。
 ADVICE_TUNING_JSONL = DATA_DIR / "advice_tuning.jsonl"
+# tunings --apply 已经兑成权重的局，避免同一批复盘被反复应用
+ADVICE_TUNING_APPLIED_JSON = DATA_DIR / "advice_tuning_applied.json"
 
 POLICY_WEIGHTS_JSON = DATA_DIR / "policy_weights.json"
 MULLIGAN_WEIGHTS_JSON = DATA_DIR / "mulligan_weights.json"

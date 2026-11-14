@@ -108,9 +108,9 @@ def main(argv: list[str] | None = None) -> int:
 
     tn = sub.add_parser("tunings", help="AI 复盘攒下的参数建议（只读，--apply 才写权重）")
     tn.add_argument("--min-count", type=int, default=3,
-                    help="只显示被至少这么多局提到的参数（默认 3）")
+                    help="只显示自上次 --apply 以来被至少这么多局新复盘提到的参数（默认 3）")
     tn.add_argument("--apply", action="store_true",
-                    help="把达标且方向一致的建议写进权重文件（会先备份）")
+                    help="把达标且方向一致的建议写进权重文件（会先备份），并记下已应用的局避免重复叠加")
     tn.set_defaults(func=cmd_tunings)
 
     sl = sub.add_parser("setup-log", help="一键开启炉石日志（写 log.config）")
