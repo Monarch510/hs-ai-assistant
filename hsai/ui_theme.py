@@ -11,11 +11,11 @@ import math
 # 窗口默认宽度（窄一点，贴边时不挡牌桌）
 DEFAULT_WIDTH = 260
 # 改了布局参数就 +1：老配置文件里的宽度/字号会被忽略，位置照旧保留
-LAYOUT_VERSION = 8
+LAYOUT_VERSION = 9
 
-# 字号一起放大：默认 12，右键菜单可调 9–16。老 window.json 的 10 会在
-# 布局版本升级时让位给新默认，否则「调大默认字号」对老用户根本不生效。
-DEFAULT_FONT_SIZE = 12
+# 默认字号压到下限 9：右键菜单 9–16 仍能自行调大。老 window.json 里
+# 存过的 12 会在布局版本升级时让位给新默认，否则「调小」对老用户不生效。
+DEFAULT_FONT_SIZE = 9
 FONT_MIN = 9
 FONT_MAX = 16
 

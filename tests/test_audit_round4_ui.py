@@ -432,7 +432,7 @@ class WindowRangeTest(unittest.TestCase):
     def test_empty_state_uses_defaults(self) -> None:
         ov = self._overlay("{}")
         self.assertEqual(ov.alpha, 0.90)
-        self.assertEqual(ov.font_size, 12)  # 新默认 DEFAULT_FONT_SIZE
+        self.assertEqual(ov.font_size, 9)  # 新默认 DEFAULT_FONT_SIZE
         self.assertEqual(ov.width, DEFAULT_WIDTH)
 
     def test_helpers_are_backward_compatible(self) -> None:

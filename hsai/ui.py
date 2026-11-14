@@ -62,7 +62,7 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self.alpha = _as_float(saved.get("alpha", 0.90), 0.90, 0.35, 1.0) if same_layout else 0.90
         # 背景模式：solid（整窗半透明，看得清） / key（把底色抠成真透明，缝隙能看见游戏）
         self.bg_mode = saved.get("bg_mode", "solid") if same_layout else "solid"
-        # 布局版本变了就别认旧字号：老 window.json 里的 10 不该盖住新的默认 12
+        # 布局版本变了就别认旧字号：老 window.json 里存的字号不该盖住新默认
         self.font_size = (_as_int(saved.get("font_size", DEFAULT_FONT_SIZE),
                                   DEFAULT_FONT_SIZE, FONT_MIN, FONT_MAX)
                           if same_layout else DEFAULT_FONT_SIZE)
