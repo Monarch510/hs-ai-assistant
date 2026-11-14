@@ -53,8 +53,8 @@ def unit_threat(unit, cards, board: Board | None = None, side: int = 0) -> float
         value += 1.0
     if unit.lifesteal:
         value += 1.0
-    if unit.windfury:
-        value += unit.atk * 0.6
+    if unit.max_attacks > 1:
+        value += unit.atk * (unit.max_attacks - 1) * 0.6
     if unit.poisonous:
         value += 1.5
 

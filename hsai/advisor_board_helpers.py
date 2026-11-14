@@ -11,7 +11,7 @@ import re
 from typing import Any
 
 from . import logutil
-from .cards import Card, CardDB
+from .cards import Card, CardDB, windfury_attacks
 from .model import Unit
 from .model_effects import spell_damage_from_card
 
@@ -20,19 +20,23 @@ from .model_effects import spell_damage_from_card
 UNKNOWN = Card(id="__unknown__", name="未知牌", cost=99)
 
 
+def _view_max_attacks(card, view: dict[str, Any]) -> int:
+    # 视图带 max_attacks 就是算好的（含日志动态赋予），否则退回卡面静态识别
+    n = view.get("max_attacks")
+    return int(n) if n is not None else windfury_attacks(card)
+
+
 def _attacks_left(card, view: dict[str, Any]) -> int:
-    """这回合还能攻击几次。风怒 2 次，普通 1 次，要减掉已经打过的。"""
+    """这回合还能攻击几次。上限由视图给出（风怒 2、超级风怒 4、普通 1），要减掉已打过的。"""
+    total = _view_max_attacks(card, view)
     if _woke_this_turn(card, view):
         return 0
     if view.get("woke_turn") is not None and view.get("woke_turn") == view.get("turn_now"):
         return 0
-    if not (view.get("attackable") or view.get("can_attack")):
-        # 客户端说不能攻击时，风怒且已打过一次的还可能剩一次
-        used = int(view.get("attacks_used") or 0)
-        total = 2 if (card is not None and card.has("WINDFURY")) else 1
-        return max(0, total - used) if used else 0
-    total = 2 if (card is not None and card.has("WINDFURY")) else 1
     used = int(view.get("attacks_used") or 0)
+    if not (view.get("attackable") or view.get("can_attack")):
+        # 客户端说不能攻击时，多段攻击且已打过的还可能剩几次
+        return max(0, total - used) if used else 0
     return max(0, total - used)
 
 def _woke_this_turn(card, view: dict[str, Any]) -> bool:
@@ -77,11 +81,13 @@ def _unit_from_view(view: dict[str, Any], cards: CardDB) -> Unit:
         # 突袭刚入场：这回合能打随从，不能打脸
         rush_only=bool(card and card.has("RUSH") and view.get("fresh")),
         dormant=bool(view.get("dormant")) or _still_dormant(card, view),
-        windfury=bool(card and card.has("WINDFURY")),
+        windfury=_view_max_attacks(card, view) >= 2,
         lifesteal=bool(card and card.has("LIFESTEAL")),
         poisonous=bool(card and card.has("POISONOUS")),
         spell_damage=spell_damage_from_card(card),
         attacks_left=_attacks_left(card, view),
+        mega_windfury=_view_max_attacks(card, view) >= 4,
+        cannot_attack_hero=bool(view.get("cannot_attack_hero")),
     )
 
 def _unknown_cards(n: int) -> list[Card]:

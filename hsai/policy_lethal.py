@@ -21,19 +21,19 @@ def max_face_damage(board: Board, side: int, cards: CardDB | None = None) -> dic
     for u in me.board:
         if not u.alive or u.atk <= 0 or u.frozen or u.attacks_left <= 0 or u.dormant:
             continue
-        # 突袭刚入场的这只本回合只能打随从，别把它的攻击算成打脸伤害，
+        # 突袭刚入场 / 卡面写明无法攻击英雄：这两类本回合只能打随从，
         # 否则「能斩杀」会虚报；这里和 legal_actions 的口径必须一致
-        if u.rush_only:
+        if u.rush_only or u.cannot_attack_hero:
             continue
-        hits = 2 if (u.windfury and u.attacks_left >= 2) else 1
+        hits = min(u.max_attacks, u.attacks_left)
         swings.extend([u.atk] * hits)
     # 英雄自己也是攻击者：有武器时 hero_atk 通常已经等于武器攻击力，
     # 取 max 而不是相加，否则同一把武器会被算两次。
     weapon_atk = me.weapon.atk if (me.weapon and (me.weapon.hp or 0) > 0) else 0
     hero_atk = max(me.hero_atk, weapon_atk)
-    if hero_atk > 0:
+    if hero_atk > 0 and not (me.weapon is not None and me.weapon.cannot_attack_hero):
         # 0 次表示本回合已经打过，不能当成「未知按 1 次算」
-        n_swings = min(2, max(0, me.hero_attacks_left))
+        n_swings = max(0, me.hero_attacks_left)
         if weapon_atk > me.hero_atk:
             # 攻击力全靠这把武器：碎了就打不出第二下这个攻击力
             n_swings = min(n_swings, max(0, me.weapon.hp))

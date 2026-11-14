@@ -101,7 +101,7 @@ def _reset_attacks(side: SideState) -> None:
     # 攻击次数只放 hero_attacks_left：斩杀估算也只认它，
     # 两个计数器都置位会让 apply_action 每回合多打一次
     side.weapon_attacks_left = 0
-    side.hero_attacks_left = 2 if (side.weapon is not None and side.weapon.windfury) else 1
+    side.hero_attacks_left = side.weapon.max_attacks if side.weapon is not None else 1
 
 def run_game(
     deck_a: Sequence[Card],
@@ -160,7 +160,7 @@ def run_game(
         for u in side.board:
             if not u.alive:
                 continue
-            u.attacks_left = 2 if u.windfury else 1
+            u.attacks_left = u.max_attacks
             u.frozen = False
 
         _draw(side, board, 1)

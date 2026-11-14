@@ -39,10 +39,16 @@ class Unit:
     can_attack_now: bool = True
     alive: bool = True
     uid: int = field(default_factory=_UID.__next__)  # clone 后 x is u 失效，靠 uid 认同一只
+    mega_windfury: bool = False
+    cannot_attack_hero: bool = False
 
     def __post_init__(self) -> None:
         if self.max_hp <= 0:
             self.max_hp = max(self.hp, 1)
+
+    @property
+    def max_attacks(self) -> int:
+        return 4 if self.mega_windfury else (2 if self.windfury else 1)
 
     @property
     def value(self) -> float:
@@ -53,8 +59,8 @@ class Unit:
             v += 0.6
         if self.divine:
             v += 1.4 + self.atk * 0.2
-        if self.windfury:
-            v += self.atk * 0.5
+        if self.max_attacks > 1:
+            v += self.atk * (self.max_attacks - 1) * 0.5
         if self.poisonous:
             v += 1.5
         if self.lifesteal:
@@ -121,7 +127,7 @@ class SideState:
 
     @property
     def board_attack(self) -> int:
-        return sum(u.atk * (2 if u.windfury else 1) for u in self.board if u.alive and u.atk > 0)
+        return sum(u.atk * u.max_attacks for u in self.board if u.alive and u.atk > 0)
 
 class Board:
     """两方 + 回合信息。side 0 = 我方，side 1 = 对方。"""
@@ -159,6 +165,8 @@ class Board:
                 taunt=unit.taunt, divine=False,
                 rush=unit.rush, windfury=unit.windfury,
                 lifesteal=unit.lifesteal, poisonous=unit.poisonous,
+                mega_windfury=unit.mega_windfury,
+                cannot_attack_hero=unit.cannot_attack_hero,
                 attacks_left=0, reborn=True,
             ))
             self.note(f"{unit.name} 复生（1 血）")

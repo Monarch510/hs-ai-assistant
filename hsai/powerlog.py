@@ -54,7 +54,7 @@ KNOWN_TAGS: frozenset[str] = frozenset(
         "TAUNT", "DIVINE_SHIELD", "ARMOR", "NUM_ATTACKS_THIS_TURN",
         "HERO_ENTITY", "CARDTYPE", "CARD_ID", "ZONE_POSITION", "MULLIGAN_STATE", "EXHAUSTED", "FROZEN", "FIRST_PLAYER", "ATTACKABLE", "DORMANT", "DURABILITY", "TEMP_RESOURCES", "QUEST_PROGRESS", "QUEST_PROGRESS_TOTAL", "QUEST", "OBJECTIVE", "SECRET", "SIGIL",
         # state/advisor 真在读但旧名单漏了；丢了会静默算错牌库、疲劳、风怒、回合步骤
-        "STEP", "NUM_CARDS_DRAWN_THIS_TURN", "FATIGUE", "WINDFURY",
+        "STEP", "NUM_CARDS_DRAWN_THIS_TURN", "FATIGUE", "WINDFURY", "MEGA_WINDFURY",
         # NEXT_STEP 是回合开头的预告，state.py 刻意忽略它，但事件本身得照常进来
         "NEXT_STEP",
     }

@@ -22,7 +22,7 @@ from . import decks as decks_mod
 from . import model as model_mod
 from . import mulligan, policy, tag_rules
 from . import review as review_mod
-from .cards import DATA_DIR, CardDB
+from .cards import DATA_DIR, CardDB, windfury_attacks, cannot_attack_hero
 from .infer import DeckPredictor, Prediction, RetroTruth
 from .meta import MetaDB
 from .model import Board, SideState, Unit
@@ -93,10 +93,12 @@ def board_from_state(st: GameState) -> Board:
         w = ours.weapon
         wcard = st.cards.get(w.get("id") or "") if st.cards else None
         dur = max(1, int(w.get("durability") or w.get("health") or 1))
+        w_max = int(w.get("max_attacks") or windfury_attacks(wcard))
         me.weapon = Unit(card_id=w.get("id") or "", name=w.get("name") or "武器",
                          atk=max(0, int(w.get("atk") or 0)),
                          hp=dur, max_hp=dur,
-                         windfury=bool(wcard is not None and wcard.has("WINDFURY")))
+                         windfury=w_max >= 2, mega_windfury=w_max >= 4,
+                         cannot_attack_hero=bool(w.get("cannot_attack_hero")) or cannot_attack_hero(wcard))
     # 攻击次数只放 hero_attacks_left（下面按英雄标签算）：斩杀估算也只认它，
     # 两个计数器都置位会让 apply_action 多打一次（和 sim/engine.py 同口径）
     # 帝国之眼在场：每回合 2 次技能，已用过的不能重复（进度来自日志）
@@ -160,12 +162,15 @@ def board_from_state(st: GameState) -> Board:
             me.hero_atk = int(_hero.tags.get("ATK") or 0)
         except (TypeError, ValueError):
             me.hero_atk = 0
-        # 风怒武器/风怒光环下英雄能攻击两次：按「总次数 − 已攻击」算
-        _wind = bool(_hero.tags.get("WINDFURY")) or bool(
-            (ours.weapon or {}).get("id")
-            and st.cards.get((ours.weapon or {}).get("id"))
-            and st.cards.get((ours.weapon or {}).get("id")).has("WINDFURY"))
-        _total = 2 if _wind else 1
+        # 风怒/超级风怒武器或光环下英雄能连打：按「总次数 − 已攻击」算
+        _total = windfury_attacks(
+            st.cards.get((ours.weapon or {}).get("id")) if st.cards else None)
+        if _hero.tags.get("MEGA_WINDFURY"):
+            _total = max(_total, 4)
+        elif _hero.tags.get("WINDFURY"):
+            _total = max(_total, 2)
+        if me.weapon is not None:
+            _total = max(_total, me.weapon.max_attacks)
         _used = int(_hero.tags.get("NUM_ATTACKS_THIS_TURN") or 0)
         me.hero_attacks_left = max(0, _total - _used)
 

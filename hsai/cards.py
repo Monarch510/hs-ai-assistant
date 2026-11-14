@@ -44,6 +44,7 @@ MECHANIC_CN = {
     "RUSH": "突袭",
     "DIVINE_SHIELD": "圣盾",
     "WINDFURY": "风怒",
+    "MEGA_WINDFURY": "超级风怒",
     "LIFESTEAL": "吸血",
     "POISONOUS": "剧毒",
     "STEALTH": "潜行",
@@ -125,6 +126,24 @@ class Card:
             "mechanics": list(self.mechanics),
             "keyword": self.keyword_cn,
         }
+
+
+def windfury_attacks(card: "Card | None") -> int:
+    # 卡库把「超级风怒」只写在卡面文本里，mechanics 连普通风怒都没有，只能读文本
+    if card is None:
+        return 1
+    if card.has("MEGA_WINDFURY") or "超级风怒" in (card.text or ""):
+        return 4
+    if card.has("WINDFURY"):
+        return 2
+    return 1
+
+
+def cannot_attack_hero(card: "Card | None") -> bool:
+    # 战吼把限制赋予「该随从」的牌自身不受限
+    if card is None or card.type not in ("MINION", "WEAPON"):
+        return False
+    return "无法攻击英雄" in (card.text or "") and "该随从" not in (card.text or "")
 
 
 _FIELDS = (

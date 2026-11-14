@@ -17,7 +17,7 @@ from typing import Any, Iterable
 
 from . import powerlog as pl
 from .model import parse_effect
-from .cards import CardDB
+from .cards import CardDB, windfury_attacks, cannot_attack_hero
 # 类型 / 纯工具层移到 state_types；门面显式 re-export 维持原有 import 面。
 # _EFFECT_CACHE 与子模块里的是同一个可变字典对象，门面可写；代码里没有任何
 # 地方对它重新赋值（只有 .get / [] 写），所以两处始终指向同一份缓存。
@@ -29,6 +29,17 @@ from .state_types import (
     ZONE_PLAY, ZONE_DECK, ZONE_HAND, ZONE_GRAVE, ZONE_SECRET, ZONE_SETASIDE,
     Entity, Side, _EFFECT_CACHE, _cached_effect, _clean_text, _int,
 )
+
+
+def _attacks_limit(card, tags: dict) -> int:
+    # 卡面是静态识别，日志 tag 是「打出后/被赋予」的动态状态，两者取更高的
+    n = windfury_attacks(card)
+    if tags.get("MEGA_WINDFURY"):
+        return max(n, 4)
+    if tags.get("WINDFURY"):
+        return max(n, 2)
+    return n
+
 
 class GameState:
     """一次对局的可变状态。每次 apply 事件后都可以随时读取视图。"""
@@ -1184,6 +1195,8 @@ class GameState:
             "effect": _cached_effect(self, e.card_id),
             "fresh": self.played_turn.get(e.id) == self.turn,
             "zone": e.zone,
+            "max_attacks": _attacks_limit(card, e.tags),
+            "cannot_attack_hero": cannot_attack_hero(card),
         }
         return view
 
@@ -1191,7 +1204,7 @@ class GameState:
         """这个随从现在能不能攻击。
 
         依据三条：①它是我方/行动方 ②没被 EXHAUSTED（刚上场/已攻击过/被冻结）
-        ③攻击次数没用完（风怒是 2 次）。以前只数攻击次数，会把「刚下的随从」
+        ③攻击次数没用完（风怒 2 次、超级风怒 4 次）。以前只数攻击次数，会把「刚下的随从」
         误判成能攻击 —— 那会让建议里出现根本打不出去的操作。
         """
         if e.zone != ZONE_PLAY or e.controller is None:
@@ -1215,7 +1228,7 @@ class GameState:
             return False
         if e.tags.get("FROZEN") in (1, "1", True):
             return False
-        limit = 2 if (card is not None and card.has("WINDFURY")) else 1
+        limit = _attacks_limit(card, e.tags)
         if (e.tags.get(T_ATTACKS_THIS_TURN) or 0) >= limit:
             return False
         return True

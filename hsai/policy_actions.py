@@ -6,7 +6,7 @@ import dataclasses
 import re
 from dataclasses import dataclass
 
-from .cards import Card, CardDB
+from .cards import Card, CardDB, windfury_attacks, cannot_attack_hero
 from .model import (
     Board, Effect, Unit, evaluate, hero_power_effect, is_passive_hero_power,
     parse_effect, warden_buff,
@@ -105,7 +105,7 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
                     acts.append(Action("attack", unit_idx=i, target=f"enemy:{j}",
                                        desc=f"第{i+1}位 {u.name} {u.atk}/{u.hp} 攻击第{j+1}位 {t.name} {t.atk}/{t.hp}"))
         else:
-            if not u.rush_only:
+            if not u.rush_only and not u.cannot_attack_hero:
                 acts.append(Action("attack", unit_idx=i, target="enemy_hero",
                                    desc=f"第{i+1}位 {u.name} {u.atk}/{u.hp} 攻击英雄"))
             for j, t in enumerate(foe.board):
@@ -118,14 +118,16 @@ def legal_actions(board: Board, side: int, cards: CardDB) -> list[Action]:
     # 英雄自带攻击力（被加攻/装备效果）也能攻击，不只有武器
     hero_atk = max(weapon_atk, me.hero_atk)
     if hero_atk > 0 and (me.weapon_attacks_left > 0 or me.hero_attacks_left > 0):
+        hero_face_allowed = not (me.weapon is not None and me.weapon.cannot_attack_hero)
         if taunts:
             for j, t in enumerate(foe.board):
                 if t.alive and t.taunt and not t.dormant:
                     acts.append(Action("hero_attack", target=f"enemy:{j}",
                                        desc=f"英雄（{hero_atk}攻）攻击第{j+1}位 {t.name}"))
         else:
-            acts.append(Action("hero_attack", target="enemy_hero",
-                               desc=f"英雄（{hero_atk}攻）攻击英雄"))
+            if hero_face_allowed:
+                acts.append(Action("hero_attack", target="enemy_hero",
+                                   desc=f"英雄（{hero_atk}攻）攻击英雄"))
             for j, t in enumerate(foe.board):
                 if t.alive and not t.dormant:
                     acts.append(Action("hero_attack", target=f"enemy:{j}",
@@ -425,17 +427,19 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
             divine=card.has("DIVINE_SHIELD"),
             charge=card.has("CHARGE"),
             rush=card.has("RUSH"),
-            windfury=card.has("WINDFURY"),
+            windfury=windfury_attacks(card) >= 2,
             lifesteal=card.has("LIFESTEAL"),
             poisonous=card.has("POISONOUS"),
             spell_damage=spell_damage_from_card(card),
-            attacks_left=2 if card.has("WINDFURY") else 1,
+            attacks_left=windfury_attacks(card),
             frozen=card.has("FREEZE"),
+            mega_windfury=windfury_attacks(card) >= 4,
+            cannot_attack_hero=cannot_attack_hero(card),
         )
         u.can_attack_now = u.charge or u.rush
         if not u.charge:
             # 突袭：入场当回合就能动，但只能吃随从，不能打脸
-            u.attacks_left = 1 if u.rush else 0
+            u.attacks_left = u.max_attacks if u.rush else 0
             u.rush_only = u.rush
         # 场上有玛维这类光环：之后每个打出的随从都 +N/+N，但要休眠一回合
         _wb = 0
@@ -461,7 +465,8 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
                 atk=max(0, add.atk), hp=max(1, add.health),
                 max_hp=max(1, add.health),
                 taunt=add.has("TAUNT"), divine=add.has("DIVINE_SHIELD"),
-                rush=add.has("RUSH"), windfury=add.has("WINDFURY"),
+                rush=add.has("RUSH"), windfury=windfury_attacks(add) >= 2,
+                mega_windfury=windfury_attacks(add) >= 4,
                 attacks_left=0,
             ))
         eff = parse_effect(card)
@@ -493,7 +498,10 @@ def apply_action(board: Board, side: int, action: Action, cards: CardDB) -> Boar
         nb.note(f"施放 {card.name}")
     elif card.is_weapon:
         me.weapon = Unit(card_id=card.id, name=card.name, atk=card.atk, hp=max(1, card.durability),
-                         max_hp=max(1, card.durability), windfury=card.has("WINDFURY"))
+                         max_hp=max(1, card.durability),
+                         windfury=windfury_attacks(card) >= 2,
+                         mega_windfury=windfury_attacks(card) >= 4,
+                         cannot_attack_hero=cannot_attack_hero(card))
         nb.note(f"装备 {card.name}")
     else:
         eff = parse_effect(card)
