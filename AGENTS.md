@@ -1,158 +1,24 @@
 # AGENTS.md
 
-给在这个仓库里干活的 AI 代理看的约定。人不用全读，但改代码前请扫一遍「硬规则」和「坑」。
+给在这个仓库里干活的 AI 代理看的约定。**本文件只放跨项目通用规则；项目具体信息（背景、跑法、代码结构、硬规则、坑）全部指向 [docs/AGENTS.md](docs/AGENTS.md)，不在这里重复。**
 
-## 这个项目是什么
+## 先读这些（按需，不必全读）
 
-炉石传说的本地副驾：读客户端写的 `Power.log`，用一个无边框置顶的 Tkinter 悬浮窗
-告诉玩家「对面可能是什么卡组、这回合怎么打、上一局错在哪」。
+- 项目级约定（背景 / 跑法 / 代码结构 / 硬规则 / 坑，以及它们指向的文件）：[docs/AGENTS.md](docs/AGENTS.md)
 
-**引擎做决策，AI 只在局末复盘**。未建模的牌**只记录**（写 `data/hsai.log`），
-不自动调 AI 补规则、不在运行时改 `data/effects.json` —— 解析规则一改就查不到是哪局
-哪条改的，而且会静默影响斩杀估算。要补规则由人看过复盘后手动加。
-一局大约 1 次 AI 调用（局末），逐回合的 AI 建议默认关闭。
+## 死规则（三条）
 
-## 跑起来
+三条管「怎么改」，是唯一工作流口径（吸收 `karpathy-guidelines` 与 `ponytail` 两个技能，
+下面不再单列）。项目特有的硬规则见 [docs/AGENTS.md](docs/AGENTS.md)。除非另有说明，一律照做。
 
-```powershell
-python -m hsai ui              # 悬浮窗（双击 启动AI助手.bat 等价）
-python -m hsai ui --demo       # 示例对局，不接游戏
-python -m unittest discover -s tests
-python -m hsai replay <日志>    # 离线解析，输出快照 JSON
-```
+### 1. 文档先行
 
-测试全绿是**改完的最低要求**。
-
-## 代码地图
-
-```
-hsai/powerlog.py   Power.log → 事件（符号 tag、实体引用、双来源去重）
-hsai/state.py      事件 → 对局状态（回合、手牌、场面、牌库、墓地、休眠、克苏恩）
-hsai/model.py      局面模型 + 卡牌效果解释（parse_effect / apply_effect / evaluate）
-hsai/policy.py     动作枚举、评分、斩杀检测、抢血-解场判断、发现/抉择
-hsai/advisor.py    组装快照（窗口唯一数据源）
-hsai/ui.py         悬浮窗（tkinter）
-hsai/ai.py         AI 客户端（局末复盘 / 参数建议）
-hsai/effects_ai.py AI 规则的验证器（五道闸门：目标命中；已有结果不许变（防误伤）；命中/新覆盖设上限（防正则太宽）；费用不写 mana（防白送法力）；字段须是 Effect 真有的（防静默挂上没人结算的字段））
-
-# 上面 7 个原文件现在是「门面」：函数按职责拆进同名前缀的子模块，
-# 门面把符号原样 re-export，所以 import 面不变、测试不改。
-# 改哪一块就去改对应子模块，别在门面里加实现。
-hsai/model_effects.py   Effect / parse_effect / warden_buff / 英雄技能
-hsai/model_units.py     Unit / SideState / Board（含 apply_effect / 亡语）
-hsai/model_eval.py      evaluate / resource_score / DEFAULT_WEIGHTS
-hsai/policy_consts.py   常量（EPS / PRIORITY_BONUS / CTHUN_* …）
-hsai/policy_threat.py   被动技能与威胁估算（最底层）
-hsai/policy_actions.py  legal_actions / apply_action / best_action / 克苏恩技能
-hsai/policy_lethal.py   斩杀检测
-hsai/policy_race.py     抢血 / 解场判断
-hsai/policy_choice.py   发现 / 抉择
-hsai/policy_plan.py     plan_turn / advice_lines / validate_sequence
-hsai/state_types.py     Entity / Side / ZONE_* / T_* / 效果摘要缓存
-hsai/advisor_config.py  读 json / 比例值兜底
-hsai/advisor_board_helpers.py  日志视图 → Unit 的纯翻译（board_from_state 本体留在 advisor.py）
-hsai/ui_theme.py        配色与布局常量
-hsai/ui_text.py         hud_row / _weight_summary
-hsai/ui_state.py        window.json 读写
-hsai/ui_ai.py           AI 线程组（Mixin）
-hsai/ui_review.py       上一局复盘展示（Mixin）
-hsai/ui_widgets.py      区块 / 分隔线 / 折叠 / 几何（Mixin）
-hsai/ui_render.py       主渲染与分区渲染（Mixin）
-hsai/cli_boot.py        _db / 控制台编码 / pythonw 流兜底
-hsai/cli_*.py           各命令族（cards / meta / deck / live / ui / sim / learn /
-                        setup_log / review / stats / mulligan / tags）
-hsai/learn_weights.py   权重读写
-hsai/learn_calibrate.py 先验校准 / 真值回填
-hsai/learn_optimize.py  自对弈优化
-hsai/learn_absorb.py    增量学习 / 重建 / 统计
-hsai/meta_types.py      Archetype 与序列化
-hsai/meta_naming.py     关键牌挑选 / 命名 / 相似度
-hsai/meta_cluster.py    聚类 / 导入
-hsai/infer_types.py     Candidate / Prediction / RetroTruth
-
-# 拆模块时有三条不能破（破了不报错，只是行为悄悄不对）：
-# 1. 可写模块全局必须留在门面：model._EFFECT_TABLE / effect_table() / _DB /
-#    set_card_db()、state._EFFECT_CACHE、advisor._PASSIVE_RULE，以及 ui 上的
-#    STATE_PATH / LAST_REVIEW_JSON / ADVICE_FEEDBACK_JSONL（tests/_ui_support.py 赋值）
-#    与 ADVICE_LOG_JSONL（测试 mock.patch 改道）。
-#    子模块读它们要在函数内部 `from . import <门面>` 回查，不能 import 时拷值。
-# 2. 测试有源码切片/文本断言：test_advisor_board.py 用 src.index("def board_from_state")
-#    切片，所以 board_from_state 必须物理留在 advisor.py，且它后面还得有个 `\ndef `；
-#    test_state_reset.py 数 state.py 里 `elif kind == "block_start"` 的次数。
-# 3. 依赖方向单向：model → {state, policy} → advisor；policy 内部
-#    consts/threat → actions → lethal/race → choice → plan。别反向 import 门面。
-
-# 横切各层的纯工具
-hsai/tag_rules.py  12 类卡牌功能标签规则
-hsai/tags.py       标签构建 / 查询 / 报告
-hsai/paths.py      data/ 下所有路径的唯一出处
-hsai/logutil.py    诊断日志写入（data/hsai.log，超 1 MB 自动截断）
-```
-
-## AI 复盘产出的两类东西
-
-局末 `ai.review()` 返回 `(lessons, tunings)`，两者分开走：
-
-- **lessons**（自然语言教训）→ `data/lessons.jsonl`，只回流给下一次 AI 的 prompt，
-  **不影响引擎决策**。
-- **tunings**（参数增量）→ `data/advice_tuning.jsonl`，由 `python -m hsai tunings`
-  汇总给人看。默认**只读**；只有人显式加 `--apply` 才写权重。
-
-tunings 的 `param` 只能是 `ai._TUNABLE`（= `DEFAULT_WEIGHTS` 的键 + `TAG_ORDER`
-去掉「未知」）：模型编一个不存在的参数名或给 5.0 这种量级，会在
-`ai._tuning_row()` 被丢掉 / 夹到 ±0.3。加新旋钮时三处一起改。
-
-为什么不自动学：AI 每局只看一局，样本是 1；拿它直接改全局权重等于用单局噪声
-训练（`review.py` 开头就是这么写的）。即便走 `--apply` 也要过三道闸：
-`summarize_tunings(min_count=3)` 要求同一参数至少被 3 局独立提出、方向一致性
-≥0.75（摇摆的不采纳）、单步只挪 ±0.15（不会一次跳变），且**从当前权重出发**
-不冲掉自对弈结果、只改目标键、先备份 `*.json.bak`。
-**真要大幅改权重，走 `hsai learn` 的自对弈，不靠 AI 一句话。**
-
-坑：`advice_tuning.jsonl` 有写入方（`memory.add_tunings`）也必须有读取方
-（`cmd_tunings`），别只写不读。
-
-## 硬规则
-
-1. **只用标准库**。不引入第三方依赖，`urllib` 就是 HTTP 客户端。
-2. **只读日志，不注入输入**。不改客户端、不发按键、不读内存。
-3. **API Key 优先从环境变量 `HSAI_API_KEY` 读；也接受 `data/ai.json` 里的 `api_key`**（该文件整目录被 `.gitignore` 忽略，绝不入库）。程序不会把 key 写进文件。
-4. **`data/` 整目录忽略，只放行 `effects.json`**（`.gitignore` 里 `data/*` + `!data/effects.json`）。
-   其余全是运行产物（卡牌缓存、对局记录、教训、权重、建议日志、可能含密钥的 `ai.json`），
-   新增文件不用改 `.gitignore` 就自动不入库；提交前看 `git status` 里没有 `data/` 下的产物。
-5. 中文注释与界面文案，与现有风格一致（短句、说「为什么」不说「做了什么」）。
-6. 不可控的东西降级处理：读不到就显示「未知」，不要猜一个数字。
-7. **代码即注释**。先让命名、结构、控制流自己说清意图，能不写注释就不写；
-   注释只留代码本身表达不出的「为什么」（见第 5 条与 Ponytail 配套约束），
-   不写复述代码在做什么的废话。
-
-## 工作方式（Karpathy 四条）
-
-来自 `karpathy-guidelines` 技能，这个仓库里请照着做。
-
-### 1. 先想再写
+**要求**：任何时候，动手前先写设计文档、出方案、预估影响范围。
+**例外**：简单修改（局部、无结构影响）可跳过文档。
+**验收**：动手前已产出设计文档（含方案与影响范围），或明确判定为简单修改。
 
 不要假设，不要在没弄清时开写。动手前说明你的假设；有多种理解时列出来让人选，
 不要自己挑一个；有更简单的做法就说出来。**不清楚就停下来问，别猜。**
-
-### 2. 简单优先
-
-最少代码解决问题，不做没要求的东西：
-
-- 不加没人要的功能、开关、配置
-- 一份用途的代码不做抽象
-- 不为不可能发生的情况写错误处理
-- 写了 200 行而 50 行能解决，就重写
-
-### 3. 只改该改的
-
-改现有代码时：不动无关的代码、注释、格式；不重构没坏的东西；跟着现有风格走。
-如果发现没用的旧代码，**说出来，但别顺手删**。
-自己改动产生的孤儿（不再用的 import、变量、函数）要清掉。
-
-判断标准：**每一行改动都应该能直接追溯到用户的要求。**
-
-### 4. 目标驱动
 
 把任务变成可验证的目标再动手：
 
@@ -169,16 +35,26 @@ tunings 的 `param` 只能是 `ai._TUNABLE`（= `DEFAULT_WEIGHTS` 的键 + `TAG_
 2. 改 B → 验证：跑 Z 看到 W
 ```
 
-## 工作方式（Ponytail：最少的改动）
+### 2. 代码即注释 + 最小改动
 
-来自 `ponytail` 技能。默认 full 档；说「lite」「ultra」或「恢复正常模式」切换。
+**要求**：默认取最小改动，让代码自己说清意图。
+**例外**：真的需要重新设计结构时，才允许合并/删除/重排（本条即结构重设计的授权）。
+**验收**：每一行改动都能直接追溯到用户的要求。
 
-### 动手前
+- **代码即注释**。先让命名、结构、控制流自己说清意图，能不写注释就不写；
+  注释只留代码本身表达不出的「为什么」，一行，
+  不写复述代码在做什么的废话。
+- **最小改动**。不动无关的代码、注释、格式；不重构没坏的东西；跟着现有风格走。
+  发现没用的旧代码，**说出来，但别顺手删**；自己改动产生的孤儿
+  （不再用的 import、变量、函数）要清掉。
+  不加没人要的功能、开关、配置；一份用途的代码不做抽象；
+  不为不可能发生的情况写错误处理；写了 200 行而 50 行能解决，就重写。
 
-读任务和它碰到的代码，列出改动必须触及的每一处：调用方、测试、fixture、配置、导出。
-再看它会不会弄坏用户的东西：会毁掉或暴露的数据、会失效的调用方。**这些是范围，额外功能不算。**
+动手前列出改动必须触及的每一处：调用方、测试、fixture、配置、导出；
+再看会不会弄坏用户的东西（会毁掉或暴露的数据、会失效的调用方）。
+**这些是范围，额外功能不算。**
 
-### 按顺序取第一个能用的
+按顺序取第一个能用的：
 
 1. 需要存在吗？没人要的功能、选项、灵活性直接跳过，用一句话说出来
 2. 代码库里已经有了（helper、组件、模式）？按周围代码的写法用它
@@ -192,163 +68,29 @@ tunings 的 `param` 只能是 `ai._TUNABLE`（= `DEFAULT_WEIGHTS` 的键 + `TAG_
 - 对**方案**懒，对**改动**不能懒——调用方、测试、fixture 该改的都要改完
 - 不写没人要的抽象、wrapper、类型转换、配置、样板代码；删除优先于新增
 - 保持代码库既有的分层、接口和约定
-- 注释只写代码本身表达不出的「为什么」，一行
 - 修 bug：先 grep 所有调用方，再在共享代码里**一次改掉根因**
 - 新写的非平凡逻辑（分支、循环、解析器、钱或安全、整个新脚本）留一个小测试或 assert 自检
 - 已知局限的临时做法写成注释：`shortcut: <局限>, <什么时候升级>`
 
-### 永远不能省
+**永远不能省**：信任边界的校验、防数据丢失的错误处理、安全、无障碍、
+真实硬件需要的校准、用户明确要求的东西。
 
-信任边界的校验、防数据丢失的错误处理、安全、无障碍、真实硬件需要的校准、用户明确要求的东西。
+档位（来自 `ponytail`）：默认 full 档；说「lite」「ultra」或「恢复正常模式」切换。
 
-## 坑（都是真踩过的）
+### 3. 测试验收
 
-- **`board_from_state()` 是模块级函数，没有 `self`**。往里写 `self.xxx` 会直接崩。
-  要访问 Advisor 的字段，写在 `Advisor` 的方法里。
-- **PowerShell heredoc 会吃掉 `$` 和引号**。用 `python -c` 写代码时，`"$1"` 会变成空串，
-  `""` 会变成一个 `"`。改文件优先用 `write`/`edit` 工具，或用 `chr(34)`/`chr(36)` 拼。
-- **改完必须 `ast.parse` 验证**。多次出现「切片删除把下一行吞掉」导致语法错误。
-- **状态必须按局隔离**。抽牌数、墓地、克苏恩进度等在 `reset()` 里清零；
-  否则会出现「已抽 64 张」「牌库 0」。
-- **同一个类里别留两份同名方法**。Python 不报错，后者静默覆盖前者，前一份成了死代码
-  （`_on_entity` 就这样重复过，两份行为还不一样）。改完数一遍方法名，出现两次就是它；
-  `reset()` 里同一个属性赋两遍值也是同类问题——后者赢，前一行白写。
-- **`data/window.json` 的键别复用**。`collapsed` 是布尔（窗口收成细条），区块折叠
-  是 `collapsed_sections`（列表）。混用一个键的后果：上次退出时窗口是收起的，
-  下次启动 `set(True)` 直接 TypeError，而且**第一次启动永远是好的**，很难复现。
-- **测试里 `include_ambient=False` 会整条绕开环境探测分支**。`remember_install_dir`
-  只在 ambient 分支里调用，于是它漏了 `DATA_DIR` 导入也没人发现 —— 开着炉石启动
-  就 NameError。给「只在一个分支里调用」的函数补用例，别只测默认路径。
-- **同一个数别留两套算法**。our_minions_played（只算手牌打出的）和
-  sum(our_played)（含召唤物）并存过：state 里换了新计数器，快照里却还用旧算法，
-  面板就一直显示错的值。改口径时先 grep 字段名，把读的地方一起换掉。
-- **判定「谁是我方」用可见手牌**（对手手牌没有 `card_id`），不要用 GameAccountId，
-  练习模式下两边都有真账号，会判反。
-- **日志里没有「剩余牌库」字段**（`DECK_SIZE`/`CARD_COUNT` 都是 0 次）。
-  只能 `卡组张数 − 抽牌数`，抽牌数按 `NUM_CARDS_DRAWN_THIS_TURN` 的**段内最大值**累加
-  （这个计数器每回合归零）。
-- **学习标签必须是真值，不能是预测值**。`observations.jsonl` 早期只存
-  `opp_archetype`，那是**预测**；先验校准却拿它当真值统计 —— 预测偏哪套，
-  先验就往哪套偏，越用越偏，而且没有任何报错。现在预测（`pred_*`）和真值
-  （`truth`，局末由 `infer.retrospect()` 用全部已见牌回看）分开存，只有
-  `truth.trusted` 的局才进先验统计。**别再往学习路径里塞预测值。**
-- **`retrospect()` 要能吃两种 `revealed`**：schema 2 是 `[[id, 回合], ...]`，
-  schema 1 是 `[id, ...]`。而且 JSON 读出来是 `list` 不是 `tuple` ——
-  只判 `isinstance(item, tuple)` 会把整个 list 当 card_id 塞进 Counter，
-  抛 `TypeError: unhashable type: 'list'`。回填历史数据时必踩。
-- **先验表示「多常遇到」，不是「打它赢没赢」**。曾经有 `record_result()` 按
-  胜负乘 1±0.02 改先验，打赢一套牌就让它更常见 —— 概念错了，已删。
-- **衍生物不算「对手打出的牌」**。召唤物、幸运币会进 `revealed` 的话，聚类出的
-  原型会变成 40 张的卡组，还能靠「牌多所以解释得多」赢下覆盖率比较。
-  过滤用 `cards.is_token()`（预测侧和记录侧要同一个口径）。
-  历史数据里它们占了 28%，所以**聚类读取时也要滤一遍**，不能只靠采集端。
-- **别让 set 的遍历顺序影响输出**。`freq` 是从 set 里数出来的，字符串哈希
-  随机化（PYTHONHASHSEED）会让同分牌的顺序每次跑出不同结果 ——
-  `hsai meta rebuild` 因此两次生成过不同的原型名，而 `opp_history` 按名字匹配，
-  名字一变先验就断档。排序必须带完整兜底：`(-分数, -费用, 名称, id)`。
-- **增量学习会冻结模板**。`absorb_observations` 每局只「新增」，已有原型重合度
-  超 0.6 就跳过，所以学出来的模板永远停在它创建那一刻的数据上
-  （有个原型是 5 局样本定的型，后来 108 局都记在它头上）。口径变了就
-  `hsai meta rebuild` 重来，别指望它自己更新。
-- **「两套牌大部分一样」靠三层挡，但还有已知弱点**（2026-11 实测；单链已改平均连接，
-  变体并集仍未修）。
-  三层是：聚类 Jaccard ≥ 0.34 合并 → 增量重叠 ≥ 0.6 跳过 →
-  共存时覆盖率差 < 0.08 判不可信（这局不学）。
-  弱点一：**单链聚类会串味** —— A~B、B~C 但 A≁C 时三套并成一簇，
-  签名只剩中间那套的牌，A 和 C 永远学不出来（覆盖率到不了 0.85）。
-  弱点二：**两个变体各占一半时模板变成并集** —— 阈值是 `>= 0.5`，
-  双方的独有牌刚好卡线上都进，30 张 / 18 种，比合法卡组还多。
-  真遇到时的信号：同职业两个原型覆盖率差老是 0–8%、或某个原型超过 30 张。
-  剩下的按「签名加局数下限 → 超 30 张报警」继续；当时同职业原型两两重叠最高
-  才 0.42，所以先只改了串味。
-- **内置种子原型已删，别再加回来**。那 8 个示例（快攻猎/控制法/中速骑…）不是
-  真实天梯数据，却和真卡组一起参与概率比较 —— 等于给推断掺噪声，而且它们
-  的 4–6 张标志牌会让「覆盖率」比较失真。没有原型的职业现在直接返回
-  「未知卡组 0%」，这是诚实的降级，比编一个出来强。
-- **原型的 id 跟内容走，不跟序号走**。`content_id()` 对标志牌集合算 md5 前 8 位，
-  所以 `learned_warrior_5d4ebb59` 只要还是那套牌就一直叫这个名字。
-  以前是 `learned_{职业}_{第几个}`，删/加一个同职业原型就让其余全部平移，
-  而 `observations.jsonl` 的 `truth.arch` 是按 id 记的 —— 历史真值当场对不上。
-- **真值要按当前原型库重算，不能只信存下来的 `truth.arch`**。原型库会变
-  （重建、导入、删牌），存的 id 随时可能指向一个不存在的原型，而校准**不会报错**，
-  只会静默把那些局算成「这套牌没出现过」，把先验压到 2%。
-  `learn._row_truth()` 的规则：有 `revealed` 就重算，没有才退回读存下来的 truth。
-- **`observations.jsonl` 有 174 行是 schema 1，根本没有 `truth` 字段**。
-  先验校准只吃真值，所以那批历史一局都没进过学习，表现是
-  `meta calibrate` 永远输出「修正 0 个原型」而不报错。已经跑过
-  `python -m hsai learn --backfill` 补上（156 局有归属，148 局可信）。
-  以后再加字段同理：**先看老数据怎么读，再谈新字段**。
-- **校准必须从 `prior_base` 出发，不能从当前 `prior` 出发**。每轮都在上一轮
-  结果上再混一次的话，同一条命令跑三遍就把先验洗成观测频率
-  （实测 0.76 → 0.87 → 0.91 → 0.92），而且看不出来。
-  `prior_base` 是导入/聚类时给的原始先验，校准只改 `prior`。
-  老文件没有这个字段时，**要在覆盖 `prior` 之前把它钉住**
-  （`arch.prior_base = arch.prior`）—— 等到 `save()` 里再读 `base_prior`，
-  读到的已经是覆盖后的值，等于白钉。
-- **一个原型一个文件**（`data/meta/<id>.json`）。`MetaDB.save()` 写完会删掉
-  目录里不在内存中的**可解析**原型，所以「从内存移除」等于「从磁盘删除」。
-  解析失败的文件（手改出错）**不会被删** —— 之前会静默删，等于吞用户数据。
-  `cards` 存 `[{id,name,cost,count}]` 按费用升序：光有 id 和张数没法人工核对，
-  费用顺序又正好是这套牌的展开顺序。
-- **原型名取「关键牌」，不是「出牌率最高的牌」**。1 费普通牌几乎每套牌都带，
-  出牌率天然最高，按它命名会得到「战士·斩杀」「牧师·神圣新星」这种看不出是哪套
-  牌的名字。`pick_key_cards()` 的规则是**字典序**：先比稀有度
-  （传说 > 史诗 > 稀有 > 普通 > 基本牌），同档再比出牌率，最后拿费用/名称/id 兜底。
-  用元组排序而不是加权乘积 —— 乘积会把「15 费史诗」算得比「3 费传说」高，
-  而规则是「有传说就用传说」，这是硬优先级，不该被费用乘数稀释。
-  传说牌只能带 1 张，满编程度按 1 张算（`_copy_ratio`），否则每张传说都被扣一半分。
-- **命名只取一张牌，不做拼接**。撞名（同职业两套牌共用招牌牌）时往后挪一张候选牌，
-  不是写成 `战士·A/B`。名字是用来一眼扫过列表的，拼接只会让每行都变长。
-  **用户/客户端给的名字不动** —— `deckcode.resolve(name=...)` 传了就用传的。
-- **reset() 里漏一个字段，第二局才开始错**。`_id_by_hand_done` 曾经只在
-  `_fix_our_id_by_name()` 里置 True、`reset()` 没清零，同一进程第二局起「按可见手牌
-  翻面」永远提前 return，而第一次启动永远是对的。给 `GameState` 加任何「本局内有效」
-  的字段，都要在 `reset()` 里给初值。
-- **apply() 里同一个 `elif kind == "..."` 只能有一个**。`block_start` 曾经出现两次，
-  后一个分支永远不可达：名字绑定少一条路，没有任何报错。改完 grep 一遍 `kind ==`。
-- **双方抽牌要分开记**。日志里 `NUM_CARDS_DRAWN_THIS_TURN` 双方都有；只记我方会让
-  「对手牌库数 = 30 − 我方抽牌数」，而预判拿它当分母算概率。
-- **斩杀估算必须和 `apply_action` 同一口径**：场上法伤、英雄自身攻击、武器风怒/耐久、
-  英雄技能，两处只要有一处漏算，就会「理论能斩却判不能」。改其中一处时先 grep 另一处
-  （`max_face_damage` / `apply_action` / `model.apply_effect`）。
-- **一个对象不要建两遍，`x or 默认值` 会把合法的 0 当成未知**。`board_from_state` 里
-  `me.weapon` 曾被构造两次，后一次把 `durability` 覆盖成 1、风怒丢掉；牌库 0 张（疲劳）
-  被 `or` 当成「没数据」，模拟里凭空多 30 张牌。区分「读到 0」和「读不到」要用 `is None`。
-- **`Effect` 三处（字段 / `parse_effect` / `apply_effect`）必须一起改；`evaluate()`
-  读的每个权重键都必须在 `DEFAULT_WEIGHTS` 里**。前者漏一处只会静默少结算，后者漏了
-  就是恒取默认值（`lethal_bonus` 曾恒为 1，看起来可调实际调不了）。现在有模型层的
-  表驱动效果用例兜底，加新字段时顺手加一行。
-- **「修正 0 个」必须有原因**。学习命令只打印结果数字时，「跑成功但什么都没改」和
-  「改了很多」看起来一样；schema 1 的 174 行就这样静默错过一个月。新输出至少要说清
-  读了多少、剔除了多少、为什么剔除、哪些原型被跳过；加打印不许改口径
-  （`prior_base` 钉住顺序、混合权重、幂等性）。
-- **单链聚类会串味，已改平均连接**。A~B、B~C 但 A≁C 时，单链会把三套牌并成一簇，
-  签名只剩中间那套的牌；现在按「与簇内样本的平均相似度」判，B 当不成桥了。
-  **改完必须 `meta rebuild --dry-run` 看原型张数**：连接方式一改「哪些牌进模板」就变了，
-  不看一眼就落盘等于悄悄换掉用户的卡组库。
-- **写进 JSONL 的功能必须有人读**。`advice_feedback.jsonl` 曾经只写不读，重启就「消失」；
-  加落盘时同时写读取方，并给「文件不存在/坏行」一条空结果路径。**引擎返回的置信度信号
-  别在 UI 层丢掉**（`pick_choice` 的「与第二名分差」曾被调用方用 `_` 接住）。
-- **`clone()` 别手写字段列表**。`SideState.clone()` 曾经逐字段重建，后来加的
-  `hero_atk` / `hero_attacks_left` / `_cthun_by_unit` 全被漏掉，模拟里英雄攻击凭空归零、
-  克苏恩「同一只不能重复选」也失效 —— 两处都没有报错，只是行为悄悄变了。
-  改成 `copy.copy(self)` + 手动深拷可变容器（list/set/dict），加新字段就不用记得改 clone。
+**要求**：必须以测试用例通过作为验收条件，纯文档改动也一样要跑。
+**例外**：无。
+**验收**：改前 `python -m unittest discover -s tests` 绿，改后仍绿，用例数 N 一致。
 
-## 改卡牌效果时
+「测试全绿」是完成的硬条件，不是「尽量」。没跑过全量测试的改动不算改完。
 
-`parse_effect()` 认不出来时返回 `known=False`，这类牌会被建议引擎降权。
-优先在 `parse_effect` 里加**文本规则**（如「消灭所有…随从」「与…等同于本牌费用」），
-而不是指望 AI 补正则——AI 写的正则经常太宽或命不中目标牌。
+## 通用约束
 
-新增字段要同时改三处：`Effect` 数据类、`parse_effect` 的赋值、`apply_effect` 的结算，
-以及 `known` 的判断条件（漏了就会一直显示「未建模」）。
+- 日志、配置、密钥优先走环境变量；不要把密钥写进文件。
+- 不可控的东西降级处理：读不到就显示「未知」，不要猜一个数字。
+- 提交信息一句话说清「改了什么、为什么」；提交前确认没把运行产物 / 密钥带进 git。
 
-## 提交
+## 兼容
 
-```powershell
-git add -A
-git commit -m "一句话说清改了什么、为什么"
-git push
-```
-
-提交前确认 `git status` 里没有 `data/*.jsonl`、`*.bak`、`ai.json`。
+项目文档与本节冲突时，**以项目文档为准**；本文件只做兜底。
