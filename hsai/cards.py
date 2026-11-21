@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -132,7 +133,13 @@ def windfury_attacks(card: "Card | None") -> int:
     # 卡库把「超级风怒」只写在卡面文本里，mechanics 连普通风怒都没有，只能读文本
     if card is None:
         return 1
-    if card.has("MEGA_WINDFURY") or "超级风怒" in (card.text or ""):
+    if card.has("MEGA_WINDFURY"):
+        return 4
+    text = re.sub(r"<[^>]+>", "", card.text or "")   # 富文本标签会插在词中间
+    if "超级风怒" in text:
+        # 「使友方随从获得 / 风怒随从拥有」是把风怒给别人，自己不长这只手
+        if "随从获得超级风怒" in text or "随从拥有超级风怒" in text:
+            return 1
         return 4
     if card.has("WINDFURY"):
         return 2

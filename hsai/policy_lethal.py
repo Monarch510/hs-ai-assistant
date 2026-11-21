@@ -135,11 +135,13 @@ def _lethal_sequence(board: Board, side: int, cards: CardDB) -> list[Action] | N
     seq: list[Action] = []
     # 加费牌（幸运币）打出即回费、没有别的代价，先全打掉当铺垫；
     # 否则贪心会先选「当步有伤害」的英雄技能，把后面买得起的斩杀法术挤掉。
+    # 只铺垫「本回合净赚/不亏法力」的：野性成长这类净 -1 的先打只会让买不起的牌更买不起。
     for _ in range(len(work.sides[side].hand)):
         hand = work.sides[side].hand
         mana_idx = next(
             (i for i, card in enumerate(hand)
              if card is not None and card.is_spell and card.cost <= work.sides[side].mana
+             and (parse_effect(card).mana or 0) - card.cost >= 0
              and (parse_effect(card).mana or 0) > 0),
             None,
         )
