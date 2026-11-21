@@ -98,8 +98,8 @@ def optimize(
     say(f"初始：候选 {best_wr:.1%} vs 基准（{n} 局）")
 
     keys = list(keys or [k for k in DEFAULT_WEIGHTS])
-    # 这里的胜率是确定性的（固定种子 + 固定搜索），所以门槛可以放低；
-    # 代价是容易过拟合这几十局，换一版 --seed 才算真验证。
+    # 基准和所有候选必须在同一批局面上配对：胜率对种子极敏感，
+    # 拿 seed 的基准比 seed+1 的候选会把噪声当成改进。换种子只留给 cmd_learn 的最终 holdout。
     threshold = 0.035
     for r in range(rounds):
         improved = False
@@ -111,7 +111,7 @@ def optimize(
                 if cand[k] == cur:
                     continue
                 wr, n2 = mirror_winrate(cards, meta, cand, baseline, games=games,
-                                        mulligan_weights=mulligan_weights, seed=seed + r + 1)
+                                        mulligan_weights=mulligan_weights, seed=seed)
                 report.games += n2
                 if wr > best_wr + threshold:
                     say(f"  {k}: {cur} -> {cand[k]}，胜率 {best_wr:.1%} -> {wr:.1%} ✓")
