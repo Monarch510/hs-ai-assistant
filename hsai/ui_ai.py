@@ -241,7 +241,10 @@ class AiWorkers:
         arch = (snap.get("prediction") or {}).get("name") or "未知"
         findings = "；".join(snap.get("review") or []) or "无机器检测到的失误"
         issues = "；".join(snap.get("issues") or []) or "无"
-        turns = len(getattr(self.advisor, "_game_turns", []) or [])
+        # 回合数由 snapshot 在 _finish_game 清空前放进 snap；旧快照退回从 advisor 读
+        turns = snap.get("our_turns")
+        if turns is None:
+            turns = len(getattr(self.advisor, "_game_turns", []) or [])
         summary = (
             f"对局：我方 {our}（卡组 {deck}）vs 对手 {opp}（预判 {arch}），"
             f"共 {snap.get('turn')} 回合，记录了 {turns} 个我方回合。"

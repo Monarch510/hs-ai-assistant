@@ -27,9 +27,9 @@ class Unit:
     divine: bool = False
     charge: bool = False
     rush: bool = False
-    rush_only: bool = False
+    rush_only: bool = False       # 本回合只能攻击随从（突袭刚入场）
     reborn: bool = False          # 已经复生过（避免无限复活）
-    dormant: bool = False         # 休眠：不能攻击，也不能被攻击      # 本回合只能攻击随从（突袭刚入场）
+    dormant: bool = False         # 休眠：不能攻击，也不能被攻击
     windfury: bool = False
     lifesteal: bool = False
     poisonous: bool = False

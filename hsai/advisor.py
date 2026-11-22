@@ -382,6 +382,8 @@ class Advisor:
         snap["result"] = ("win" if st.winner == st.our_id else "loss") if st.game_over else ""
         if st.game_over and not self._recorded:
             won = st.winner == st.our_id
+            # 复盘线程要报「记了几个我方回合」，_finish_game 会清空 _game_turns，先留在 snap 里
+            snap["our_turns"] = len(self._game_turns)
             self._record_result(st, pred)
             try:
                 self._finish_game(st, won)
@@ -593,8 +595,8 @@ class Advisor:
             return None
         try:
             st.note_cthun_choice([o.get("name") for o in ch["options"]])
-        except Exception:
-            pass
+        except Exception as exc:
+            _log_err(f"记录克苏恩抉择失败：{type(exc).__name__}: {exc}")
         opts = []
         for o in ch["options"][:6]:
             card = self.cards.get(o.get("id")) if o.get("id") else None
@@ -758,8 +760,8 @@ class Advisor:
                 from . import memory as _memory
 
                 _memory.record_opponent(opp.class_en or "", truth.name)
-            except Exception:
-                pass
+            except Exception as exc:
+                _log_err(f"记录对手形态失败：{type(exc).__name__}: {exc}")
         # 自动学习：样本够了就长出新原型，下一次遇到同样的牌就认得
         try:
             from . import learn as learn_mod
@@ -771,10 +773,10 @@ class Advisor:
                 # 只有真长出新原型才落盘：每局无条件 save 会白写一遍、还可能覆盖手改
                 try:
                     self.meta.save()
-                except OSError:
-                    pass
-        except Exception:
-            pass
+                except OSError as exc:
+                    _log_err(f"原型库落盘失败：{type(exc).__name__}: {exc}")
+        except Exception as exc:
+            _log_err(f"自动学习失败：{type(exc).__name__}: {exc}")
 
 def observation_row(
     st: GameState, pred: Prediction, truth: RetroTruth, trace: list[dict]

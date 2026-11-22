@@ -15,8 +15,8 @@ DEFAULT_WEIGHTS = {
     "hand": 0.7,         # 手牌差
     "health": 0.55,      # 血量差
     "taunt": 0.8,        # 嘲讽墙对进攻的阻滞
-    "aoe_risk": 1.2,
-    "fatigue": 0.6,     # 牌库差 / 疲劳伤害（残局里牌多的一方更能拖）     # 铺场被清的风险
+    "aoe_risk": 1.2,    # 铺场被清的风险
+    "fatigue": 0.6,     # 牌库差 / 疲劳伤害（残局里牌多的一方更能拖）
 }
 
 def resource_score(side_state, cards=None) -> float:

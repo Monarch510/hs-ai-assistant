@@ -67,7 +67,6 @@ def _still_dormant(card, view: dict[str, Any]) -> bool:
 
 def _unit_from_view(view: dict[str, Any], cards: CardDB) -> Unit:
     card = cards.get(view.get("id") or "")
-    keyword = view.get("keyword") or ""
     return Unit(
         card_id=view.get("id") or "",
         name=view.get("name") or "?",

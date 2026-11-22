@@ -656,8 +656,8 @@ class GameState:
             self._note(f"按可见手牌校正：我方是玩家 {pid}")
 
     def _bind_pending_names(self) -> None:
-        self._fix_our_id_by_name()
         """先手确定后，把之前没认出来的名字按出场顺序绑上。"""
+        self._fix_our_id_by_name()
         if self.first_player not in (1, 2):
             return
         if not self._first_player_name or self._first_player_name not in self._name_player:
@@ -1110,16 +1110,7 @@ class GameState:
             self.cthun_used = {s for s in self.CTHUN_SKILLS if s not in offered}
 
     def cthun_view(self) -> dict[str, Any]:
-        """强化看的是「哪一只克苏恩」，不同实例各自计数。"""
-        key = None
-        for e in self.entities.values():
-            if e.zone == ZONE_PLAY and e.controller == self.our_id:
-                card = self.cards.get(e.card_id) if (self.cards and e.card_id) else None
-                if card is not None and card.id == "BE_013":
-                    key = e.id
-                    break
-        if key is None:
-            key = self._choice_source.get("id")
+        """本局已用过的克苏恩技能（全局计数；按实例区分在 advisor 层做）。"""
         used = set(self.cthun_used)
         ordered = [s for s in self.CTHUN_SKILLS if s in used]
         return {"used": ordered, "count": len(ordered), "total": 4,

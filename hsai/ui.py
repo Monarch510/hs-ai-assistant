@@ -215,6 +215,8 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             body.pack(fill="both", expand=True)
             win.bind("<Button-3>", self._popup_menu)
             self._panes[key] = {"win": win, "top": top, "body": body, "pos": list(pos)}
+        # 主窗在 _build_panes 前已应用过 bg_mode，新窗要补一次才不会挡住游戏
+        self._apply_bg_mode()
 
     def _make_close(self, parent: tk.Widget, side: str = "right") -> tuple[tk.Frame, tk.Label]:
         """做一个「一看就是关闭按钮」的方块：深红底 + 白叉，悬停变亮。
@@ -246,10 +248,11 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
     def _apply_bg_mode(self) -> None:
         """切换背景：solid = 整窗半透明；key = 把 BG 抠成透明（缝隙能看见游戏）。"""
         try:
-            if self.bg_mode == "key":
-                self.root.attributes("-transparentcolor", BG)
-            else:
-                self.root.attributes("-transparentcolor", "")
+            color = BG if self.bg_mode == "key" else ""
+            # 三扇窗都要抠：只抠主窗的话卫星窗仍是不透明色块，挡住游戏
+            wins = [self.root] + [p["win"] for p in getattr(self, "_panes", {}).values()]
+            for win in wins:
+                win.attributes("-transparentcolor", color)
         except tk.TclError:
             self.bg_mode = "solid"
 

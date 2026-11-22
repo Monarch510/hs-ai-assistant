@@ -146,11 +146,8 @@ def best_match(decks: Iterable[SavedDeck], seen: Iterable[str], our_class: str =
     best: tuple[SavedDeck | None, float] = (None, 0.0)
     for deck in candidates:
         deck_ids = {norm(c) for c in deck.cards}
-        if not seen_set:
-            score = 0.0
-        else:
-            hit = sum(1 for cid in seen_set if cid in deck_ids)
-            score = hit / len(seen_set)
+        hit = sum(1 for cid in seen_set if cid in deck_ids)
+        score = hit / len(seen_set)
         if score > best[1]:
             best = (deck, score)
     return best

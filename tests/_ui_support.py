@@ -89,7 +89,8 @@ class _Base:
     def winfo_toplevel(self) -> _Base:
         """所在顶层窗口：拖动判定要靠它分清落在左/中/右哪一窗。"""
         w = self
-        while isinstance(getattr(w, "_master", None), _Base):
+        # Toplevel 的 master 是 Tk 根，但它自己就是独立顶层窗，上溯到它就停
+        while isinstance(getattr(w, "_master", None), _Base) and not isinstance(w, Toplevel):
             w = w._master
         return w
 
