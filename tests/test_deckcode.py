@@ -97,7 +97,8 @@ class OverlayStructureTest(unittest.TestCase):
             state, _ = ov.manager.poll()
             ov._update(state)
             ov.root.update()
-            texts = " | ".join(self._texts(ov.body))
+            # 三窗布局：对手预判画在中窗，是 root 的子树，不再只在 ov.body 里
+            texts = " | ".join(self._texts(ov.root))
             self.assertIn("对手预判", texts)
             self.assertTrue(ov.root.winfo_width() > 100)
         finally:

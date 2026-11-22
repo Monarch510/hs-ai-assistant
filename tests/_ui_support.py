@@ -86,6 +86,13 @@ class _Base:
     def winfo_children(self) -> list[_Base]:
         return list(self._children)
 
+    def winfo_toplevel(self) -> _Base:
+        """所在顶层窗口：拖动判定要靠它分清落在左/中/右哪一窗。"""
+        w = self
+        while isinstance(getattr(w, "_master", None), _Base):
+            w = w._master
+        return w
+
     def winfo_ismapped(self) -> bool:
         return self._packed
 
@@ -216,6 +223,40 @@ class Tk(_Base):
     def winfo_y(self) -> int:
         return self._geom[3]
 
+class Toplevel(_Base):
+    """顶层窗口替身：像 Tk 一样记 geometry，同时挂在 master 的子控件里。
+
+    真 tkinter 里 Toplevel(root) 会出现在 root.winfo_children()，widget_texts
+    递归时自然收得到它的文本；替身也要挂到 master._children 才一致。
+    """
+
+    _GEOM_RE = re.compile(r"(\d+)x(\d+)\+(-?\d+)\+(-?\d+)")
+
+    def __init__(self, master: object = None, **kw: object) -> None:
+        super().__init__(master, **kw)
+        self._geom = [260, 200, 40, 60]
+
+    def geometry(self, spec: str | None = None) -> str | None:
+        if spec is None:
+            return "%dx%d+%d+%d" % tuple(self._geom)
+        m = self._GEOM_RE.match(str(spec))
+        if m:
+            self._geom = [int(g) for g in m.groups()]
+        return None
+
+    def winfo_width(self) -> int:
+        return self._geom[0]
+
+    def winfo_height(self) -> int:
+        return self._geom[1]
+
+    def winfo_x(self) -> int:
+        return self._geom[2]
+
+    def winfo_y(self) -> int:
+        return self._geom[3]
+
+
 class Frame(_Base):
     pass
 
@@ -269,7 +310,7 @@ def install() -> bool:
 
     fake = types.ModuleType("tkinter")
     for name, obj in {
-        "Tk": Tk, "Frame": Frame, "Label": Label, "Canvas": Canvas, "Menu": Menu,
+        "Tk": Tk, "Toplevel": Toplevel, "Frame": Frame, "Label": Label, "Canvas": Canvas, "Menu": Menu,
         "Widget": Widget, "Event": Event, "BooleanVar": BooleanVar,
         "StringVar": _Var, "TclError": TclError,
     }.items():

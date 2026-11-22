@@ -62,8 +62,13 @@ class Renderer:
         self._maybe_effects(snap)
         self._drain_ai_results()
         self._maybe_ai(snap, getattr(self, "_last_state", None))
-        for child in self.body.winfo_children():
-            child.destroy()
+        # 三窗各自清空：牌库/对手预判画在卫星窗的 body 里，不清会越堆越多
+        bodies = [self.body]
+        if getattr(self, "_panes", None):
+            bodies.extend(p["body"] for p in self._panes.values())
+        for body in bodies:
+            for child in body.winfo_children():
+                child.destroy()
         # 控件全换了：旧动效目标已失效，等各分区重建时重新登记
         if hasattr(self, "_fx_targets"):
             self._fx_targets = []
@@ -138,10 +143,11 @@ class Renderer:
                          font=(FONT, self.font_size - 2), anchor="w", justify="left",
                          wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
 
-        self._render_deck(snap.get("deck") or {})
+        # 牌库画到右窗、对手预判画到中窗：各窗独立拖动
+        self._render_in_pane("deck", self._render_deck, snap.get("deck") or {})
 
         # 以下都是「参考性」信息，默认折叠，靠后放，别挤掉要动手的块
-        self._render_prediction(snap.get("prediction") or {})
+        self._render_in_pane("pred", self._render_prediction, snap.get("prediction") or {})
         self._render_tag_weights(snap.get("tag_weights"))
         if not mulligan_first:
             self._render_mulligan(mul)
@@ -290,6 +296,23 @@ class Renderer:
             tk.Label(row, text=str(step), bg=PANEL, fg=TEXT,
                      font=(FONT, self.font_size - 1), anchor="w", justify="left",
                      wraplength=self.width - 70).pack(side="left")
+
+    def _render_in_pane(self, key: str, fn: Any, data: Any) -> None:
+        """把某个分区画到卫星窗，画完还原 self.body 指向左窗。
+
+        _section / _draw_deck_rows 等都从 self.body 取父控件，所以这里临时改指向；
+        大量测试直接读 ov.body 和 ov._deck_list，必须还原，且这些属性名不变。
+        """
+        pane = getattr(self, "_panes", {}).get(key)
+        if pane is None:
+            fn(data)
+            return
+        original = self.body
+        try:
+            self.body = pane["body"]
+            fn(data)
+        finally:
+            self.body = original
 
     def _render_deck(self, deck: dict[str, Any]) -> None:
         """牌库剩余：标题只写张数，明细从高费到低费列名字/数量/抽取率，滚轮翻页。"""

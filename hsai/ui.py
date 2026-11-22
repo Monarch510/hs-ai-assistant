@@ -68,6 +68,14 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
                           if same_layout else DEFAULT_FONT_SIZE)
         self.pos = (_as_int(saved.get("x", 40), 40), _as_int(saved.get("y", 60), 60))
         self.width = _as_int(saved.get("w", DEFAULT_WIDTH), DEFAULT_WIDTH, 120) if same_layout else DEFAULT_WIDTH
+        # 三窗各自记住摆位：布局版本变了就回到默认，位置各自独立，互不牵连
+        # 从左到右：左窗(其他信息)=root x40 → 中窗(对手预判) → 右窗(牌库剩余)
+        self._deck_pos = (_as_int(saved.get("right_x", 580), 580),
+                          _as_int(saved.get("right_y", 60), 60)) if same_layout else (580, 60)
+        self._pred_pos = (_as_int(saved.get("mid_x", 310), 310),
+                          _as_int(saved.get("mid_y", 60), 60)) if same_layout else (310, 60)
+        self._close_widgets: set = set()   # _make_close 造的按钮，拖动时要放行
+        self._panes: dict[str, dict] = {}
         self._last_sig: tuple | None = None
         self._game_over_since: float | None = None
         self._f8_down = False
@@ -87,6 +95,7 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self._apply_bg_mode()
 
         self._build_shell()
+        self._build_panes()
         self.collapsed = True         # 启动先收成细条，检测到对局再展开
         self._ai_text = ""
         self._ai_pick: tuple[str, str] | None = None
@@ -177,6 +186,36 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self._build_menu()
         self._bind_drag_everywhere()
 
+    def _build_panes(self) -> None:
+        """中窗（对手预判）、右窗（牌库剩余）各是一个独立 Toplevel。
+
+        左窗就是 root 本身，属性名 self.body/panel/pos 保持指向它 —— 大量测试
+        直接读这些字段，不能让它们改指卫星窗。卫星窗统一用 _panes 查。
+        标题故意不叫「炉石 AI 助手」：单实例互斥靠 FindWindowW 按标题抓主窗，
+        撞名会把卫星窗当成主窗提到最前。
+        """
+        # 先建 deck 后建 pred：winfo_children 按创建顺序遍历，牌库那扇要排在
+        # 对手预判前面，才能和旧的单窗渲染顺序一致（有测试固化了区块先后）
+        for key, title, pos in (("deck", "牌库剩余", self._deck_pos),
+                                ("pred", "对手预判", self._pred_pos)):
+            win = tk.Toplevel(self.root)
+            win.withdraw()                 # 待机时收起，检测到对局再显示
+            win.title(f"炉石 AI · {title}")
+            win.overrideredirect(True)
+            win.attributes("-topmost", True)
+            win.attributes("-alpha", self.alpha)
+            win.configure(bg=BG)
+            top = tk.Frame(win, bg=PANEL, height=30)
+            top.pack(fill="x")
+            close_btn, close_label = self._make_close(top, side="left")
+            label = tk.Label(top, text=title, bg=PANEL, fg=GOLD,
+                             font=(FONT, 10, "bold"), anchor="w", padx=8)
+            label.pack(side="left", fill="both", expand=True)
+            body = tk.Frame(win, bg=BG, padx=10, pady=8)
+            body.pack(fill="both", expand=True)
+            win.bind("<Button-3>", self._popup_menu)
+            self._panes[key] = {"win": win, "top": top, "body": body, "pos": list(pos)}
+
     def _make_close(self, parent: tk.Widget, side: str = "right") -> tuple[tk.Frame, tk.Label]:
         """做一个「一看就是关闭按钮」的方块：深红底 + 白叉，悬停变亮。
 
@@ -201,6 +240,7 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             w.bind("<Button-1>", lambda _e: self.quit())
             w.bind("<Enter>", on_enter)
             w.bind("<Leave>", on_leave)
+            self._close_widgets.add(w)
         return frame, label
 
     def _apply_bg_mode(self) -> None:
@@ -240,18 +280,42 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self.root.bind_all("<B1-Motion>", self._drag_move, add="+")
         self.root.bind_all("<ButtonRelease-1>", self._drag_end, add="+")
 
+    def _pane_win(self, key: str) -> tk.Widget:
+        """左窗就是 root，中/右窗是 Toplevel。"""
+        return self.root if key == "left" else self._panes[key]["win"]
+
+    def _drag_key(self, widget: tk.Widget | None) -> str:
+        """按事件落在哪个顶层窗口，判定要拖左/中/右哪一扇。"""
+        if widget is None:
+            return "left"
+        try:
+            top = widget.winfo_toplevel()
+            if str(top) == str(self.root):
+                return "left"
+            for key, pane in self._panes.items():
+                if str(top) == str(pane["win"]):
+                    return key
+        except Exception:
+            pass
+        return "left"
+
     def _is_interactive(self, widget: tk.Widget | None) -> bool:
         """这些控件要保留自己的点击行为，不能被拖动吃掉。"""
-        return widget in (self.close_btn, self.close_btn_label,
-                          self.bar_close, self.bar_close_label, self.menu)
+        if widget in (self.close_btn, self.close_btn_label,
+                      self.bar_close, self.bar_close_label, self.menu):
+            return True
+        return widget in self._close_widgets
 
     def _drag_start(self, event: tk.Event) -> None:
         if self._is_interactive(getattr(event, "widget", None)):
             return
+        key = self._drag_key(getattr(event, "widget", None))
+        win = self._pane_win(key)
         self._dragging = True
+        self._drag_key_active = key
         try:
-            self._drag_dx = event.x_root - self.root.winfo_x()
-            self._drag_dy = event.y_root - self.root.winfo_y()
+            self._drag_dx = event.x_root - win.winfo_x()
+            self._drag_dy = event.y_root - win.winfo_y()
         except tk.TclError:
             self._dragging = False
             self._drag_dx = self._drag_dy = 0
@@ -259,27 +323,76 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
     def _drag_move(self, event: tk.Event) -> None:
         if not self._dragging:
             return
+        key = getattr(self, "_drag_key_active", "left")
+        win = self._pane_win(key)
         try:
-            sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+            sw, sh = win.winfo_screenwidth(), win.winfo_screenheight()
             x = max(-self.width + 60, min(event.x_root - self._drag_dx, sw - 60))
             y = max(-10, min(event.y_root - self._drag_dy, sh - COLLAPSED_H))
-            self.pos = (x, y)          # 拖动过程中同步位置，避免下一次刷新把窗口弹回去
-            self._apply_geometry()
+            if key == "left":
+                self.pos = (x, y)      # 拖动过程中同步位置，避免下一次刷新把窗口弹回去
+                self._apply_geometry()
+            else:
+                self._panes[key]["pos"] = [x, y]
+                self._fit_pane(key)
         except tk.TclError:
             self._dragging = False
 
     def _drag_end(self, _event: tk.Event) -> None:
         if self._dragging:
             self._dragging = False
+            key = getattr(self, "_drag_key_active", "left")
+            win = self._pane_win(key)
             try:
-                self.pos = (self.root.winfo_x(), self.root.winfo_y())
+                x, y = win.winfo_x(), win.winfo_y()
+            except tk.TclError:
+                x, y = self.pos
+            if key == "left":
+                self.pos = (x, y)
+            else:
+                self._panes[key]["pos"] = [x, y]
+            self._persist()
+
+    def _fit_pane(self, key: str) -> None:
+        """按内容高度重排中/右窗，逻辑和左窗 _apply_geometry 一致。"""
+        if key == "left":
+            self._apply_geometry()
+            return
+        pane = self._panes[key]
+        win = pane["win"]
+        try:
+            win.update_idletasks()
+            h = max(96, win.winfo_reqheight() + 2)
+            x, y = pane["pos"]
+            screen_h = win.winfo_screenheight()
+            if y + h > screen_h - 6:
+                y = max(0, screen_h - 6 - h)
+            win.geometry(f"{self.width}x{h}+{x}+{y}")
+        except tk.TclError:
+            pass
+
+    def _sync_panes_visibility(self) -> None:
+        """待机收起时三窗一起隐去，只留左窗细条；对局中一起展开。"""
+        show = not self.collapsed
+        for pane in self._panes.values():
+            try:
+                if show:
+                    pane["win"].deiconify()
+                    pane["win"].attributes("-topmost", True)
+                    self._fit_pane("deck" if pane is self._panes.get("deck") else "pred")
+                else:
+                    pane["win"].withdraw()
             except tk.TclError:
                 pass
-            self._persist()
 
     def _bump_alpha(self, delta: float) -> None:
         self.alpha = round(max(0.35, min(1.0, self.alpha + delta)), 2)
         self.root.attributes("-alpha", self.alpha)
+        for pane in self._panes.values():
+            try:
+                pane["win"].attributes("-alpha", self.alpha)
+            except tk.TclError:
+                pass
         self._persist()
 
     def _bump_font(self, delta: int) -> None:
@@ -294,11 +407,18 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
 
     def _persist(self) -> None:
         # 合并写：_toggle_section 存的 collapsed_sections 不能被这里覆盖掉
+        # 拖动改的是 _panes 里的 pos，写盘前先同步回 _deck_pos/_pred_pos
+        if "deck" in self._panes:
+            self._deck_pos = tuple(self._panes["deck"]["pos"])
+        if "pred" in self._panes:
+            self._pred_pos = tuple(self._panes["pred"]["pos"])
         data = _load_state()
         data.update({
             "x": self.pos[0], "y": self.pos[1], "w": self.width, "layout": LAYOUT_VERSION,
             "alpha": self.alpha, "font_size": self.font_size, "collapsed": self.collapsed,
             "bg_mode": self.bg_mode,
+            "right_x": self._deck_pos[0], "right_y": self._deck_pos[1],
+            "mid_x": self._pred_pos[0], "mid_y": self._pred_pos[1],
         })
         _save_state(data)
 
@@ -405,8 +525,15 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             elif self.root.state() == "withdrawn":
                 self.root.deiconify()
                 self.root.attributes("-topmost", True)
+                if not self.collapsed:
+                    self._sync_panes_visibility()
             else:
                 self.root.withdraw()
+                for pane in self._panes.values():
+                    try:
+                        pane["win"].withdraw()
+                    except tk.TclError:
+                        pass
         elif not pressed:
             self._f8_down = False
 

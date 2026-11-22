@@ -79,6 +79,8 @@ class Widgets:
         # 立刻先按当前状态设一次尺寸，再用延迟 fit 修正内容高度 ——
         # 只靠延迟 fit 的话，收起时会残留上一次展开的高度
         self._apply_geometry()
+        if hasattr(self, "_sync_panes_visibility"):
+            self._sync_panes_visibility()
         self._request_fit()
 
     def _show_placeholder(self) -> None:
@@ -135,6 +137,9 @@ class Widgets:
             # 有可能把 Tk 留在「几何改了但还没重绘」的状态里。
             self.root.update_idletasks()
             self._apply_geometry()
+            if hasattr(self, "_panes"):
+                self._fit_pane("pred")
+                self._fit_pane("deck")
         except tk.TclError:
             pass
         finally:
