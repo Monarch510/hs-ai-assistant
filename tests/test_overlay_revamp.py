@@ -336,24 +336,31 @@ class DeckScrollTest(_Case):
             self.assertEqual(_pack_side(w), "right", "百分比要放到行末尾")
 
     def test_deck_row_shows_type_when_present(self) -> None:
+        # 类型不再挤在行内，改由悬停详情展示；行内只留费用/名称/抽取率
+        from hsai.ui_render import _deck_tip_lines
+        from hsai.cards import Card
         snap = self._deck_snap(12)
-        snap["deck"]["cards"][0]["type_cn"] = "随从"
         self.ov._collapsed.discard("牌库剩余")
         self.ov._render(snap)
         names = [t for t in _texts(self.ov.root) if "第1张牌" in t]
         self.assertTrue(names, "明细要写名字、数量")
-        self.assertIn("[随从]", names[0], "所属类型要跟在牌名后面")
-        self.assertIn("×1", names[0], "类型不能挤掉数量")
+        self.assertNotIn("[", names[0], "类型不进行内，免得挤掉名称")
+        card = Card(id="X", name="测试随从", cost=1, type="MINION")
+        self.assertIn("随从", "\n".join(_deck_tip_lines(card, 1, "8%")))
 
     def test_deck_row_shows_functional_tags(self) -> None:
+        # 功能标签同样移进悬停详情，行内保持干净
+        from hsai.ui_render import _deck_tip_lines
+        from hsai.cards import Card
         snap = self._deck_snap(12)
-        snap["deck"]["cards"][0]["func_tags"] = ["治疗", "站场"]
         self.ov._collapsed.discard("牌库剩余")
         self.ov._render(snap)
         names = [t for t in _texts(self.ov.root) if "第1张牌" in t]
         self.assertTrue(names)
-        self.assertIn("[治疗·站场]", names[0], "功能标签要跟在牌名后面、顺序不靠哈希")
-        self.assertIn("×1", names[0], "功能标签不能挤掉数量")
+        self.assertNotIn("[", names[0], "功能标签不进行内")
+        card = Card(id="X", name="测试随从", cost=1, type="MINION")
+        lines = "\n".join(_deck_tip_lines(card, 1, "8%", func_tags=["治疗", "站场"]))
+        self.assertIn("治疗·站场", lines, "详情里功能标签顺序不靠哈希")
 
     def test_deck_row_without_functional_tags_stays_clean(self) -> None:
         # 老快照没 func_tags：不能冒出空方括号或「未知」噪声

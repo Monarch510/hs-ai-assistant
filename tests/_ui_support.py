@@ -80,6 +80,9 @@ class _Base:
     def after_idle(self, func: object = None, *args: object) -> int:
         return 0
 
+    def after_cancel(self, ident: object = None) -> None:
+        return None
+
     def tk_popup(self, *args: object, **kw: object) -> None:
         return None
 

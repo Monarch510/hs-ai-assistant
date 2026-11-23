@@ -37,6 +37,12 @@ CLASS_CN = {
 
 TYPE_CN = {"MINION": "随从", "SPELL": "法术", "WEAPON": "武器", "HERO": "英雄", "LOCATION": "地标"}
 
+# 稀有度 -> 中文名。tooltip 里展示，日志里没有就留空。
+RARITY_CN = {
+    "LEGENDARY": "传说", "EPIC": "史诗", "RARE": "稀有",
+    "COMMON": "普通", "FREE": "基本",
+}
+
 # 基础英雄技能，按类别。日志里若出现英雄技能实体，以其真实 cardId 为准。
 # 关键字机制 -> 中文
 MECHANIC_CN = {

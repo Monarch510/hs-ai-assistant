@@ -9,6 +9,8 @@ import tkinter as tk
 
 from typing import Any
 
+from .cards import CLASS_CN, MECHANIC_CN, RARITY_CN, TYPE_CN, Card
+from .state_types import _clean_text
 from .ui_text import _weight_summary, hud_row
 from .ui_theme import (
     ADVICE_VISIBLE_ROWS, BLUE, DECK_VISIBLE_ROWS, FONT, GOLD,
@@ -25,6 +27,30 @@ def _wheel_dir(event) -> int:
         return 1
     delta = getattr(event, "delta", 0) or 0
     return (-1 if delta > 0 else 1) if delta else 0
+
+
+def _deck_tip_lines(card, remaining: int, rate: str, func_tags=()) -> list[str]:
+    """牌库行悬停详情：把卡面现成的字段拼成几行，不猜没读到的数据。"""
+    lines = [f"{card.name} · {card.cost} 费"]
+    cls = CLASS_CN.get(card.card_class, card.card_class or "")
+    rarity = RARITY_CN.get(card.rarity, "")
+    kind = " · ".join(x for x in (cls, card.type_cn, rarity) if x)
+    if kind:
+        lines.append(kind)
+    if card.is_minion:
+        lines.append(f"攻/血 {card.atk}/{card.health}")
+    elif card.is_weapon:
+        lines.append(f"攻击 {card.atk} / 耐久 {card.durability}")
+    keywords = "·".join(MECHANIC_CN.get(m, m) for m in card.mechanics if m in MECHANIC_CN)
+    if keywords:
+        lines.append(keywords)
+    text = _clean_text(card.text or "")
+    if text:
+        lines.append(text)
+    if func_tags:
+        lines.append("功能：" + "·".join(func_tags))
+    lines.append(f"剩余 ×{remaining} · 抽取率 {rate}")
+    return lines
 
 
 class Renderer:
@@ -364,20 +390,22 @@ class Renderer:
                     if isinstance(total_left, int) and total_left > 0 else "未知")
             line = tk.Frame(box, bg=PANEL)
             line.pack(fill="x", pady=1)
-            # 百分比单独贴行末、只留数值；先打包它才不会被长牌名挤出可视区
+            # 行内只留费用 / 名称 / 抽取率：费用贴行首、百分比贴行末，
+            # 名称占中间。类型和功能标签移到悬停详情，不挤这一行。
+            tk.Label(line, text=str(c.get("cost", "?")), width=2, bg=PANEL, fg=GOLD,
+                     font=(FONT, self.font_size + 1, "bold")).pack(side="left")
             tk.Label(line, text=rate, bg=PANEL, fg=MUTED,
                      font=(FONT, self.font_size - 2)).pack(side="right", padx=(0, 2))
-            # 老快照没有 type_cn：没读到就留空，别把「未知」硬塞进每行
-            type_cn = c.get("type_cn") or ""
-            type_tag = f"  [{type_cn}]" if type_cn else ""
-            # 功能标签与类型同款方括号、紧凑拼接，不新增行高
-            func_tags = c.get("func_tags") or ()
-            func_tag = f"  [{'·'.join(func_tags)}]" if func_tags else ""
-            # 卡组名是右窗的主角，比默认字号再大一号；加了类型和功能标签后
-            # 长牌名要换行而不是被右侧百分比挤成裁字
-            tk.Label(line, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{count}{type_tag}{func_tag}",
-                     bg=PANEL, fg=TEXT_SOFT, font=(FONT, self.font_size + 1),
-                     anchor="w", justify="left", wraplength=self.width - 70).pack(side="left", fill="x", expand=True)
+            name_lbl = tk.Label(line, text=f"{c.get('name', '?')} ×{count}",
+                                bg=PANEL, fg=TEXT_SOFT, font=(FONT, self.font_size + 1),
+                                anchor="w", justify="left", wraplength=self.width - 70)
+            name_lbl.pack(side="left", fill="x", expand=True)
+            # 悬停详情：Enter 延时弹、Leave 收起。整棵子树都要绑（Enter 不冒泡），
+            # 延时长一点免得鼠标划过就闪一下。
+            payload = dict(c)
+            payload["count"] = count
+            payload["rate"] = rate
+            self._bind_deck_tip(line, payload)
         for c in list(bar.winfo_children()):
             c.destroy()
         track_h = DECK_VISIBLE_ROWS * 18
@@ -392,6 +420,90 @@ class Renderer:
             cv.create_rectangle(0, top, 4, top + h, fill=GOLD, width=0)
         self._bind_wheel_tree(box, self._on_deck_wheel)
         self._bind_wheel_tree(bar, self._on_deck_wheel)
+
+    def _bind_deck_tip(self, line, payload: dict) -> None:
+        """给整行（含子控件）挂悬停：Enter 延时弹、Leave 收起。"""
+        self._hide_deck_tip()
+        for w in [line, *self._iter_descendants(line)]:
+            w.bind("<Enter>", lambda e, p=payload: self._defer_deck_tip(p, e))
+            w.bind("<Leave>", lambda e: self._hide_deck_tip())
+
+    def _iter_descendants(self, widget):
+        for child in widget.winfo_children():
+            yield child
+            yield from self._iter_descendants(child)
+
+    def _defer_deck_tip(self, payload: dict, event) -> None:
+        self._hide_deck_tip()
+        root = getattr(self, "root", None)
+        if root is None:
+            return
+        x = getattr(event, "x_root", 0) or 0
+        y = getattr(event, "y_root", 0) or 0
+        ident = root.after(300, lambda: self._show_deck_tip(payload, x, y))
+        self._deck_tip_after = ident
+
+    def _hide_deck_tip(self) -> None:
+        root = getattr(self, "root", None)
+        ident = getattr(self, "_deck_tip_after", None)
+        if root is not None and ident:
+            try:
+                root.after_cancel(ident)
+            except Exception:
+                pass
+        self._deck_tip_after = None
+        tip = getattr(self, "_deck_tip_win", None)
+        if tip is not None:
+            try:
+                tip.destroy()
+            except Exception:
+                pass
+        self._deck_tip_win = None
+
+    def _show_deck_tip(self, payload: dict, x: int, y: int) -> None:
+        """鼠标旁弹出无边框置顶详情窗，内容按卡牌 id 现查卡库。"""
+        self._hide_deck_tip()
+        root = getattr(self, "root", None)
+        if root is None:
+            return
+        card = None
+        db = getattr(self, "cards", None)
+        cid = payload.get("id")
+        if db is not None and cid:
+            try:
+                card = db.get(cid)
+            except Exception:
+                card = None
+        if card is None:
+            # 卡库查不到（老快照/未缓存）：只用行里已有的字段拼一张最小卡
+            reverse_type = {v: k for k, v in TYPE_CN.items()}
+            card = Card(id=str(cid or ""), name=str(payload.get("name") or "?"),
+                        cost=int(payload.get("cost") or 0),
+                        type=reverse_type.get(payload.get("type_cn") or "", "MINION"))
+        lines = _deck_tip_lines(card, int(payload.get("count") or 1),
+                                str(payload.get("rate") or "未知"),
+                                tuple(payload.get("func_tags") or ()))
+        tip = tk.Toplevel(root)
+        tip.overrideredirect(True)
+        try:
+            tip.attributes("-topmost", True)
+            tip.attributes("-alpha", 0.94)
+        except Exception:
+            pass
+        tip.configure(bg=PANEL)
+        for line in lines:
+            tk.Label(tip, text=line, bg=PANEL, fg=TEXT_SOFT,
+                     font=(FONT, self.font_size - 1), anchor="w",
+                     justify="left").pack(fill="x", padx=8, pady=1)
+        # 贴着鼠标、右下角弹出，靠边时往回挪，别弹出屏幕外
+        tw = getattr(tip, "winfo_reqwidth", lambda: 220)()
+        th = getattr(tip, "winfo_reqheight", lambda: 120)()
+        sw = getattr(root, "winfo_screenwidth", lambda: 1920)()
+        sh = getattr(root, "winfo_screenheight", lambda: 1080)()
+        tx = min(x + 16, max(0, sw - tw - 4))
+        ty = min(y + 16, max(0, sh - th - 4))
+        tip.geometry(f"+{tx}+{ty}")
+        self._deck_tip_win = tip
 
     def _on_deck_wheel(self, event) -> None:
         cards = getattr(self, "_deck_cards", None) or []
