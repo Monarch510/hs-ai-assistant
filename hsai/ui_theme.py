@@ -49,10 +49,11 @@ WEIGHT_REASON_WORDS = ("加权", "降权", "偏低", "血线", "场攻", "置顶
 # window.json 里没有 collapsed_sections 键 = 用户从没手动改过，就用这套默认；
 # 一旦用户点过标题存过这个键，就完全尊重他存的集合，不再往里塞默认项。
 DEFAULT_COLLAPSED = frozenset({
-    "对手预判", "本回合偏重", "被动计数", "克苏恩", "牌库剩余",
+    "本回合偏重", "被动计数", "克苏恩", "牌库剩余",
 })
-# 牌库剩余展开后一次只画几行，其余靠滚轮翻 —— 不碰 _apply_geometry
-DECK_VISIBLE_ROWS = 6
+# 牌库剩余展开后一次画几行，其余靠滚轮翻 —— 不碰 _apply_geometry
+# 牌库现在是独立的右窗，窗高跟着行数走，给 30 行一次显示完整副牌，不用滚
+DECK_VISIBLE_ROWS = 30
 # 建议卡同理：一次只画几行，一串建议不会把窗口越撑越高
 ADVICE_VISIBLE_ROWS = 6
 

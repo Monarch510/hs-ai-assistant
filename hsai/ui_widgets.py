@@ -138,7 +138,6 @@ class Widgets:
             self.root.update_idletasks()
             self._apply_geometry()
             if hasattr(self, "_panes"):
-                self._fit_pane("pred")
                 self._fit_pane("deck")
         except tk.TclError:
             pass

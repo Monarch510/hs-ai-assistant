@@ -233,7 +233,7 @@ class RenderOrderTest(_Case):
         # 用户要求：先看对战信息，再看建议
         self.assertLess(titles.index("对战信息"), titles.index("本回合建议"))
         self.assertLess(titles.index("本回合建议"), titles.index("牌库剩余"))
-        self.assertLess(titles.index("牌库剩余"), titles.index("对手预判"))
+        # 对手预判已并进「对战信息」里的一行，不再是独立区块
 
     def test_mulligan_advice_comes_first_in_mulligan_phase(self) -> None:
         snap = self._deck_snap()
@@ -250,22 +250,25 @@ class RenderOrderTest(_Case):
 
 class DeckScrollTest(_Case):
     def test_only_visible_rows_are_drawn_and_wheel_pages(self) -> None:
-        snap = self._deck_snap(12)
+        # 比可见行数多造几张，才有「滚到底才看得见」的牌
+        n = DECK_VISIBLE_ROWS + 6
+        snap = self._deck_snap(n)
         self.ov._collapsed.discard("牌库剩余")   # 展开这个默认折叠的块
         self.ov._render(snap)
         texts = _texts(self.ov.root)
         self.assertTrue(any("牌库剩余" in t for t in texts))
         self.assertTrue(any("第1张牌" in t for t in texts))
-        self.assertFalse(any("第12张牌" in t for t in texts),
+        last = f"第{n}张牌"
+        self.assertFalse(any(last in t for t in texts),
                          "不该把全部牌一次画出来，窗口会越撑越高")
 
-        for _ in range(12 - DECK_VISIBLE_ROWS):
+        for _ in range(n - DECK_VISIBLE_ROWS):
             self.ov._on_deck_wheel(types.SimpleNamespace(delta=-120))
-        self.assertLessEqual(self.ov._deck_scroll, 12 - DECK_VISIBLE_ROWS)
-        self.assertTrue(any("第12张牌" in t for t in _texts(self.ov.root)))
+        self.assertLessEqual(self.ov._deck_scroll, n - DECK_VISIBLE_ROWS)
+        self.assertTrue(any(last in t for t in _texts(self.ov.root)))
 
         self.ov._on_deck_wheel(types.SimpleNamespace(delta=120))
-        self.assertTrue(any("第11张牌" in t for t in _texts(self.ov.root)))
+        self.assertTrue(any(f"第{n - 1}张牌" in t for t in _texts(self.ov.root)))
 
     def test_every_row_is_wheel_bound(self) -> None:
         # 复现「很难滚动」：滚轮事件不冒泡，铺满宽度的行 Label 没绑定时，
@@ -282,7 +285,8 @@ class DeckScrollTest(_Case):
 
     def test_scroll_position_survives_rerender(self) -> None:
         # _update 每秒重画一帧：牌没变就别把人弹回顶部
-        snap = self._deck_snap(12)
+        # 牌数要比可见行数多出至少 4，才滚得动 4 次
+        snap = self._deck_snap(DECK_VISIBLE_ROWS + 6)
         self.ov._collapsed.discard("牌库剩余")
         self.ov._render(snap)
         for _ in range(4):
@@ -291,7 +295,7 @@ class DeckScrollTest(_Case):
         self.ov._render(snap)
         self.assertEqual(self.ov._deck_scroll, 4, "同一副牌重画后滚动位置要留住")
         # 换了一副牌才回到顶部
-        snap2 = self._deck_snap(12)
+        snap2 = self._deck_snap(DECK_VISIBLE_ROWS + 6)
         snap2["deck"]["cards"] = list(reversed(snap2["deck"]["cards"]))
         self.ov._render(snap2)
         self.assertEqual(self.ov._deck_scroll, 0)

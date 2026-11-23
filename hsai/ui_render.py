@@ -11,8 +11,8 @@ from typing import Any
 
 from .ui_text import _weight_summary, hud_row
 from .ui_theme import (
-    ADVICE_VISIBLE_ROWS, BLUE, DECK_VISIBLE_ROWS, FONT, GOLD, GOLD_HI,
-    GREEN, MUTED, PANEL, RED, RED_HI, TEXT, TEXT_SOFT, YELLOW, mix_color,
+    ADVICE_VISIBLE_ROWS, BLUE, DECK_VISIBLE_ROWS, FONT, GOLD,
+    GREEN, MUTED, PANEL, RED, RED_HI, TEXT, TEXT_SOFT, YELLOW,
 )
 
 
@@ -62,7 +62,7 @@ class Renderer:
         self._maybe_effects(snap)
         self._drain_ai_results()
         self._maybe_ai(snap, getattr(self, "_last_state", None))
-        # 三窗各自清空：牌库/对手预判画在卫星窗的 body 里，不清会越堆越多
+        # 两窗各自清空：牌库画在卫星窗的 body 里，不清会越堆越多
         bodies = [self.body]
         if getattr(self, "_panes", None):
             bodies.extend(p["body"] for p in self._panes.values())
@@ -116,6 +116,8 @@ class Renderer:
                      fg=TEXT if label == "对手" else TEXT_SOFT,
                      font=(FONT, self.font_size - 1), anchor="w", justify="left",
                      wraplength=self.width - 46).pack(fill="x", pady=1)
+        # 对手预判并入对战信息：一行带过，不再单开一扇窗
+        self._render_prediction(snap.get("prediction") or {}, inner_b)
 
         # AI 路线 / 发现抉择 / 引擎建议本来是三张卡，合成一张「本回合建议」
         self._render_advice_card(advice)
@@ -143,11 +145,10 @@ class Renderer:
                          font=(FONT, self.font_size - 2), anchor="w", justify="left",
                          wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
 
-        # 牌库画到右窗、对手预判画到中窗：各窗独立拖动
+        # 牌库画到右窗：独立拖动
         self._render_in_pane("deck", self._render_deck, snap.get("deck") or {})
 
         # 以下都是「参考性」信息，默认折叠，靠后放，别挤掉要动手的块
-        self._render_in_pane("pred", self._render_prediction, snap.get("prediction") or {})
         self._render_tag_weights(snap.get("tag_weights"))
         if not mulligan_first:
             self._render_mulligan(mul)
@@ -372,9 +373,10 @@ class Renderer:
             # 功能标签与类型同款方括号、紧凑拼接，不新增行高
             func_tags = c.get("func_tags") or ()
             func_tag = f"  [{'·'.join(func_tags)}]" if func_tags else ""
-            # 加了类型和功能标签后，长牌名要换行而不是被右侧百分比挤成裁字
+            # 卡组名是右窗的主角，比默认字号再大一号；加了类型和功能标签后
+            # 长牌名要换行而不是被右侧百分比挤成裁字
             tk.Label(line, text=f"{c.get('cost', '?')}  {c.get('name', '?')} ×{count}{type_tag}{func_tag}",
-                     bg=PANEL, fg=TEXT_SOFT, font=(FONT, self.font_size - 2),
+                     bg=PANEL, fg=TEXT_SOFT, font=(FONT, self.font_size + 1),
                      anchor="w", justify="left", wraplength=self.width - 70).pack(side="left", fill="x", expand=True)
         for c in list(bar.winfo_children()):
             c.destroy()
@@ -435,91 +437,20 @@ class Renderer:
                                          self._advice_scroll + _wheel_dir(event)))
         self._draw_advice_rows()
 
-    def _render_prediction(self, pred: dict[str, Any]) -> None:
+    def _render_prediction(self, pred: dict[str, Any], parent: Any | None = None) -> None:
+        """对手预判精简成一行，并进对战信息；不再单开一扇窗。"""
         if not pred:
             return
-        kicker = "本地样本" if pred.get("source") == "learned" else "核心"
         name = pred.get("name") or "未知"
         conf = float(pred.get("confidence") or 0)
         unknown = name in ("未知卡组", "未知") or conf <= 0
         shown = "未识别（可能是新卡组）" if unknown else name
-        # 折叠时那一行也要带上名字和置信度，否则收起来就是一句没信息量的标题
-        inner = self._section("对手预判", kicker,
-                              display_title=f"对手预判 · {shown} {conf:.0%}")
+        # 保留「对手预判 · 名字 置信度」文案：折叠/截图里一眼看得出识别结果
+        text = f"对手预判 · {shown}" if unknown else f"对手预判 · {shown} {conf:.0%}"
         tone = MUTED if unknown else (GOLD if conf >= 0.6 else TEXT_SOFT)
-
-        row = tk.Frame(inner, bg=PANEL)
-        row.pack(fill="x")
-        tk.Label(row, text=name if not unknown else "未识别（可能是新卡组）", bg=PANEL, fg=tone,
-                 font=(FONT, self.font_size + 3, "bold"), anchor="w", justify="left",
-                 wraplength=int(self.width * 0.62)).pack(side="left")
-        if not unknown:
-            tk.Label(row, text=f"{conf:.0%}", bg=PANEL, fg=tone,
-                     font=(FONT, self.font_size + 1, "bold")).pack(side="right")
-
-        if not unknown:
-            bar = tk.Canvas(inner, height=4, bg="#21262d", highlightthickness=0, bd=0)
-            bar.pack(fill="x", pady=(5, 0))
-            width = self.width - 40
-            filled = int(width * max(0.0, min(1.0, conf)))
-            # 分段渐变：不用 itemconfig/coords（测试替身没有），静态多段拼接即可
-            base = GOLD if conf >= 0.6 else BLUE
-            segments = max(1, filled // 6)
-            for i in range(segments):
-                x0 = int(filled * i / segments)
-                x1 = int(filled * (i + 1) / segments)
-                if x1 <= x0:
-                    continue
-                color = mix_color(base, GOLD_HI, i / max(1, segments - 1))
-                bar.create_rectangle(x0, 0, x1, 4, fill=color, width=0)
-
-        cands = pred.get("candidates") or []
-        # 置信度低才展开候选：看得清的时候别占地方
-        if len(cands) > 1 and conf < 0.60:
-            tk.Label(inner, text="候选", bg=PANEL, fg="#5b636e",
-                     font=(FONT, self.font_size - 3), anchor="w").pack(fill="x", pady=(6, 1))
-            bar_w = max(40, self.width - 150)
-            for i, c in enumerate(cands[:3]):
-                row = tk.Frame(inner, bg=PANEL)
-                row.pack(fill="x", pady=1)
-                top1 = i == 0
-                nm = str(c.get("name") or "未知")
-                if len(nm) > 10:
-                    nm = nm[:9] + "…"
-                tk.Label(row, text=nm, bg=PANEL,
-                         fg=GOLD if top1 else MUTED,
-                         font=(FONT, self.font_size - 2, "bold" if top1 else "normal"),
-                         width=11 if self.width >= 280 else 7, anchor="w").pack(side="left")
-                conf = float(c.get("confidence") or 0)
-                cv = tk.Canvas(row, height=5, width=bar_w, bg="#21262d",
-                               highlightthickness=0, bd=0)
-                cv.pack(side="left", padx=4)
-                cv.create_rectangle(0, 0, max(1, int(bar_w * conf)), 5,
-                                    fill=GOLD if top1 else "#3d444d", width=0)
-                tk.Label(row, text=f"{conf:.0%}", bg=PANEL,
-                         fg=TEXT_SOFT if top1 else MUTED,
-                         font=(FONT, self.font_size - 3)).pack(side="right")
-
-        # 他这回合的威胁：一句话汇总 + 两张最可能的牌
-        aoe = float(pred.get("aoe_risk") or 0)
-        rem = float(pred.get("removal_risk") or 0)
-        approx = "≈" if pred.get("estimated") else ""
-        if aoe > 0.02 or rem > 0.02:
-            risk = tk.Frame(inner, bg=PANEL)
-            risk.pack(fill="x", pady=(6, 0))
-            tk.Label(risk, text=f"{approx}清场 {aoe:.0%} · 单解 {rem:.0%}", bg=PANEL,
-                     fg="#e3b341" if aoe >= 0.4 else TEXT_SOFT,
-                     font=(FONT, self.font_size - 2, "bold"), anchor="w").pack(side="left")
-        hand = pred.get("likely_hand") or []
-        for i, c in enumerate(hand[:2]):
-            label = "最可能" if i == 0 else "其次"
-            cost = c.get("cost")
-            cost_txt = f"（{cost} 费）" if cost is not None else ""
-            imp = float(c.get("impact") or 1.0)
-            tag = " ·清场" if imp >= 1.6 else (" ·单解" if imp >= 1.3 else "")
-            tk.Label(inner, text=f"{label}：{c.get('name') or '未知'}{cost_txt}{tag}",
-                     bg=PANEL, fg=MUTED, font=(FONT, self.font_size - 2),
-                     anchor="w", justify="left", wraplength=self.width - 46).pack(fill="x", pady=(3 if i == 0 else 1, 0))
+        tk.Label(parent or self.body, text=text, bg=PANEL, fg=tone,
+                 font=(FONT, self.font_size - 1), anchor="w", justify="left",
+                 wraplength=self.width - 46).pack(fill="x", pady=(2, 0))
 
     def _render_tag_weights(self, tag_weights: Any) -> None:
         """只显示权重最高的几类和一句解释；快照里没有这个字段就什么都不画。"""

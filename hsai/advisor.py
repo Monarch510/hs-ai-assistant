@@ -491,7 +491,7 @@ class Advisor:
         turn_owner_ours = _owner == st.our_id
         if not turn_owner_ours:
             # 对手回合不给出牌建议：他的场面马上会被改掉，这时候的建议没意义。
-            # 「他刚打了什么」放到对手预判那块显示。
+            # 对手刚打了什么，看「对战信息」里的对手预判一行。
             return {"lethal": False, "lethal_damage": 0, "lines": []}
 
         result = policy.plan_turn(

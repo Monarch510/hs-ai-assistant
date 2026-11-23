@@ -490,21 +490,20 @@ class AtomicWriteTest(unittest.TestCase):
 
 # ⑫ U10：坏数据别把字面 None / "?" 摆上面板
 class BadRenderValueTest(_OverlayCase):
-    def test_missing_candidate_name_shows_unknown(self) -> None:
+    def test_prediction_line_shows_name_without_none(self) -> None:
         ov = self.ov
         ov._render_prediction({"name": "快攻战", "confidence": 0.2,
-                               "candidates": [{"name": "快攻战", "confidence": 0.2},
-                                              {"name": None, "confidence": 0.1}]})
+                               "candidates": [{"name": None, "confidence": 0.1}]})
         texts = " ".join(widget_texts(ov.body))
-        self.assertIn("未知", texts)
+        self.assertIn("快攻战", texts)
         self.assertNotIn("None", texts)
 
-    def test_missing_likely_hand_name_shows_unknown(self) -> None:
+    def test_unknown_prediction_shows_fallback_not_none(self) -> None:
         ov = self.ov
         ov._render_prediction({"name": "未知卡组", "confidence": 0.0,
                                "likely_hand": [{"name": None, "cost": 3}]})
         texts = " ".join(widget_texts(ov.body))
-        self.assertIn("未知", texts)
+        self.assertIn("未识别", texts)
         self.assertNotIn("None", texts)
 
 

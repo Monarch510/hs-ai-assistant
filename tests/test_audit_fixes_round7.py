@@ -78,8 +78,7 @@ class ReviewTurnsTest(_Case):
 
 
 class KeyModeTransparencyTest(_Case):
-    def test_key_mode_applies_to_all_three_windows(self) -> None:
-        wins = [self.ov.root] + [p["win"] for p in self.ov._panes.values()]
+    def test_key_mode_applies_to_both_windows(self) -> None:
         with mock.patch.object(self.ov.root, "attributes") as root_attr:
             patches = [mock.patch.object(p["win"], "attributes") for p in self.ov._panes.values()]
             mocks = [p.start() for p in patches]
@@ -87,11 +86,11 @@ class KeyModeTransparencyTest(_Case):
             self.ov.bg_mode = "key"
             self.ov._apply_bg_mode()
         root_attr.assert_any_call("-transparentcolor", BG)
+        self.assertTrue(mocks, "得有卫星窗才验得到透明联动")
         for m in mocks:
             m.assert_any_call("-transparentcolor", BG)
 
-    def test_solid_mode_clears_transparency_on_all_three_windows(self) -> None:
-        wins = [self.ov.root] + [p["win"] for p in self.ov._panes.values()]
+    def test_solid_mode_clears_transparency_on_both_windows(self) -> None:
         with mock.patch.object(self.ov.root, "attributes") as root_attr:
             patches = [mock.patch.object(p["win"], "attributes") for p in self.ov._panes.values()]
             mocks = [p.start() for p in patches]
@@ -99,6 +98,7 @@ class KeyModeTransparencyTest(_Case):
             self.ov.bg_mode = "solid"
             self.ov._apply_bg_mode()
         root_attr.assert_any_call("-transparentcolor", "")
+        self.assertTrue(mocks, "得有卫星窗才验得到透明联动")
         for m in mocks:
             m.assert_any_call("-transparentcolor", "")
 

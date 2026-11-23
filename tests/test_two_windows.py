@@ -1,7 +1,7 @@
-"""三窗布局：左=其他信息、中=对手预判、右=牌库剩余，三扇各自独立拖动。
+"""两窗布局：左=其他信息（含对手预判）、右=牌库剩余，两扇各自独立拖动。
 
-只验能自动验的：三窗都建出来、标题不撞单实例互斥用的主窗名、拖一扇不动别的、
-收起时一起隐去、三处摆位分别落盘并在同布局版本下各自读回。像素/真机手感不测。
+只验能自动验的：两窗都建出来、标题不撞单实例互斥用的主窗名、拖一扇不动别的、
+收起时一起隐去、两处摆位分别落盘并在同布局版本下各自读回。像素/真机手感不测。
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ class _Case(unittest.TestCase):
         cls.db = cards.load()
 
     def setUp(self) -> None:
-        tmp = tempfile.TemporaryDirectory(prefix="hsai-3win-")
+        tmp = tempfile.TemporaryDirectory(prefix="hsai-2win-")
         self.addCleanup(tmp.cleanup)
         self.state_path = Path(tmp.name) / "window.json"
         patches = [
@@ -50,21 +50,17 @@ class _Case(unittest.TestCase):
 
 
 class PaneStructureTest(_Case):
-    def test_three_windows_with_distinct_titles(self) -> None:
-        self.assertEqual(set(self.ov._panes), {"deck", "pred"})
-        self.assertIsNot(self.ov._panes["deck"]["win"], self.ov.root)
-        self.assertIsNot(self.ov._panes["pred"]["win"], self.ov.root)
+    def test_only_deck_pane_exists(self) -> None:
+        self.assertEqual(set(self.ov._panes), {"deck"})
+        win = self.ov._panes["deck"]["win"]
+        self.assertIsNot(win, self.ov.root)
         # 单实例互斥按「炉石 AI 助手」这个标题抓主窗，卫星窗不能撞名
-        for pane in self.ov._panes.values():
-            title = pane["win"].title()
-            self.assertNotEqual(title, "炉石 AI 助手")
-            self.assertIn(title, ("炉石 AI · 牌库剩余", "炉石 AI · 对手预判"))
+        title = win.title()
+        self.assertNotEqual(title, "炉石 AI 助手")
+        self.assertEqual(title, "炉石 AI · 牌库剩余")
 
-    def test_each_pane_has_its_own_body(self) -> None:
+    def test_pane_has_its_own_body(self) -> None:
         self.assertIsNot(self.ov._panes["deck"]["body"], self.ov.body)
-        self.assertIsNot(self.ov._panes["pred"]["body"], self.ov.body)
-        self.assertIsNot(self.ov._panes["deck"]["body"],
-                         self.ov._panes["pred"]["body"])
 
 
 class DragTest(_Case):
@@ -81,26 +77,15 @@ class DragTest(_Case):
 
     def test_dragging_deck_moves_only_deck(self) -> None:
         left_before = list(self.ov.pos)
-        pred_before = list(self.ov._panes["pred"]["pos"])
         deck_before = list(self.ov._panes["deck"]["pos"])
         self._drag("deck", 400, 200)
-        # 拖的是牌库这扇：它自己动了，左窗和对手预判纹丝不动
         self.assertNotEqual(list(self.ov._panes["deck"]["pos"]), deck_before)
+        # 拖的是牌库这扇：它自己动了，左窗纹丝不动
         self.assertEqual(list(self.ov.pos), left_before)
-        self.assertEqual(list(self.ov._panes["pred"]["pos"]), pred_before)
-
-    def test_dragging_pred_moves_only_pred(self) -> None:
-        left_before = list(self.ov.pos)
-        deck_before = list(self.ov._panes["deck"]["pos"])
-        pred_before = list(self.ov._panes["pred"]["pos"])
-        self._drag("pred", 500, 260)
-        self.assertNotEqual(list(self.ov._panes["pred"]["pos"]), pred_before)
-        self.assertEqual(list(self.ov.pos), left_before)
-        self.assertEqual(list(self.ov._panes["deck"]["pos"]), deck_before)
 
 
 class VisibilityTest(_Case):
-    def test_collapse_hides_satellites(self) -> None:
+    def test_collapse_hides_satellite(self) -> None:
         self.ov.collapsed = False
         self.ov._sync_panes_visibility()
         self.ov.collapsed = True
@@ -110,27 +95,26 @@ class VisibilityTest(_Case):
 
 
 class PersistTest(_Case):
-    def test_all_three_positions_roundtrip(self) -> None:
+    def test_both_positions_roundtrip(self) -> None:
         self.ov.pos = (11, 22)
         self.ov._panes["deck"]["pos"] = [333, 444]
-        self.ov._panes["pred"]["pos"] = [555, 666]
         self.ov._persist()
         data = json.loads(self.state_path.read_text(encoding="utf-8"))
         self.assertEqual(data["layout"], LAYOUT_VERSION)
         self.assertEqual((data["x"], data["y"]), (11, 22))
         self.assertEqual((data["right_x"], data["right_y"]), (333, 444))
-        self.assertEqual((data["mid_x"], data["mid_y"]), (555, 666))
+        # 对手预判已并入左窗，不再写 mid_x/mid_y
+        self.assertNotIn("mid_x", data)
+        self.assertNotIn("mid_y", data)
 
     def test_old_layout_ignores_saved_positions(self) -> None:
-        # 旧布局版本：三窗位置回到默认，不被 window.json 里的旧值带跑
+        # 旧布局版本：右窗位置回到默认，不被 window.json 里的旧值带跑
         self.state_path.write_text(json.dumps({
-            "layout": LAYOUT_VERSION - 1, "x": 1, "y": 2,
-            "mid_x": 3, "mid_y": 4, "right_x": 5, "right_y": 6,
+            "layout": LAYOUT_VERSION - 1, "x": 1, "y": 2, "right_x": 5, "right_y": 6,
         }), encoding="utf-8")
         ov = Overlay(self.db, demo=True)
         try:
             self.assertEqual(list(ov._panes["deck"]["pos"]), [580, 60])
-            self.assertEqual(list(ov._panes["pred"]["pos"]), [310, 60])
         finally:
             ov.quit()
 

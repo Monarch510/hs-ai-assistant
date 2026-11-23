@@ -68,12 +68,10 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
                           if same_layout else DEFAULT_FONT_SIZE)
         self.pos = (_as_int(saved.get("x", 40), 40), _as_int(saved.get("y", 60), 60))
         self.width = _as_int(saved.get("w", DEFAULT_WIDTH), DEFAULT_WIDTH, 120) if same_layout else DEFAULT_WIDTH
-        # 三窗各自记住摆位：布局版本变了就回到默认，位置各自独立，互不牵连
-        # 从左到右：左窗(其他信息)=root x40 → 中窗(对手预判) → 右窗(牌库剩余)
+        # 两窗各自记住摆位：布局版本变了就回到默认，位置各自独立，互不牵连
+        # 左窗(其他信息)=root x40，右窗(牌库剩余)=Toplevel；对手预判已并进左窗的对战信息
         self._deck_pos = (_as_int(saved.get("right_x", 580), 580),
                           _as_int(saved.get("right_y", 60), 60)) if same_layout else (580, 60)
-        self._pred_pos = (_as_int(saved.get("mid_x", 310), 310),
-                          _as_int(saved.get("mid_y", 60), 60)) if same_layout else (310, 60)
         self._close_widgets: set = set()   # _make_close 造的按钮，拖动时要放行
         self._panes: dict[str, dict] = {}
         self._last_sig: tuple | None = None
@@ -187,17 +185,14 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self._bind_drag_everywhere()
 
     def _build_panes(self) -> None:
-        """中窗（对手预判）、右窗（牌库剩余）各是一个独立 Toplevel。
+        """右窗（牌库剩余）是一个独立 Toplevel；左窗就是 root 本身。
 
-        左窗就是 root 本身，属性名 self.body/panel/pos 保持指向它 —— 大量测试
-        直接读这些字段，不能让它们改指卫星窗。卫星窗统一用 _panes 查。
+        属性名 self.body/panel/pos 保持指向左窗 —— 大量测试直接读这些字段，
+        不能让它们改指卫星窗。卫星窗统一用 _panes 查。
         标题故意不叫「炉石 AI 助手」：单实例互斥靠 FindWindowW 按标题抓主窗，
         撞名会把卫星窗当成主窗提到最前。
         """
-        # 先建 deck 后建 pred：winfo_children 按创建顺序遍历，牌库那扇要排在
-        # 对手预判前面，才能和旧的单窗渲染顺序一致（有测试固化了区块先后）
-        for key, title, pos in (("deck", "牌库剩余", self._deck_pos),
-                                ("pred", "对手预判", self._pred_pos)):
+        for key, title, pos in (("deck", "牌库剩余", self._deck_pos),):
             win = tk.Toplevel(self.root)
             win.withdraw()                 # 待机时收起，检测到对局再显示
             win.title(f"炉石 AI · {title}")
@@ -284,11 +279,11 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
         self.root.bind_all("<ButtonRelease-1>", self._drag_end, add="+")
 
     def _pane_win(self, key: str) -> tk.Widget:
-        """左窗就是 root，中/右窗是 Toplevel。"""
+        """左窗就是 root，右窗是 Toplevel。"""
         return self.root if key == "left" else self._panes[key]["win"]
 
     def _drag_key(self, widget: tk.Widget | None) -> str:
-        """按事件落在哪个顶层窗口，判定要拖左/中/右哪一扇。"""
+        """按事件落在哪个顶层窗口，判定要拖左/右哪一扇。"""
         if widget is None:
             return "left"
         try:
@@ -357,7 +352,7 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             self._persist()
 
     def _fit_pane(self, key: str) -> None:
-        """按内容高度重排中/右窗，逻辑和左窗 _apply_geometry 一致。"""
+        """按内容高度重排右窗，逻辑和左窗 _apply_geometry 一致。"""
         if key == "left":
             self._apply_geometry()
             return
@@ -375,14 +370,14 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             pass
 
     def _sync_panes_visibility(self) -> None:
-        """待机收起时三窗一起隐去，只留左窗细条；对局中一起展开。"""
+        """待机收起时卫星窗一起隐去，只留左窗细条；对局中一起展开。"""
         show = not self.collapsed
-        for pane in self._panes.values():
+        for key, pane in self._panes.items():
             try:
                 if show:
                     pane["win"].deiconify()
                     pane["win"].attributes("-topmost", True)
-                    self._fit_pane("deck" if pane is self._panes.get("deck") else "pred")
+                    self._fit_pane(key)
                 else:
                     pane["win"].withdraw()
             except tk.TclError:
@@ -410,18 +405,15 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
 
     def _persist(self) -> None:
         # 合并写：_toggle_section 存的 collapsed_sections 不能被这里覆盖掉
-        # 拖动改的是 _panes 里的 pos，写盘前先同步回 _deck_pos/_pred_pos
+        # 拖动改的是 _panes 里的 pos，写盘前先同步回 _deck_pos
         if "deck" in self._panes:
             self._deck_pos = tuple(self._panes["deck"]["pos"])
-        if "pred" in self._panes:
-            self._pred_pos = tuple(self._panes["pred"]["pos"])
         data = _load_state()
         data.update({
             "x": self.pos[0], "y": self.pos[1], "w": self.width, "layout": LAYOUT_VERSION,
             "alpha": self.alpha, "font_size": self.font_size, "collapsed": self.collapsed,
             "bg_mode": self.bg_mode,
             "right_x": self._deck_pos[0], "right_y": self._deck_pos[1],
-            "mid_x": self._pred_pos[0], "mid_y": self._pred_pos[1],
         })
         _save_state(data)
 
