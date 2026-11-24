@@ -165,6 +165,11 @@ class Widgets:
             screen_h = self.root.winfo_screenheight()
             if y + h > screen_h - 6:
                 y = max(0, screen_h - 6 - h)
-            self.root.geometry(f"{self.width}x{h}+{x}+{y}")
+            # 尺寸没变就别动 geometry：重复设同尺寸会让 Tk 每次都重排一遍，
+            # 窗口在人眼看来就是「闪一下」。拖动/收展开时尺寸变了，这里照常更新。
+            geom = (self.width, h, x, y)
+            if geom != getattr(self, "_last_root_geom", None):
+                self.root.geometry(f"{self.width}x{h}+{x}+{y}")
+                self._last_root_geom = geom
         except tk.TclError:
             pass

@@ -223,6 +223,13 @@ class DeckContextTest(_Case):
         self.assertNotEqual(s1, self.ov._signature(snap2),
                             "只换组成不换张数也要重画，否则列表停在旧牌")
 
+    def test_signature_ignores_feed_noise(self) -> None:
+        snap = self._deck_snap(6)
+        base = self.ov._signature(snap)
+        snap["feed"] = [{"name": "腐化", "summary": "打出了某张牌"}]
+        self.assertEqual(base, self.ov._signature(snap),
+                         "feed 只是内部事件流，不渲染，不该触发整窗重绘")
+
 
 class RenderOrderTest(_Case):
     def test_info_above_advice_and_deck(self) -> None:

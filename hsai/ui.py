@@ -365,7 +365,11 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             screen_h = win.winfo_screenheight()
             if y + h > screen_h - 6:
                 y = max(0, screen_h - 6 - h)
-            win.geometry(f"{self.width}x{h}+{x}+{y}")
+            # 与左窗同款节流：尺寸没变就不重排，避免每帧都让 Tk 重新布局
+            geom = (self.width, h, x, y)
+            if geom != getattr(self, "_last_pane_geom", None):
+                win.geometry(f"{self.width}x{h}+{x}+{y}")
+                self._last_pane_geom = geom
         except tk.TclError:
             pass
 
@@ -635,7 +639,6 @@ class Overlay(AiWorkers, ReviewPanel, Widgets, Renderer):
             tuple(snap.get("review") or ()),
             (snap.get("our") or {}).get("mana"),
             tuple(h.get("id") for h in ((snap.get("our") or {}).get("hand") or [])),
-            tuple((f.get("name"), f.get("summary")) for f in (snap.get("feed") or [])),
             tuple(m.get("id") for m in ((snap.get("our") or {}).get("board") or [])),
             len(((snap.get("opp") or {}).get("board") or [])),
             (snap.get("opp") or {}).get("health"),
